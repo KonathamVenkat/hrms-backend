@@ -4,7 +4,7 @@ target/
 .settings/
 *.iml
 .idea/
-application-local.properties
+application.properties
 application-secrets.properties
 .env
 *.log

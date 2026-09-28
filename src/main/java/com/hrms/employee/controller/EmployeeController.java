@@ -72,7 +72,7 @@ public class EmployeeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-  //  @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')") remove later
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
     @Operation(
         summary     = "Create a new employee",
         description = "Registers a new employee in the HRMS system. "

@@ -25,6 +25,8 @@ import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -43,6 +45,30 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
 
     @Value("${app.base-url:http://localhost:8082}")
     private String baseUrl;
+
+    // ── Upload whitelist ───────────────────────────────────────
+    // Mirrors the file picker's `accept` filter on the frontend (employee-documents.html),
+    // which is advisory only — this is the actual enforcement point.
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
+        "pdf", "jpg", "jpeg", "png", "doc", "docx");
+
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+    // Magic-number signatures per extension — the declared extension/content-type are
+    // client-supplied and trivially spoofed (e.g. renaming an .exe to .pdf), so the actual
+    // file bytes are checked against the format they claim to be.
+    private static final Map<String, byte[][]> FILE_SIGNATURES = Map.of(
+        "pdf",  new byte[][] { {0x25, 0x50, 0x44, 0x46} },                               // %PDF
+        "jpg",  new byte[][] { {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF} },
+        "jpeg", new byte[][] { {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF} },
+        "png",  new byte[][] { {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} },
+        "doc",  new byte[][] { {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0} },           // OLE compound
+        "docx", new byte[][] { {0x50, 0x4B, 0x03, 0x04} });                               // ZIP/OOXML
 
     // ── Get all documents ─────────────────────────────────────
     @Override
@@ -80,13 +106,38 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         }
 
         String originalName = file.getOriginalFilename();
-        String extension    = getExtension(originalName).toUpperCase();
+        String extensionLc  = getExtension(originalName).toLowerCase();
+        String extension    = extensionLc.toUpperCase();
         long   sizeBytes    = file.getSize();
 
         // Max 50 MB guard
         if (sizeBytes > 50 * 1024 * 1024) {
             throw new BusinessRuleException("FILE_TOO_LARGE",
                 "File size exceeds maximum allowed 50 MB.");
+        }
+
+        // ── Extension / content-type / actual-content whitelist ─
+        if (!ALLOWED_EXTENSIONS.contains(extensionLc)) {
+            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
+                "Unsupported file type. Allowed: PDF, JPG, JPEG, PNG, DOC, DOCX.");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
+            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
+                "Unsupported file type. Allowed: PDF, JPG, JPEG, PNG, DOC, DOCX.");
+        }
+
+        byte[] fileBytes;
+        try {
+            fileBytes = file.getBytes();
+        } catch (IOException e) {
+            log.error("Failed to read uploaded file: {}", e.getMessage());
+            throw new BusinessRuleException("FILE_SAVE_ERROR",
+                "Failed to save file. Please try again.");
+        }
+        if (!matchesFileSignature(fileBytes, extensionLc)) {
+            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
+                "The file's content does not match its extension.");
         }
 
         // ── Expiry date validation ────────────────────────────
@@ -98,15 +149,14 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         }
 
         // ── Save file to disk ─────────────────────────────────
-        String storedFileName = UUID.randomUUID() + "." + extension.toLowerCase();
+        String storedFileName = UUID.randomUUID() + "." + extensionLc;
         String subDir         = "employee_" + employeeId;
         Path   targetDir      = Paths.get(uploadDir, subDir);
         Path   targetPath     = targetDir.resolve(storedFileName);
 
         try {
             Files.createDirectories(targetDir);
-            Files.copy(file.getInputStream(), targetPath,
-                StandardCopyOption.REPLACE_EXISTING);
+            Files.write(targetPath, fileBytes);
         } catch (IOException e) {
             log.error("Failed to store file: {}", e.getMessage());
             throw new BusinessRuleException("FILE_SAVE_ERROR",
@@ -278,6 +328,21 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     private String getExtension(String filename) {
         if (filename == null || !filename.contains(".")) return "bin";
         return filename.substring(filename.lastIndexOf('.') + 1);
+    }
+
+    /** Confirms the file's actual leading bytes match one of the known signatures for `extensionLc`. */
+    private boolean matchesFileSignature(byte[] fileBytes, String extensionLc) {
+        byte[][] signatures = FILE_SIGNATURES.get(extensionLc);
+        if (signatures == null) return false;
+        for (byte[] sig : signatures) {
+            if (fileBytes.length < sig.length) continue;
+            boolean match = true;
+            for (int i = 0; i < sig.length; i++) {
+                if (fileBytes[i] != sig[i]) { match = false; break; }
+            }
+            if (match) return true;
+        }
+        return false;
     }
 
     private String clean(String val) {

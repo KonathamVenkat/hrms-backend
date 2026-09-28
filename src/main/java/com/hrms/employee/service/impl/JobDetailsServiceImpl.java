@@ -70,11 +70,21 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         }
 
         // ── Close current record (SCD Type 2) ────────────────
-        boolean hasCurrent = jobDetailsRepository
-            .findByEmployeeIdAndIsCurrent(employeeId, 1)
-            .isPresent();
+        var currentRecord = jobDetailsRepository
+            .findByEmployeeIdAndIsCurrent(employeeId, 1);
 
-        if (hasCurrent) {
+        if (currentRecord.isPresent()) {
+            // The new assignment must move the SCD chain forward — an effectiveFrom on or
+            // before the current record's own effectiveFrom would close that record with an
+            // effectiveTo earlier than its effectiveFrom, corrupting the history's ordering.
+            LocalDate currentEffectiveFrom = currentRecord.get().getEffectiveFrom();
+            if (!request.getEffectiveFrom().isAfter(currentEffectiveFrom)) {
+                throw new BusinessRuleException(
+                    "INVALID_EFFECTIVE_FROM",
+                    "Effective from date must be after the current assignment's effective from date ("
+                        + currentEffectiveFrom + ").");
+            }
+
             // Set effective_to = day before new effective_from
             LocalDate closingDate = request.getEffectiveFrom().minusDays(1);
             int closed = jobDetailsRepository.closeCurrentRecord(

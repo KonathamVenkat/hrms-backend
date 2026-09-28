@@ -122,6 +122,19 @@ public class EmployeeServiceImpl implements EmployeeService {
             request.getConfirmationDate()
         );
 
+        // ── 3b. Initial status restriction ─────────────────────
+        // A brand-new employee can only start on PROBATION or ACTIVE — the
+        // rest of the lifecycle only makes sense for an employee who already
+        // exists (and is reached via update/deactivate/reactivate instead).
+        EmploymentStatus initialStatus = request.getEmploymentStatus() != null
+            ? request.getEmploymentStatus()
+            : EmploymentStatus.PROBATION;
+        if (initialStatus != EmploymentStatus.PROBATION && initialStatus != EmploymentStatus.ACTIVE) {
+            throw new BusinessRuleException(
+                "INVALID_INITIAL_STATUS",
+                "A new employee must start as PROBATION or ACTIVE, not " + initialStatus + ".");
+        }
+
         // ── 4. Build and save Employee ─────────────────────────
         // departmentId and designationId are intentionally NOT set here —
         // they are managed from the Job Details tab after creation.
@@ -169,7 +182,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         try {
             userRole = UserRole.valueOf(request.getRole().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
+            throw new BusinessRuleException(
+                "INVALID_ROLE",
                 "Invalid role: '" + request.getRole() +
                 "'. Allowed values: HR_ADMIN, HR_MANAGER, EMPLOYEE");
         }
@@ -250,6 +264,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             request.getConfirmationDate()
         );
 
+        // ── 3b. Status transition validation ───────────────────
+        // Blocks e.g. TERMINATED -> ACTIVE via a plain update; rehires must
+        // go through the dedicated reactivation endpoint instead.
+        validateStatusTransition(employee, request);
+
         // ── 4. Update employee fields ──────────────────────────
         // departmentId and designationId are deliberately NOT updated here —
         // they are managed from the Job Details tab (separate endpoint).
@@ -279,7 +298,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         log.info("Employee updated. ID: {}", updated.getId());
 
         // ── 5. Update Auth User role if changed ────────────────
+        // Only HR_ADMIN may change a user's role — HR_MANAGER must not be able
+        // to grant HR_ADMIN (or any other role) to themselves or anyone else.
         if (request.getRole() != null && !request.getRole().isBlank()) {
+            if (!isCurrentUserHrAdmin()) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                    "Only HR_ADMIN can change an employee's role");
+            }
             updateAuthUserRole(updated, request.getRole());
         }
 
@@ -320,6 +345,16 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new ResourceNotFoundException("Employee", "id", id);
         }
 
+        // Revoke system access along with the employee record — a deactivated
+        // employee must not retain a working login.
+        authUserRepository.findByEmployeeId(id).ifPresent(authUser -> {
+            authUser.setIsActive(false);
+            authUser.setUpdatedBy(currentUser);
+            authUser.setUpdatedAt(java.time.LocalDateTime.now());
+            authUserRepository.save(authUser);
+            log.info("AuthUser for employee ID: {} deactivated alongside employee", id);
+        });
+
         log.info("Employee ID: {} deactivated by: {}", id, currentUser);
         // TODO: publish Kafka event → EmployeeDeactivatedEvent
     }
@@ -341,6 +376,17 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         employee.setIsActive(true);
         Employee reactivated = employeeRepository.save(employee);
+
+        // Restore system access that was revoked on deactivation.
+        String currentUser = getCurrentAuditor();
+        authUserRepository.findByEmployeeId(id).ifPresent(authUser -> {
+            authUser.setIsActive(true);
+            authUser.setUpdatedBy(currentUser);
+            authUser.setUpdatedAt(java.time.LocalDateTime.now());
+            authUserRepository.save(authUser);
+            log.info("AuthUser for employee ID: {} reactivated alongside employee", id);
+        });
+
         log.info("Employee ID: {} reactivated", id);
 
         // TODO: publish Kafka event → EmployeeReactivatedEvent
@@ -377,6 +423,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             req.getEmploymentStatus() != null ? req.getEmploymentStatus().name() : null,
             req.getEmploymentType()   != null ? req.getEmploymentType().name()   : null,
             req.getGender()           != null ? req.getGender().name()           : null,
+            req.getIsActive()         != null ? (req.getIsActive() ? 1 : 0)      : null,
             pageable
         );
 
@@ -499,14 +546,17 @@ public class EmployeeServiceImpl implements EmployeeService {
             java.time.LocalDate confirmationDate) {
 
         if (dob != null && hireDate != null && hireDate.isBefore(dob)) {
-            throw new IllegalArgumentException("Hire date cannot be before date of birth.");
+            throw new BusinessRuleException(
+                "INVALID_HIRE_DATE", "Hire date cannot be before date of birth.");
         }
         if (hireDate != null && probationEnd != null && probationEnd.isBefore(hireDate)) {
-            throw new IllegalArgumentException("Probation end date must be after hire date.");
+            throw new BusinessRuleException(
+                "INVALID_PROBATION_END_DATE", "Probation end date must be after hire date.");
         }
         if (probationEnd != null && confirmationDate != null
                 && confirmationDate.isBefore(probationEnd)) {
-            throw new IllegalArgumentException("Confirmation date must be after probation end date.");
+            throw new BusinessRuleException(
+                "INVALID_CONFIRMATION_DATE", "Confirmation date must be after probation end date.");
         }
     }
 
@@ -636,6 +686,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
         return auth.getName();
+    }
+
+    private boolean isCurrentUserHrAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_HR_ADMIN"));
     }
 
     private void validateUniqueFieldsForCreate(CreateEmployeeRequest request) {

@@ -69,7 +69,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
                 ON d.DEPT_ID    = ejd.DEPARTMENT_ID
             LEFT JOIN HRMS.DESIGNATIONS dsig
                 ON dsig.DESIG_ID = ejd.DESIGNATION_ID
-            WHERE e.IS_ACTIVE = 1
+            WHERE (:isActive IS NULL OR e.IS_ACTIVE = :isActive)
                 AND (
                     :keyword IS NULL OR :keyword = ''
                     OR LOWER(e.FIRST_NAME)    LIKE LOWER('%' || :keyword || '%')
@@ -89,7 +89,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
             LEFT JOIN HRMS.EMPLOYEE_JOB_DETAILS ejd
                 ON ejd.EMPLOYEE_ID = e.EMPLOYEE_ID
                AND ejd.IS_CURRENT  = 1
-            WHERE e.IS_ACTIVE = 1
+            WHERE (:isActive IS NULL OR e.IS_ACTIVE = :isActive)
                 AND (
                     :keyword IS NULL OR :keyword = ''
                     OR LOWER(e.FIRST_NAME)    LIKE LOWER('%' || :keyword || '%')
@@ -104,12 +104,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
             """,
             nativeQuery = true)
     Page<EmployeeListProjection> findAllWithFilters(
-            @Param("keyword")      String keyword,
-            @Param("departmentId") Long   departmentId,
-            @Param("status")       String status,
-            @Param("type")         String type,
-            @Param("gender")       String gender,
-            Pageable               pageable
+            @Param("keyword")      String  keyword,
+            @Param("departmentId") Long    departmentId,
+            @Param("status")       String  status,
+            @Param("type")         String  type,
+            @Param("gender")       String  gender,
+            @Param("isActive")     Integer isActive,
+            Pageable                pageable
     );
 
 

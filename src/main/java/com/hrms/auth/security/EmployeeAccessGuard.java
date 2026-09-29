@@ -45,6 +45,19 @@ public class EmployeeAccessGuard {
         }
     }
 
+    /**
+     * The caller's own employeeId (resolved server-side from the authenticated user), or
+     * null if the account isn't linked to an employee record. Use this instead of trusting
+     * an employee/reviewer id sent by the client.
+     */
+    public Long currentEmployeeId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Authentication required.");
+        }
+        return currentEmployeeId(auth);
+    }
+
     private boolean isPrivileged(Authentication auth) {
         return auth.getAuthorities().stream().anyMatch(a ->
             a.getAuthority().equals("ROLE_HR_ADMIN") || a.getAuthority().equals("ROLE_HR_MANAGER"));

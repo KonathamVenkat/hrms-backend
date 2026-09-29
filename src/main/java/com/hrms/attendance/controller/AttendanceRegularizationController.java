@@ -84,7 +84,7 @@ public class AttendanceRegularizationController {
     public ResponseEntity<ApiResponse<RegularizationResponse>> approve(
             @PathVariable Long regId,
             @Valid @RequestBody RegularizationActionRequest request) {
-        log.info("PATCH /regularization/{}/approve — reviewedBy={}", regId, request.reviewedBy());
+        log.info("PATCH /regularization/{}/approve", regId);
         return ResponseEntity.ok(
                 ApiResponse.success(
                         "Regularization approved successfully",
@@ -97,7 +97,7 @@ public class AttendanceRegularizationController {
     public ResponseEntity<ApiResponse<RegularizationResponse>> reject(
             @PathVariable Long regId,
             @Valid @RequestBody RegularizationActionRequest request) {
-        log.info("PATCH /regularization/{}/reject — reviewedBy={}", regId, request.reviewedBy());
+        log.info("PATCH /regularization/{}/reject", regId);
         return ResponseEntity.ok(
                 ApiResponse.success(
                         "Regularization rejected",

@@ -11,9 +11,6 @@ import jakarta.validation.constraints.Size;
  */
 public record OvertimeActionRequest(
 
-        @NotNull(message = "Reviewer employee ID is required")
-        Long reviewedBy,
-
         @NotNull(message = "Action is required — APPROVED or REJECTED")
         RegularizationStatus action,
 

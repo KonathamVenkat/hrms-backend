@@ -8,7 +8,6 @@ public record CheckOutRequest(
         @NotNull(message = "Employee ID is required")
         Long employeeId,
 
-        String checkOutTime,        // ISO — null = now
 
         PunchSource punchSource,
 

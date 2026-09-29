@@ -10,6 +10,9 @@ import com.hrms.attendance.enums.RegularizationStatus;
 import com.hrms.attendance.repository.AttendanceLogRepository;
 import com.hrms.attendance.repository.AttendanceRegularizationRepository;
 import com.hrms.attendance.service.AttendanceRegularizationService;
+import com.hrms.attendance.service.AttendanceSummaryService;
+import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.employee.entity.WorkShift;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -36,6 +39,9 @@ public class AttendanceRegularizationServiceImpl
     private final AttendanceRegularizationRepository regRepo;
     private final AttendanceLogRepository            logRepo;
     private final EmployeeRepository                 employeeRepo;
+    private final EmployeeAccessGuard                accessGuard;
+    private final AttendanceCalculator               calculator;
+    private final AttendanceSummaryService           summaryService;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("EEE, MMM d yyyy");
@@ -48,6 +54,8 @@ public class AttendanceRegularizationServiceImpl
     public RegularizationResponse submit(RegularizationRequest request) {
         log.info("Regularization submit — employeeId={}, date={}",
                 request.employeeId(), request.attendanceDate());
+
+        accessGuard.assertSelfOrPrivileged(request.employeeId());
 
         Employee employee = findEmployee(request.employeeId());
         LocalDate attendanceDate = LocalDate.parse(request.attendanceDate());
@@ -91,10 +99,30 @@ public class AttendanceRegularizationServiceImpl
                 ? LocalDateTime.parse(request.requestedOutTime()) : null;
 
         // 4. Validate time order
-        if (requestedOut != null && requestedOut.isBefore(requestedIn)) {
+        if (requestedOut != null && !requestedOut.isAfter(requestedIn)) {
             throw new BusinessRuleException(
-                    "Requested check-out time cannot be before check-in time.");
+                    "Requested check-out time must be after check-in time.");
         }
+
+        // 5. Requested times must belong to the date being regularized (check-out may fall
+        //    on the next day for an overnight shift), and cannot be in the future.
+        if (!requestedIn.toLocalDate().equals(attendanceDate)) {
+            throw new BusinessRuleException(
+                    "Requested check-in time must be on the attendance date " + attendanceDate + ".");
+        }
+        if (requestedOut != null && !requestedOut.toLocalDate().equals(attendanceDate)
+                && !requestedOut.toLocalDate().equals(attendanceDate.plusDays(1))) {
+            throw new BusinessRuleException(
+                    "Requested check-out time must be on " + attendanceDate
+                    + " or the following day.");
+        }
+        LocalDateTime nowTs = LocalDateTime.now();
+        if (requestedIn.isAfter(nowTs) || (requestedOut != null && requestedOut.isAfter(nowTs))) {
+            throw new BusinessRuleException("Requested times cannot be in the future.");
+        }
+
+        // 6. A day already marked leave / holiday / weekend is not an attendance to correct
+        existingLog.ifPresent(l -> assertRegularizable(l));
 
         // ── Persist ───────────────────────────────────────────
         Long regId = regRepo.findNextSequenceValue();
@@ -130,6 +158,8 @@ public class AttendanceRegularizationServiceImpl
     public RegularizationResponse cancel(Long regId, Long employeeId) {
         log.info("Regularization cancel — regId={}, employeeId={}", regId, employeeId);
 
+        accessGuard.assertSelfOrPrivileged(employeeId);
+
         AttendanceRegularization reg = findRegularization(regId);
 
         // Only the employee who submitted can cancel
@@ -161,14 +191,13 @@ public class AttendanceRegularizationServiceImpl
     @Override
     @Transactional
     public RegularizationResponse approve(Long regId, RegularizationActionRequest request) {
-        log.info("Regularization approve — regId={}, reviewedBy={}",
-                regId, request.reviewedBy());
+        log.info("Regularization approve — regId={}", regId);
 
         AttendanceRegularization reg = findRegularization(regId);
         validatePendingStatus(reg);
 
         Employee employee = findEmployee(reg.getEmployeeId());
-        Employee reviewer = findEmployee(request.reviewedBy());
+        Employee reviewer = resolveReviewer(reg);
 
         // ── Update regularization status ──────────────────────
         reg.setStatus(RegularizationStatus.APPROVED);
@@ -193,8 +222,7 @@ public class AttendanceRegularizationServiceImpl
     @Override
     @Transactional
     public RegularizationResponse reject(Long regId, RegularizationActionRequest request) {
-        log.info("Regularization reject — regId={}, reviewedBy={}",
-                regId, request.reviewedBy());
+        log.info("Regularization reject — regId={}", regId);
 
         if (request.rejectionReason() == null || request.rejectionReason().isBlank()) {
             throw new BusinessRuleException(
@@ -204,7 +232,7 @@ public class AttendanceRegularizationServiceImpl
         AttendanceRegularization reg = findRegularization(regId);
         validatePendingStatus(reg);
 
-        Employee reviewer = findEmployee(request.reviewedBy());
+        Employee reviewer = resolveReviewer(reg);
 
         reg.setStatus(RegularizationStatus.REJECTED);
         reg.setRejectionReason(request.rejectionReason());
@@ -230,6 +258,7 @@ public class AttendanceRegularizationServiceImpl
         log.info("Fetching regularization requests — employeeId={}, page={}",
                 employeeId, pageable.getPageNumber());
 
+        accessGuard.assertSelfOrPrivileged(employeeId);
         Employee employee = findEmployee(employeeId);
         Page<AttendanceRegularization> page = regRepo
                 .findByEmployeeIdAndIsActiveOrderByCreatedAtDesc(
@@ -245,6 +274,7 @@ public class AttendanceRegularizationServiceImpl
     public RegularizationResponse getById(Long regId) {
         log.info("Fetching regularization by id={}", regId);
         AttendanceRegularization reg = findRegularization(regId);
+        accessGuard.assertSelfOrPrivileged(reg.getEmployeeId());
         Employee employee = findEmployee(reg.getEmployeeId());
         Employee reviewer = reg.getReviewedBy() != null
                 ? findEmployee(reg.getReviewedBy()) : null;
@@ -286,9 +316,10 @@ public class AttendanceRegularizationServiceImpl
     // ── Private helpers ───────────────────────────────────────
 
     /**
-     * When a regularization is APPROVED, correct or create the attendance log.
-     * If a log already exists for that date → update check-in/out times.
-     * If no log exists → create a new PRESENT log with the requested times.
+     * When a regularization is APPROVED, correct or create the attendance log. The corrected
+     * times are scored by the same {@link AttendanceCalculator} as a live punch, so late /
+     * working / overtime / early-leave minutes and the status match what a real punch at
+     * those times would have produced (not a blanket PRESENT with stale minutes).
      */
     private void correctAttendanceLog(
             AttendanceRegularization reg, Employee employee) {
@@ -301,60 +332,78 @@ public class AttendanceRegularizationServiceImpl
                 : logRepo.findByEmployeeIdAndAttendanceDateAndIsActive(
                         employee.getId(), reg.getAttendanceDate(), 1);
 
-        if (existingLog.isPresent()) {
-            // Update existing log — renamed to 'attendanceLog' to avoid
-            // shadowing the Slf4j 'log' logger injected by @Slf4j
-            AttendanceLog attendanceLog = existingLog.get();
-            attendanceLog.setCheckInTime(reg.getRequestedInTime());
-            if (reg.getRequestedOutTime() != null) {
-                attendanceLog.setCheckOutTime(reg.getRequestedOutTime());
-                int workingMins = (int) java.time.Duration
-                        .between(reg.getRequestedInTime(), reg.getRequestedOutTime())
-                        .toMinutes();
-                attendanceLog.setWorkingMinutes(workingMins);
-            }
-            attendanceLog.setStatus(AttendanceStatus.PRESENT);
-            attendanceLog.setIsRegularized(1);
-            attendanceLog.setUpdatedAt(LocalDateTime.now());
-            logRepo.save(attendanceLog);
-
-            // Update the logId reference in regularization
-            reg.setLogId(attendanceLog.getLogId());
-
-            log.info("Attendance log updated via regularization — logId={}",
-                    attendanceLog.getLogId());
-        } else {
-            // Create a new attendance log
-            Long newLogId = logRepo.findNextSequenceValue();
-            int workingMins = 0;
-            if (reg.getRequestedOutTime() != null) {
-                workingMins = (int) java.time.Duration
-                        .between(reg.getRequestedInTime(), reg.getRequestedOutTime())
-                        .toMinutes();
-            }
-
-            AttendanceLog newLog = AttendanceLog.builder()
-                    .logId(newLogId)
+        // Renamed to 'attendanceLog' to avoid shadowing the Slf4j 'log' logger
+        AttendanceLog attendanceLog;
+        boolean isNew = existingLog.isEmpty();
+        if (isNew) {
+            attendanceLog = AttendanceLog.builder()
+                    .logId(logRepo.findNextSequenceValue())
                     .employeeId(employee.getId())
                     .employeeCode(employee.getEmployeeCode())
                     .attendanceDate(reg.getAttendanceDate())
-                    .checkInTime(reg.getRequestedInTime())
-                    .checkOutTime(reg.getRequestedOutTime())
-                    .workingMinutes(workingMins)
-                    .status(AttendanceStatus.PRESENT)
-                    .isRegularized(1)
                     .build();
-
-            newLog.setCreatedBy(employee.getEmployeeCode());
-            newLog.setCreatedAt(LocalDateTime.now());
-            newLog.setUpdatedAt(LocalDateTime.now());
-
-            AttendanceLog saved = logRepo.save(newLog);
-            reg.setLogId(saved.getLogId());
-
-            log.info("New attendance log created via regularization — logId={}",
-                    saved.getLogId());
+            attendanceLog.setCreatedBy(employee.getEmployeeCode());
+            attendanceLog.setCreatedAt(LocalDateTime.now());
+        } else {
+            attendanceLog = existingLog.get();
+            // The day may have been marked leave/holiday since the request was submitted
+            assertRegularizable(attendanceLog);
         }
+
+        LocalDateTime in  = reg.getRequestedInTime();
+        LocalDateTime out = reg.getRequestedOutTime() != null
+                ? reg.getRequestedOutTime() : attendanceLog.getCheckOutTime();
+        if (out != null && !out.isAfter(in)) {
+            throw new BusinessRuleException(
+                    "The existing check-out time is not after the requested check-in time. "
+                    + "The employee must request a check-out time too.");
+        }
+
+        WorkShift shift = calculator.resolveShift(employee.getId());
+        calculator.applyCheckIn(attendanceLog, in, shift);
+        if (out != null) {
+            calculator.applyCheckOut(attendanceLog, out, shift);
+        }
+        attendanceLog.setIsRegularized(1);
+        attendanceLog.setUpdatedAt(LocalDateTime.now());
+
+        AttendanceLog saved = logRepo.save(attendanceLog);
+        reg.setLogId(saved.getLogId());
+        log.info("Attendance log {} via regularization — logId={}",
+                isNew ? "created" : "updated", saved.getLogId());
+
+        // Past days are already baked into the stored monthly summary — refresh it.
+        if (reg.getAttendanceDate().isBefore(LocalDate.now())) {
+            summaryService.recalculateSummary(employee.getId(),
+                    reg.getAttendanceDate().getYear(), reg.getAttendanceDate().getMonthValue());
+        }
+    }
+
+    /** Leave / holiday / weekend days are system-determined and can't be overridden by a punch correction. */
+    private void assertRegularizable(AttendanceLog l) {
+        if (l.getStatus() == AttendanceStatus.ON_LEAVE
+                || l.getStatus() == AttendanceStatus.HOLIDAY
+                || l.getStatus() == AttendanceStatus.WEEKEND) {
+            throw new BusinessRuleException(
+                    "This day is marked " + l.getStatus() + " and cannot be regularized.");
+        }
+    }
+
+    /**
+     * The approver is always the logged-in user — never an id sent by the client — and cannot
+     * act on their own request.
+     */
+    private Employee resolveReviewer(AttendanceRegularization reg) {
+        Long reviewerId = accessGuard.currentEmployeeId();
+        if (reviewerId == null) {
+            throw new BusinessRuleException("NO_EMPLOYEE_LINK",
+                    "Your account is not linked to an employee record, so it cannot review requests.");
+        }
+        if (reviewerId.equals(reg.getEmployeeId())) {
+            throw new BusinessRuleException("SELF_APPROVAL",
+                    "You cannot approve or reject your own request.");
+        }
+        return findEmployee(reviewerId);
     }
 
     private void validatePendingStatus(AttendanceRegularization reg) {

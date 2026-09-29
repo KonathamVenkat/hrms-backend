@@ -84,7 +84,7 @@ public class OvertimeRequestController {
     public ResponseEntity<ApiResponse<OvertimeResponse>> approve(
             @PathVariable String otId,
             @Valid @RequestBody OvertimeActionRequest request) {
-        log.info("PATCH /overtime/{}/approve — reviewedBy={}", otId, request.reviewedBy());
+        log.info("PATCH /overtime/{}/approve", otId);
         return ResponseEntity.ok(
                 ApiResponse.success(
                         "Overtime request approved successfully",
@@ -97,7 +97,7 @@ public class OvertimeRequestController {
     public ResponseEntity<ApiResponse<OvertimeResponse>> reject(
             @PathVariable String otId,
             @Valid @RequestBody OvertimeActionRequest request) {
-        log.info("PATCH /overtime/{}/reject — reviewedBy={}", otId, request.reviewedBy());
+        log.info("PATCH /overtime/{}/reject", otId);
         return ResponseEntity.ok(
                 ApiResponse.success(
                         "Overtime request rejected",

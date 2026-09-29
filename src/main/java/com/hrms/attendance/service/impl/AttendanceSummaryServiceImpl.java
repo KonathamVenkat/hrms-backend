@@ -6,6 +6,7 @@ import com.hrms.attendance.entity.AttendanceSummary;
 import com.hrms.attendance.repository.AttendanceLogRepository;
 import com.hrms.attendance.repository.AttendanceSummaryRepository;
 import com.hrms.attendance.service.AttendanceSummaryService;
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.entity.Employee;
@@ -36,12 +37,15 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
     private final AttendanceSummaryRepository summaryRepo;
     private final AttendanceLogRepository     logRepo;
     private final EmployeeRepository          employeeRepo;
+    private final EmployeeAccessGuard         accessGuard;
 
     // ────────────────────────────────────────────────────────
     // SINGLE EMPLOYEE MONTHLY SUMMARY — HYBRID
     // ────────────────────────────────────────────────────────
     @Override
     public AttendanceSummaryResponse getEmployeeSummary(Long employeeId, int year, int month) {
+        accessGuard.assertSelfOrPrivileged(employeeId);
+        AttendanceCalculator.validateYearMonth(year, month);
         log.info("Fetching attendance summary — employeeId={}, year={}, month={}",
                 employeeId, year, month);
 
@@ -90,8 +94,14 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
 
         log.info("Retrieved {} summary records for {}/{}", page.getTotalElements(), year, month);
 
+        java.util.Map<Long, Employee> employees = employeeRepo
+                .findAllById(page.getContent().stream()
+                        .map(AttendanceSummary::getEmployeeId).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(Employee::getId, e -> e));
+
         return PagedResponse.from(page.map(summary -> {
-            Employee emp = findEmployee(summary.getEmployeeId());
+            Employee emp = employees.get(summary.getEmployeeId());
+            if (emp == null) throw new ResourceNotFoundException("Employee", "id", summary.getEmployeeId());
             return toResponse(summary, emp, false);
         }));
     }
@@ -101,6 +111,8 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
     // ────────────────────────────────────────────────────────
     @Override
     public List<AttendanceSummaryResponse> getYearlySummary(Long employeeId, int year) {
+        accessGuard.assertSelfOrPrivileged(employeeId);
+        AttendanceCalculator.validateYearMonth(year, 1);
         log.info("Fetching yearly summary — employeeId={}, year={}", employeeId, year);
 
         Employee employee = findEmployee(employeeId);
@@ -126,6 +138,7 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
     @Override
     @Transactional
     public AttendanceSummaryResponse recalculateSummary(Long employeeId, int year, int month) {
+        AttendanceCalculator.validateYearMonth(year, month);
         log.warn("Force recalculation triggered — employeeId={}, year={}, month={}",
                 employeeId, year, month);
 
@@ -272,12 +285,15 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
         int    holiday    = s.getHolidayDays()  != null ? s.getHolidayDays() : 0;
         int    weekend    = s.getWeekendDays()  != null ? s.getWeekendDays() : 0;
 
-        // Total working days = all days where employee was expected to work
-        int totalWorkingDays = (int)(present + half + absent + late);
+        // `present` already includes late arrivals, and `half` is stored as 0.5 per half-day,
+        // so the number of half-day occurrences is half * 2. Days the employee was expected to
+        // work = full-present days + half-day occurrences + absent days (leave/holiday/weekend
+        // are not expected-work days).
+        int totalWorkingDays = (int) Math.round(present + half * 2 + absent);
 
-        // Attendance % = (present / totalWorkingDays) * 100
+        // Attendance % = days attended (a half day counts 0.5) / expected days * 100
         double attendancePct = totalWorkingDays > 0
-                ? BigDecimal.valueOf((present / totalWorkingDays) * 100)
+                ? BigDecimal.valueOf(((present + half) / totalWorkingDays) * 100)
                         .setScale(1, RoundingMode.HALF_UP).doubleValue()
                 : 0.0;
 

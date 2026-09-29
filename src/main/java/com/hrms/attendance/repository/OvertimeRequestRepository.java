@@ -54,6 +54,31 @@ public interface OvertimeRequestRepository
             @Param("from") LocalDate from,
             @Param("to")   LocalDate to);
 
+    // ── Total approved OT minutes for one employee/day ────
+    @Query("""
+            SELECT COALESCE(SUM(o.durationMinutes), 0) FROM OvertimeRequest o
+            WHERE o.employeeId = :employeeId
+              AND o.otDate     = :date
+              AND o.status     = com.hrms.attendance.enums.RegularizationStatus.APPROVED
+              AND o.isActive   = 1
+            """)
+    Long sumApprovedMinutes(
+            @Param("employeeId") Long employeeId,
+            @Param("date")       LocalDate date);
+
+    // ── Minutes already requested for a day (pending + approved) ──
+    @Query("""
+            SELECT COALESCE(SUM(o.durationMinutes), 0) FROM OvertimeRequest o
+            WHERE o.employeeId = :employeeId
+              AND o.otDate     = :date
+              AND o.status IN (com.hrms.attendance.enums.RegularizationStatus.PENDING,
+                               com.hrms.attendance.enums.RegularizationStatus.APPROVED)
+              AND o.isActive   = 1
+            """)
+    Long sumPendingAndApprovedMinutes(
+            @Param("employeeId") Long employeeId,
+            @Param("date")       LocalDate date);
+
     // ── Duplicate check ───────────────────────────────────
     boolean existsByEmployeeIdAndOtDateAndStatusAndIsActive(
             Long employeeId, LocalDate date,

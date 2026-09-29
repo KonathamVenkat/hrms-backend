@@ -38,7 +38,13 @@ public class MenuServiceImpl implements MenuService {
     public List<MenuDto> getMenuForUser(String roleName) {
         log.debug("Building sidebar menu for role: {}", roleName);
 
-        Roles role = findRoleByName(roleName);           // ✅ Roles
+        Optional<Roles> roleOpt = rolesRepository.findByRoleName(roleName);
+        if (roleOpt.isEmpty()) {
+            // An account whose role has no ROLES row gets an empty menu rather than a 500
+            log.warn("No ROLES row for role '{}' — returning an empty menu", roleName);
+            return new ArrayList<>();
+        }
+        Roles role = roleOpt.get();
         List<MainMenu> allActiveMenus = mainMenuRepository
                 .findByIsActiveOrderBySortOrder(1);
 
@@ -49,11 +55,6 @@ public class MenuServiceImpl implements MenuService {
 
         log.debug("Menu built for role [{}] — {} items", roleName, result.size());
         return result;
-    }
-
-    private Roles findRoleByName(String roleName) {      // ✅ Roles
-        return rolesRepository.findByRoleName(roleName)
-                .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
     }
 
     private Optional<MenuDto> buildMenuDto(Roles role, MainMenu mainMenu) {  // ✅ Roles

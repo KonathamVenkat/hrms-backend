@@ -1,6 +1,8 @@
 package com.hrms.employee.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hrms.auth.repository.AuthUserRepository;
+import com.hrms.auth.security.AuthUserStatusFilter;
 import com.hrms.common.security.JwtAuthenticationFilter;
 import com.hrms.common.security.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,6 +44,7 @@ public class SecurityConfig {
     private final JwtTokenProvider   jwtTokenProvider;
     private final UserDetailsService userDetailsService; // UserDetailsServiceImpl from auth.security
     private final ObjectMapper       objectMapper;
+    private final AuthUserRepository authUserRepository;
 
     @Value("${hrms.cors.allowed-origins:http://localhost:4200}")
     private String allowedOrigins;
@@ -53,16 +56,20 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Public: sign-in, token refresh, logout (a user whose access token has
+                // expired must still be able to revoke their refresh token), liveness probe.
+                // /validate and /me now require a valid token like everything else.
                 .requestMatchers(
                     "/api/v1/auth/login",
                     "/api/v1/auth/refresh",
                     "/api/v1/auth/logout",
-                    "/api/v1/auth/validate",
-                    "/api/v1/auth/me",
                     "/api/v1/auth/health"
                 ).permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                // Only the bare health status is public; every other actuator endpoint
+                // (info, metrics, ...) is HR_ADMIN-only.
+                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                .requestMatchers("/actuator/**").hasRole("HR_ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/employees/*/exists").authenticated()
                 .requestMatchers("/api/v1/menu/sidebar").authenticated()
                 .anyRequest().authenticated()
@@ -84,6 +91,11 @@ public class SecurityConfig {
             .addFilterBefore(
                 new JwtAuthenticationFilter(jwtTokenProvider), // one param — matches common-lib
                 UsernamePasswordAuthenticationFilter.class
+            )
+            // Must run after the JWT filter: re-checks account active / role / must-change-password
+            .addFilterAfter(
+                new AuthUserStatusFilter(authUserRepository, objectMapper),
+                JwtAuthenticationFilter.class
             );
         return http.build();
     }

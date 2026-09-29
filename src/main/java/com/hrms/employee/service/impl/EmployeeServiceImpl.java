@@ -200,6 +200,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             .employeeId(savedEmployee.getId())
             .employeeCode(savedEmployee.getEmployeeCode())
             .failedAttempts(0)
+            .mustChangePassword(1)   // HR chose this password — the employee must replace it at first sign-in
             .isActive(true)
             .isLocked(false)
             .createdBy(getCurrentAuditor())

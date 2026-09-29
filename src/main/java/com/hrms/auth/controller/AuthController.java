@@ -14,7 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -116,10 +116,17 @@ public class AuthController {
                 "service", "auth-service"
         ));
     }
-    
-    @GetMapping("/generate-password")
-    public String generatePassword(@RequestParam String password) {
-        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
-        return encoder.encode(password);
+    // ── POST /api/v1/auth/change-password ─────────────────────────────────
+    @Operation(
+        summary     = "Change own password",
+        description = "The signed-in user replaces their password. Ends all other sessions.")
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            Authentication authentication) {
+
+        authService.changePassword(authentication.getName(), request);
+        return ResponseEntity.ok(
+                ApiResponse.success("Password changed. Please sign in again.", null));
     }
 }

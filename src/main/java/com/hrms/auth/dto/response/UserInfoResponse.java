@@ -52,4 +52,8 @@ public class UserInfoResponse {
 
     @Schema(example = "2026-04-19T08:45:00")
     private String lastLogin;
+
+    /** True until the user replaces a temporary/initial password; the API blocks everything else meanwhile. */
+    @Schema(example = "false")
+    private Boolean mustChangePassword;
 }

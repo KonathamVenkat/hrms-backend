@@ -106,7 +106,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private String extractBearerToken(HttpServletRequest request) {
         String headerValue = request.getHeader(AUTHORIZATION_HEADER);
-        log.debug("Raw Authorization header: [{}]", headerValue);
+        // Never log the header: it carries the bearer token, and com.hrms logs at DEBUG.
         if (StringUtils.hasText(headerValue) && headerValue.startsWith(BEARER_PREFIX)) {
             return headerValue.substring(BEARER_PREFIX.length()).trim();
             //System.out.println(headerValue.substring(BEARER_PREFIX.length()).trim());

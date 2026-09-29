@@ -1,5 +1,10 @@
 package com.hrms.auth.service.impl;
 
+import com.hrms.auth.dto.request.ChangePasswordRequest;
+import com.hrms.auth.dto.request.ResetPasswordRequest;
+import com.hrms.auth.security.PasswordPolicy;
+import com.hrms.common.exception.BusinessRuleException;
+import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.auth.dto.request.LoginRequest;
 import com.hrms.auth.dto.request.LogoutRequest;
 import com.hrms.auth.dto.request.RefreshTokenRequest;
@@ -41,7 +46,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider       jwtTokenProvider;   // from common-lib
   //  private final UserDetailsServiceImpl userDetailsService;
     private final AuthenticationManager  authenticationManager;
-   // private final PasswordEncoder        passwordEncoder;
+    private final PasswordEncoder        passwordEncoder;
 
     // Property names match common-lib JwtTokenProvider and application.properties exactly
     @Value("${hrms.jwt.expiration-ms:86400000}")
@@ -53,12 +58,17 @@ public class AuthServiceImpl implements AuthService {
     @Value("${hrms.jwt.rotate-refresh-token:true}")
     private boolean rotateRefreshToken;
 
+    /**
+     * noRollbackFor is essential: a bad password increments the failed-attempts counter and
+     * THEN throws. Without it the runtime exception rolls the increment back and the
+     * 5-attempt lockout never takes effect.
+     */
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = {BadCredentialsException.class, AccountLockedException.class})
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         // LoginRequest is a record — use record accessor methods
         String identifier = request.username().trim();
-        log.info("Login OK — user={}", identifier);
+        log.info("Login attempt — user={}", identifier);
         AuthUser user = authUserRepository.findByUsernameOrEmail(identifier)
             .orElseThrow(() -> new BadCredentialsException("Invalid username or password."));
 
@@ -143,6 +153,62 @@ public class AuthServiceImpl implements AuthService {
     
     
 
+    // ── Password management ───────────────────────────────────────────────────
+
+    /** noRollbackFor: the wrong-current-password attempt counter must persist even though we throw. */
+    @Override
+    @Transactional(noRollbackFor = BusinessRuleException.class)
+    public void changePassword(String username, ChangePasswordRequest request) {
+        AuthUser user = authUserRepository.findByUsernameOrEmail(username)
+            .orElseThrow(() -> new InvalidTokenException("User not found."));
+
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            // A stolen session must not be able to brute-force the current password for free
+            authUserRepository.incrementFailedAttempts(user.getUserId(), LocalDateTime.now());
+            log.warn("Change-password rejected (wrong current password) — user={}", user.getUsername());
+            throw new BusinessRuleException("INVALID_CURRENT_PASSWORD", "Current password is incorrect.");
+        }
+        if (request.currentPassword().equals(request.newPassword())) {
+            throw new BusinessRuleException("PASSWORD_UNCHANGED",
+                "The new password must be different from the current password.");
+        }
+        PasswordPolicy.validate(request.newPassword());
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setMustChangePassword(0);
+        user.setFailedAttempts(0);
+        user.setUpdatedBy(user.getUsername());
+        authUserRepository.save(user);
+
+        // Ends every other session; the caller signs in again with the new password
+        refreshTokenRepository.revokeAllByUserId(user.getUserId());
+        log.info("Password changed — user={}", user.getUsername());
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request, String adminUsername) {
+        AuthUser user = authUserRepository.findByEmployeeId(request.employeeId())
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "User account", "employeeId", request.employeeId()));
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new BusinessRuleException("ACCOUNT_INACTIVE",
+                "This account is deactivated; its password cannot be reset.");
+        }
+        PasswordPolicy.validate(request.temporaryPassword());
+
+        user.setPasswordHash(passwordEncoder.encode(request.temporaryPassword()));
+        user.setMustChangePassword(1);
+        user.setIsLocked(false);
+        user.setFailedAttempts(0);
+        user.setLockTime(null);
+        user.setUpdatedBy(adminUsername);
+        authUserRepository.save(user);
+
+        refreshTokenRepository.revokeAllByUserId(user.getUserId());
+        log.warn("Password reset by admin — admin={} target={}", adminUsername, user.getUsername());
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private String generateToken(AuthUser user) {
@@ -190,6 +256,7 @@ public class AuthServiceImpl implements AuthService {
             .employeeId(user.getEmployeeCode())
             .avatarUrl(user.getAvatarUrl())
             .lastLogin(lastLogin)
+            .mustChangePassword(user.getMustChangePassword() != null && user.getMustChangePassword() == 1)
             .build();
     }
 

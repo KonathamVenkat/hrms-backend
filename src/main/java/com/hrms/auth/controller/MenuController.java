@@ -28,9 +28,7 @@ public class MenuController {
             .findFirst()
             .map(a -> a.getAuthority().replace("ROLE_", ""))
             .orElse("EMPLOYEE");
-        	System.out.println("<----------->"+roleName);
         List<MenuDto> menu = menuService.getMenuForUser(roleName);
-        System.out.println("<-----menu------>"+menu);
         return ResponseEntity.ok(
             ApiResponse.<List<MenuDto>>builder()
                 .success(true)

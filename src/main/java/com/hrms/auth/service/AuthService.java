@@ -1,8 +1,10 @@
 package com.hrms.auth.service;
 
+import com.hrms.auth.dto.request.ChangePasswordRequest;
 import com.hrms.auth.dto.request.LoginRequest;
 import com.hrms.auth.dto.request.LogoutRequest;
 import com.hrms.auth.dto.request.RefreshTokenRequest;
+import com.hrms.auth.dto.request.ResetPasswordRequest;
 import com.hrms.auth.dto.response.LoginResponse;
 import com.hrms.auth.dto.response.UserInfoResponse;
 
@@ -36,4 +38,17 @@ public interface AuthService {
      * Returns the user info embedded in the token.
      */
     UserInfoResponse validateToken(String bearerToken);
+
+    /**
+     * The signed-in user replaces their own password. Requires the current password
+     * (wrong attempts count toward lockout), enforces {@code PasswordPolicy}, clears the
+     * must-change flag and revokes every refresh token so other sessions end.
+     */
+    void changePassword(String username, ChangePasswordRequest request);
+
+    /**
+     * HR_ADMIN sets a temporary password for an employee's account. The user is unlocked,
+     * flagged to change it at next sign-in, and all their refresh tokens are revoked.
+     */
+    void resetPassword(ResetPasswordRequest request, String adminUsername);
 }

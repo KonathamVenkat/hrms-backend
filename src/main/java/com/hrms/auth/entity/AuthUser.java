@@ -82,6 +82,11 @@ public class AuthUser {
     @Builder.Default
     private Boolean isLocked = false;
 
+    /** 1 = must set a new password before using the app (temporary/initial password). NUMBER(1). */
+    @Column(name = "MUST_CHANGE_PASSWORD", nullable = false)
+    @Builder.Default
+    private Integer mustChangePassword = 0;
+
     /** Consecutive failed login attempts — reset on successful login. */
     @Column(name = "FAILED_ATTEMPTS", nullable = false)
     @Builder.Default

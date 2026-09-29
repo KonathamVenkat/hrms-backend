@@ -55,7 +55,7 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
     public SalaryComponentResponse create(SalaryComponentRequest request) {
         log.info("Creating salary component — code={}", request.componentCode());
 
-        if (componentRepo.existsByComponentCode(request.componentCode())) {
+        if (componentRepo.existsByComponentCode(request.componentCode().toUpperCase().trim())) {
             throw new BusinessRuleException(
                     "Salary component with code '" + request.componentCode() + "' already exists.");
         }
@@ -95,11 +95,17 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
         log.info("Updating salary component id={}", id);
         SalaryComponent comp = findComponent(id);
 
-        // Check duplicate code only if changed
-        if (!comp.getComponentCode().equals(request.componentCode().toUpperCase())
-                && componentRepo.existsByComponentCode(request.componentCode())) {
+        // Check duplicate code/name only if changed
+        String newCode = request.componentCode().toUpperCase().trim();
+        if (!comp.getComponentCode().equals(newCode)
+                && componentRepo.existsByComponentCode(newCode)) {
             throw new BusinessRuleException(
                     "Component code '" + request.componentCode() + "' already exists.");
+        }
+        if (!comp.getComponentName().equalsIgnoreCase(request.componentName())
+                && componentRepo.existsByComponentName(request.componentName())) {
+            throw new BusinessRuleException(
+                    "Component name '" + request.componentName() + "' already exists.");
         }
 
         comp.setComponentCode(request.componentCode().toUpperCase().trim());

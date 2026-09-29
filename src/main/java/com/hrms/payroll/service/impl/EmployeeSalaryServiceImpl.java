@@ -1,10 +1,15 @@
 package com.hrms.payroll.service.impl;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.employee.entity.Department;
+import com.hrms.employee.entity.Designation;
 import com.hrms.employee.entity.Employee;
 import com.hrms.employee.entity.EmployeeJobDetails;
+import com.hrms.employee.repository.DepartmentRepository;
+import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.payroll.dto.request.EmployeeSalaryRequest;
@@ -34,6 +39,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +53,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final SalaryComponentRepository     componentRepo;
     private final EmployeeRepository            employeeRepo;
     private final EmployeeJobDetailsRepository  jobDetailsRepo;
+    private final DepartmentRepository          departmentRepo;
+    private final DesignationRepository         designationRepo;
+    private final EmployeeAccessGuard           employeeAccessGuard;
 
     // ────────────────────────────────────────────────────
     // ASSIGN SALARY STRUCTURE TO EMPLOYEE
@@ -60,15 +69,31 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         Employee employee = findEmployee(request.employeeId());
         SalaryStructure structure = findStructure(request.structureId());
 
+        if (structure.getIsActive() != 1) {
+            throw new BusinessRuleException("STRUCTURE_INACTIVE",
+                    "Salary structure '" + structure.getStructureName() + "' is no longer active.");
+        }
+
         LocalDate effectiveFrom = LocalDate.parse(request.effectiveFrom());
 
+        // A new salary record must postdate whichever record it's replacing as "current" —
+        // otherwise the history ends up with an earlier-dated record marked current.
+        Optional<EmployeeSalary> previousCurrent =
+                salaryRepo.findByEmployeeIdAndIsCurrent(request.employeeId(), 1);
+        if (previousCurrent.isPresent()
+                && !effectiveFrom.isAfter(previousCurrent.get().getEffectiveFrom())) {
+            throw new BusinessRuleException("INVALID_EFFECTIVE_DATE",
+                    "New effective date (" + effectiveFrom
+                    + ") must be after the current salary's effective date ("
+                    + previousCurrent.get().getEffectiveFrom() + ").");
+        }
+
         // Deactivate previous salary record if exists
-        salaryRepo.findByEmployeeIdAndIsCurrent(request.employeeId(), 1)
-                .ifPresent(existing -> {
-                    log.info("Deactivating previous salary record id={}",
-                            existing.getEmpSalaryId());
-                    salaryRepo.deactivateCurrent(request.employeeId());
-                });
+        previousCurrent.ifPresent(existing -> {
+            log.info("Deactivating previous salary record id={}",
+                    existing.getEmpSalaryId());
+            salaryRepo.deactivateCurrent(request.employeeId());
+        });
 
         // ── Calculate gross and net from structure ──────
         List<SalaryStructureItem> items = itemRepo
@@ -117,6 +142,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     @Override
     public EmployeeSalaryResponse getCurrentSalary(Long employeeId) {
         log.info("Fetching current salary — employeeId={}", employeeId);
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+
         Employee employee = findEmployee(employeeId);
         EmployeeSalary empSalary = salaryRepo
                 .findByEmployeeIdAndIsCurrent(employeeId, 1)
@@ -208,8 +235,11 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             }
         }
 
-        // Now compute PERCENTAGE_OF_GROSS items (like PASI if based on gross)
+        // Now compute PERCENTAGE_OF_GROSS items (like PASI if based on gross).
+        // Gross-based EARNINGs are computed against this same baseline gross (not
+        // fed back into it) to avoid a circular gross-depends-on-gross calculation.
         BigDecimal grossSalary = totalEarnings;
+        BigDecimal additionalGrossEarnings = BigDecimal.ZERO;
         for (SalaryStructureItem item : items) {
             SalaryComponent comp = componentMap.get(item.getComponentId());
             if (comp == null) continue;
@@ -220,13 +250,14 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 BigDecimal amt = grossSalary
                         .multiply(item.getPercentage())
                         .divide(BigDecimal.valueOf(100), 3, RoundingMode.HALF_UP);
-                if (comp.getComponentType() == ComponentType.STATUTORY) {
-                    totalStatutory = totalStatutory.add(amt);
-                } else if (comp.getComponentType() == ComponentType.DEDUCTION) {
-                    totalDeductions = totalDeductions.add(amt);
+                switch (comp.getComponentType()) {
+                    case STATUTORY -> totalStatutory = totalStatutory.add(amt);
+                    case DEDUCTION -> totalDeductions = totalDeductions.add(amt);
+                    case EARNING   -> additionalGrossEarnings = additionalGrossEarnings.add(amt);
                 }
             }
         }
+        grossSalary = grossSalary.add(additionalGrossEarnings);
 
         BigDecimal netSalary = grossSalary
                 .subtract(totalDeductions)
@@ -254,12 +285,17 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 .findByEmployeeIdAndIsCurrent(employee.getId(), 1)
                 .orElse(null);
 
-        String designationName = null;
-        String departmentName  = null;
-        // Note: jd.getDesignationId() → look up designation name if needed
+        String designationName = jd != null
+                ? designationRepo.findById(jd.getDesignationId())
+                        .map(Designation::getTitle).orElse(null)
+                : null;
+        String departmentName = jd != null
+                ? departmentRepo.findById(jd.getDepartmentId())
+                        .map(Department::getName).orElse(null)
+                : null;
 
         List<SalaryBreakdownItem> breakdown = buildBreakdown(
-                empSalary.getBasicSalary(), items, componentMap);
+                empSalary.getBasicSalary(), empSalary.getGrossSalary(), items, componentMap);
 
         return new EmployeeSalaryResponse(
                 empSalary.getEmpSalaryId(),
@@ -285,6 +321,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
 
     private List<SalaryBreakdownItem> buildBreakdown(
             BigDecimal basicSalary,
+            BigDecimal grossSalary,
             List<SalaryStructureItem> items,
             Map<Long, SalaryComponent> componentMap) {
 
@@ -307,8 +344,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 case PERCENTAGE_OF_BASIC -> basicSalary
                         .multiply(item.getPercentage())
                         .divide(BigDecimal.valueOf(100), 3, RoundingMode.HALF_UP);
-                case PERCENTAGE_OF_GROSS -> BigDecimal.ZERO; // shown as 0 at assignment
-                case FORMULA             -> BigDecimal.ZERO;
+                case PERCENTAGE_OF_GROSS -> grossSalary
+                        .multiply(item.getPercentage())
+                        .divide(BigDecimal.valueOf(100), 3, RoundingMode.HALF_UP);
+                case FORMULA             -> BigDecimal.ZERO; // computed at payroll run
             };
 
             String calcBasis = switch (calcType) {

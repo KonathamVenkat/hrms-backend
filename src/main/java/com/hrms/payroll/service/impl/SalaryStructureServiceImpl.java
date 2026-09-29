@@ -20,8 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -53,7 +55,7 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
     public SalaryStructureResponse create(SalaryStructureRequest request) {
         log.info("Creating salary structure — code={}", request.structureCode());
 
-        if (structureRepo.existsByStructureCode(request.structureCode())) {
+        if (structureRepo.existsByStructureCode(request.structureCode().toUpperCase().trim())) {
             throw new BusinessRuleException(
                     "Structure with code '" + request.structureCode() + "' already exists.");
         }
@@ -87,10 +89,15 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
         log.info("Updating salary structure id={}", id);
         SalaryStructure structure = findStructure(id);
 
-        // Check employee count — warn if structure is in use
+        // A structure's items feed every EmployeeSalary breakdown live (the totals are
+        // frozen at assignment time, but the line-item breakdown is recomputed from the
+        // current structure on every read) — editing an in-use structure would silently
+        // rewrite the displayed breakdown for past and present assignments alike.
         int empCount = structureRepo.countCurrentEmployeesByStructureId(id);
         if (empCount > 0) {
-            log.warn("Updating structure id={} that is assigned to {} employee(s)", id, empCount);
+            throw new BusinessRuleException("STRUCTURE_IN_USE",
+                    "Cannot edit '" + structure.getStructureName() + "' — it is currently assigned to "
+                    + empCount + " employee(s). Deactivate it and create a new structure instead.");
         }
 
         structure.setStructureName(request.structureName().trim());
@@ -111,6 +118,16 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
     public void toggleActive(Long id, boolean active) {
         log.info("Toggling salary structure id={} active={}", id, active);
         SalaryStructure structure = findStructure(id);
+
+        if (!active) {
+            int empCount = structureRepo.countCurrentEmployeesByStructureId(id);
+            if (empCount > 0) {
+                throw new BusinessRuleException("STRUCTURE_IN_USE",
+                        "Cannot deactivate '" + structure.getStructureName() + "' — it is currently assigned to "
+                        + empCount + " employee(s).");
+            }
+        }
+
         structure.setIsActive(active ? 1 : 0);
         structure.setUpdatedAt(LocalDateTime.now());
         structureRepo.save(structure);
@@ -119,6 +136,8 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
     // ── Helpers ───────────────────────────────────────────
 
     private void saveItems(Long structureId, List<SalaryStructureItemRequest> items) {
+        Set<Long> seenComponentIds = new HashSet<>();
+
         for (int i = 0; i < items.size(); i++) {
             SalaryStructureItemRequest req = items.get(i);
 
@@ -126,6 +145,10 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
             if (!componentRepo.existsById(req.componentId())) {
                 throw new BusinessRuleException(
                         "Salary component not found: id=" + req.componentId());
+            }
+            if (!seenComponentIds.add(req.componentId())) {
+                throw new BusinessRuleException(
+                        "Component id=" + req.componentId() + " is added more than once to this structure.");
             }
 
             Long itemId = itemRepo.findNextSequenceValue();

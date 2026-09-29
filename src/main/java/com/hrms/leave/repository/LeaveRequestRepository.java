@@ -93,4 +93,15 @@ public interface LeaveRequestRepository
     long countByEmployeeIdAndStatus(Long employeeId, LeaveStatus status);
 
     long countByStatus(LeaveStatus status);
+
+    // ── Dashboard — distinct employees on approved leave on a date ──
+
+    @Query("""
+        SELECT COUNT(DISTINCT lr.employeeId) FROM LeaveRequest lr
+        WHERE lr.status    = com.hrms.leave.entity.LeaveStatus.APPROVED
+          AND lr.isActive  = true
+          AND lr.startDate <= :date
+          AND lr.endDate   >= :date
+        """)
+    long countEmployeesOnApprovedLeave(@Param("date") LocalDate date);
 }

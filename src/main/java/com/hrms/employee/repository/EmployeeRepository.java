@@ -203,6 +203,22 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
             @Param("endDate")   LocalDate endDate,
             @Param("isActive")  Boolean   isActive);
 
+    // ── Dashboard headcount ───────────────────────────────────────────────────
+
+    /** Active employees who have not exited (matches EmploymentStatus.isCurrentlyEmployed()). */
+    @Query("""
+            SELECT COUNT(e) FROM Employee e
+            WHERE e.isActive = true
+              AND e.employmentStatus IN (
+                  com.hrms.common.enums.EmploymentStatus.ACTIVE,
+                  com.hrms.common.enums.EmploymentStatus.PROBATION,
+                  com.hrms.common.enums.EmploymentStatus.NOTICE_PERIOD,
+                  com.hrms.common.enums.EmploymentStatus.ON_HOLD)
+            """)
+    long countCurrentlyEmployed();
+
+    long countByHireDateBetweenAndIsActive(LocalDate startDate, LocalDate endDate, Boolean isActive);
+
     // ── Soft delete / status transition ───────────────────────────────────────
 
     @Modifying

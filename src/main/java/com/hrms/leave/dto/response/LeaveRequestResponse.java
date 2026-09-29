@@ -27,6 +27,11 @@ public class LeaveRequestResponse {
     private String  approvedAt;
     private String  remarks;
 
+    // Supporting document
+    private Boolean hasAttachment;
+    private String  attachmentName;
+    private Long    attachmentSize;
+
     // Balance snapshot — shown to employee when applying
     private Double  balanceAvailable;
     private Double  balanceTotal;

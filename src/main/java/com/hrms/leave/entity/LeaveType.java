@@ -64,6 +64,14 @@ public class LeaveType {
     @Builder.Default
     private Integer requiresDocument = 0;
 
+    /** Upload limits for the supporting document; NULL = defaults (see resolve* below). */
+    @Column(name = "DOC_MAX_FILE_SIZE_MB")
+    private Integer docMaxFileSizeMb;
+
+    /** Comma-separated lowercase extensions, e.g. "pdf,jpg,png". */
+    @Column(name = "DOC_ALLOWED_EXTENSIONS", length = 100)
+    private String docAllowedExtensions;
+
     @Column(name = "MIN_NOTICE_DAYS", nullable = false)
     @Builder.Default
     private Integer minNoticeDays = 0;
@@ -75,6 +83,19 @@ public class LeaveType {
     @Column(name = "APPLICABLE_GENDER", nullable = false, length = 20)
     @Builder.Default
     private String applicableGender = "ALL";
+
+    public static final int DEFAULT_DOC_MAX_FILE_SIZE_MB = 5;
+    public static final String DEFAULT_DOC_ALLOWED_EXTENSIONS = "pdf,jpg,jpeg,png";
+
+    public int resolveDocMaxFileSizeMb() {
+        return docMaxFileSizeMb != null && docMaxFileSizeMb > 0
+            ? docMaxFileSizeMb : DEFAULT_DOC_MAX_FILE_SIZE_MB;
+    }
+
+    public String resolveDocAllowedExtensions() {
+        return docAllowedExtensions != null && !docAllowedExtensions.isBlank()
+            ? docAllowedExtensions : DEFAULT_DOC_ALLOWED_EXTENSIONS;
+    }
 
     @Column(name = "IS_ACTIVE", nullable = false)
     @Builder.Default

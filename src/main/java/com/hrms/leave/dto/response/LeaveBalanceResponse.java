@@ -14,6 +14,9 @@ public class LeaveBalanceResponse {
     private String  leaveTypeNameAr;
     private Boolean isPaid;
     private Boolean isCarryForward;
+    private Boolean requiresDocument;    // leave type needs a supporting attachment
+    private Integer docMaxFileSizeMb;    // upload limits for that attachment
+    private String  docAllowedExtensions;
 
     // Balance figures
     private Integer year;

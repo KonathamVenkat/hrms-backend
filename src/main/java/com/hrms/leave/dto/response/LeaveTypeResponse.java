@@ -16,6 +16,8 @@ private Boolean    isPaid;
 private Boolean    isCarryForward;
 private BigDecimal maxCarryDays;
 private Boolean    requiresDocument;
+private Integer    docMaxFileSizeMb;
+private String     docAllowedExtensions;
 private Integer    minNoticeDays;
 private Integer    maxConsecutiveDays;
 private String     applicableGender;

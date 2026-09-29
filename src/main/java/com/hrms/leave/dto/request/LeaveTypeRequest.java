@@ -41,6 +41,15 @@ public class LeaveTypeRequest {
  @NotNull(message = "Requires document field is required")
  private Boolean requiresDocument;
 
+ @Min(value = 1,  message = "Max file size must be at least 1 MB")
+ @Max(value = 20, message = "Max file size cannot exceed 20 MB")
+ private Integer docMaxFileSizeMb;
+
+ @Size(max = 100)
+ @Pattern(regexp = "^\\s*(?i:(pdf|jpg|jpeg|png))(\\s*,\\s*(?i:(pdf|jpg|jpeg|png)))*\\s*$",
+          message = "Allowed extensions must be a comma-separated list of PDF, JPG, JPEG, PNG")
+ private String docAllowedExtensions;
+
  @Min(value = 0, message = "Min notice days cannot be negative")
  private Integer minNoticeDays;
 

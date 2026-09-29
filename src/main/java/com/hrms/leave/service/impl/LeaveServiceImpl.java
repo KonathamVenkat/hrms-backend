@@ -19,6 +19,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -40,6 +41,7 @@ public class LeaveServiceImpl implements LeaveService {
     private final EmployeeRepository        employeeRepository;
     private final HolidayCalendarRepository holidayCalendarRepository;
     private final EmployeeAccessGuard       employeeAccessGuard;
+    private final LeaveAttachmentStorage    attachmentStorage;
 
     // ══════════════════════════════════════════════════════════
     // APPLY LEAVE
@@ -48,7 +50,8 @@ public class LeaveServiceImpl implements LeaveService {
     @Override
     @Transactional
     public LeaveRequestResponse applyLeave(Long employeeId,
-                                            CreateLeaveRequest request) {
+                                            CreateLeaveRequest request,
+                                            MultipartFile attachment) {
         log.info("Applying leave — emp={} type={} {} to {}",
             employeeId, request.getLeaveTypeCode(),
             request.getStartDate(), request.getEndDate());
@@ -128,6 +131,17 @@ public class LeaveServiceImpl implements LeaveService {
                 + " days. Requested: " + leaveDays + " days.");
         }
 
+        boolean hasFile = attachment != null && !attachment.isEmpty();
+        if (leaveType.getRequiresDocument() != null && leaveType.getRequiresDocument() == 1 && !hasFile) {
+            throw new BusinessRuleException("DOCUMENT_REQUIRED",
+                leaveType.getNameEn() + " requires a supporting document. "
+                + "Please attach one (PDF, JPG or PNG).");
+        }
+
+        // Stored last, after every business-rule check, so a rejected request leaves no file behind.
+        LeaveAttachmentStorage.Stored stored = hasFile
+            ? attachmentStorage.store(employeeId, attachment, leaveType) : null;
+
         LeaveRequest leaveRequest = new LeaveRequest();
         leaveRequest.setEmployeeId(employeeId);
         leaveRequest.setEmployeeCode(employee.getEmployeeCode());
@@ -136,6 +150,11 @@ public class LeaveServiceImpl implements LeaveService {
         leaveRequest.setEndDate(request.getEndDate());
         leaveRequest.setTotalDays(leaveDays);
         leaveRequest.setReason(request.getReason());
+        if (stored != null) {
+            leaveRequest.setAttachmentPath(stored.relativePath());
+            leaveRequest.setAttachmentName(stored.originalName());
+            leaveRequest.setAttachmentSize(stored.sizeBytes());
+        }
         leaveRequest.setStatus(LeaveStatus.PENDING);
         leaveRequest.setIsActive(true);
         leaveRequest.setCreatedBy(getCurrentAuditor());
@@ -143,11 +162,17 @@ public class LeaveServiceImpl implements LeaveService {
         leaveRequest.setUpdatedBy(getCurrentAuditor());
         leaveRequest.setUpdatedAt(LocalDateTime.now());
 
-        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        LeaveRequest saved;
+        try {
+            saved = leaveRequestRepository.save(leaveRequest);
 
-        balance.setPendingDays(balance.getPendingDays() + leaveDays);
-        balance.setUpdatedAt(LocalDateTime.now());
-        leaveBalanceRepository.save(balance);
+            balance.setPendingDays(balance.getPendingDays() + leaveDays);
+            balance.setUpdatedAt(LocalDateTime.now());
+            leaveBalanceRepository.save(balance);
+        } catch (RuntimeException e) {
+            if (stored != null) attachmentStorage.deleteQuietly(stored.relativePath());
+            throw e;
+        }
 
         log.info("Leave applied. ID={} days={}", saved.getLeaveReqId(), leaveDays);
         return toResponse(saved, employee, leaveType, balance);
@@ -197,6 +222,26 @@ public class LeaveServiceImpl implements LeaveService {
         }
 
         return toPagedResponse(page);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // DOWNLOAD ATTACHMENT
+    // ══════════════════════════════════════════════════════════
+
+    @Override
+    public LeaveAttachmentDownload getAttachment(Long employeeId, Long leaveReqId) {
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+
+        LeaveRequest lr = leaveRequestRepository.findById(leaveReqId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "LeaveRequest", "id", leaveReqId));
+
+        if (!lr.getEmployeeId().equals(employeeId) || lr.getAttachmentPath() == null) {
+            throw new ResourceNotFoundException("LeaveAttachment", "leaveReqId", leaveReqId);
+        }
+
+        return new LeaveAttachmentDownload(
+            attachmentStorage.load(lr.getAttachmentPath()), lr.getAttachmentName());
     }
 
     // ══════════════════════════════════════════════════════════
@@ -469,6 +514,9 @@ public class LeaveServiceImpl implements LeaveService {
             .approvedBy(lr.getApprovedBy())
             .approvedAt(lr.getApprovedAt() != null ? lr.getApprovedAt().toString() : null)
             .remarks(lr.getRejectionReason())
+            .hasAttachment(lr.getAttachmentPath() != null)
+            .attachmentName(lr.getAttachmentName())
+            .attachmentSize(lr.getAttachmentSize())
             .balanceAvailable(balance != null ? balance.getAvailableDays() : null)
             .balanceTotal(balance != null ? balance.getTotalDays() : null)
             .createdAt(lr.getCreatedAt() != null ? lr.getCreatedAt().toString() : null)

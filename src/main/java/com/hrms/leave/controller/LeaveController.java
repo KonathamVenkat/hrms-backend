@@ -5,18 +5,22 @@ import com.hrms.common.dto.PagedResponse;
 import com.hrms.leave.dto.request.ApproveLeaveRequest;
 import com.hrms.leave.dto.request.CreateLeaveRequest;
 import com.hrms.leave.dto.request.LeaveFilterRequest;
+import com.hrms.leave.dto.response.LeaveAttachmentDownload;
 import com.hrms.leave.dto.response.LeaveBalanceResponse;
 import com.hrms.leave.dto.response.LeaveRequestResponse;
 import com.hrms.leave.service.LeaveService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.http.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -34,11 +38,13 @@ public class LeaveController {
     /**
      * POST /api/v1/employees/{employeeId}/leave-requests
      */
-    @PostMapping("/employees/{employeeId}/leave-requests")
+    @PostMapping(value = "/employees/{employeeId}/leave-requests",
+                 consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','EMPLOYEE')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> applyLeave(
             @PathVariable Long employeeId,
-            @Valid @RequestBody CreateLeaveRequest request) {
+            @Valid @RequestPart("request") CreateLeaveRequest request,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
 
         log.info("POST apply leave — emp={} type={} {} to {}",
             employeeId, request.getLeaveTypeCode(),
@@ -48,7 +54,7 @@ public class LeaveController {
             .body(ApiResponse.<LeaveRequestResponse>builder()
                 .success(true)
                 .message("Leave request submitted successfully")
-                .data(leaveService.applyLeave(employeeId, request))
+                .data(leaveService.applyLeave(employeeId, request, file))
                 .statusCode(201)
                 .build());
     }
@@ -98,6 +104,26 @@ public class LeaveController {
                 .data(leaveService.getLeaveById(employeeId, leaveReqId))
                 .statusCode(200)
                 .build());
+    }
+
+    /**
+     * GET /api/v1/employees/{employeeId}/leave-requests/{leaveReqId}/attachment
+     * Owner or HR only (enforced in the service via EmployeeAccessGuard).
+     */
+    @GetMapping("/employees/{employeeId}/leave-requests/{leaveReqId}/attachment")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','EMPLOYEE')")
+    public ResponseEntity<Resource> downloadAttachment(
+            @PathVariable Long employeeId,
+            @PathVariable Long leaveReqId) {
+
+        LeaveAttachmentDownload download = leaveService.getAttachment(employeeId, leaveReqId);
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment()
+                    .filename(download.fileName(), StandardCharsets.UTF_8).build().toString())
+            .header("X-Content-Type-Options", "nosniff")
+            .body(download.resource());
     }
 
     /**

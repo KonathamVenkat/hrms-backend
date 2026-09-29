@@ -273,6 +273,9 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         String leaveTypeNameAr = null;
         Boolean isPaid         = null;
         Boolean isCarryForward = null;
+        Boolean requiresDocument = null;
+        Integer docMaxFileSizeMb = null;
+        String  docAllowedExtensions = null;
 
         try {
             Optional<LeaveType> lt = leaveTypeRepository
@@ -282,6 +285,10 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 leaveTypeNameAr = lt.get().getNameAr();
                 isPaid          = lt.get().getIsPaid() == 1;
                 isCarryForward  = lt.get().getIsCarryForward() == 1;
+                requiresDocument = lt.get().getRequiresDocument() != null
+                    && lt.get().getRequiresDocument() == 1;
+                docMaxFileSizeMb     = lt.get().resolveDocMaxFileSizeMb();
+                docAllowedExtensions = lt.get().resolveDocAllowedExtensions();
             }
         } catch (Exception ignored) { /* graceful fallback */ }
 
@@ -293,6 +300,9 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
             .leaveTypeNameAr(leaveTypeNameAr)
             .isPaid(isPaid)
             .isCarryForward(isCarryForward)
+            .requiresDocument(requiresDocument)
+            .docMaxFileSizeMb(docMaxFileSizeMb)
+            .docAllowedExtensions(docAllowedExtensions)
             .year(lb.getYear())
             .totalDays(lb.getTotalDays())
             .usedDays(lb.getUsedDays())

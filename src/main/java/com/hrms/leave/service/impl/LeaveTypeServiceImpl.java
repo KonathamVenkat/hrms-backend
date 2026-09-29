@@ -98,6 +98,8 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         existing.setMaxCarryDays(
             request.getMaxCarryDays() != null ? request.getMaxCarryDays() : BigDecimal.ZERO);
         existing.setRequiresDocument(boolToInt(request.getRequiresDocument()));
+        existing.setDocMaxFileSizeMb(request.getDocMaxFileSizeMb());
+        existing.setDocAllowedExtensions(normalizeExtensions(request.getDocAllowedExtensions()));
         existing.setMinNoticeDays(
             request.getMinNoticeDays() != null ? request.getMinNoticeDays() : 0);
         existing.setMaxConsecutiveDays(
@@ -146,6 +148,16 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
             .orElseThrow(() -> new ResourceNotFoundException("LeaveType", "id", id));
     }
 
+    /** "PDF, jpg ,PDF" -> "pdf,jpg"; blank -> null (meaning: use the defaults). */
+    private String normalizeExtensions(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        return java.util.Arrays.stream(raw.split(","))
+            .map(s -> s.trim().toLowerCase())
+            .filter(s -> !s.isEmpty())
+            .distinct()
+            .collect(java.util.stream.Collectors.joining(","));
+    }
+
     private String getCurrentAuditor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
@@ -166,6 +178,8 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
             .maxCarryDays(req.getMaxCarryDays() != null
                 ? req.getMaxCarryDays() : BigDecimal.ZERO)
             .requiresDocument(boolToInt(req.getRequiresDocument()))
+            .docMaxFileSizeMb(req.getDocMaxFileSizeMb())
+            .docAllowedExtensions(normalizeExtensions(req.getDocAllowedExtensions()))
             .minNoticeDays(req.getMinNoticeDays() != null
                 ? req.getMinNoticeDays() : 0)
             .maxConsecutiveDays(req.getMaxConsecutiveDays() != null
@@ -188,6 +202,8 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
             .isCarryForward(lt.getIsCarryForward() == 1)
             .maxCarryDays(lt.getMaxCarryDays())
             .requiresDocument(lt.getRequiresDocument() == 1)
+            .docMaxFileSizeMb(lt.resolveDocMaxFileSizeMb())
+            .docAllowedExtensions(lt.resolveDocAllowedExtensions())
             .minNoticeDays(lt.getMinNoticeDays())
             .maxConsecutiveDays(lt.getMaxConsecutiveDays())
             .applicableGender(lt.getApplicableGender())

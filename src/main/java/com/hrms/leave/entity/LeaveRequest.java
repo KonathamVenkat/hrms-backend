@@ -94,6 +94,18 @@ public class LeaveRequest {
     @Column(name = "REJECTION_REASON", length = 500)
     private String rejectionReason;
 
+    // ── Supporting document (optional; required when LeaveType.requiresDocument) ──
+
+    /** Path relative to app.leave-upload.dir, e.g. "employee_12/uuid.pdf". */
+    @Column(name = "ATTACHMENT_PATH", length = 300)
+    private String attachmentPath;
+
+    @Column(name = "ATTACHMENT_NAME", length = 255)
+    private String attachmentName;
+
+    @Column(name = "ATTACHMENT_SIZE")
+    private Long attachmentSize;
+
     // ── Active flag ───────────────────────────────────────────
 
     /**

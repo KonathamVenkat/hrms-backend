@@ -8,3 +8,5 @@ application.properties
 application-secrets.properties
 .env
 *.log
+# Leave request attachments (user uploads)
+uploads/leave-attachments/

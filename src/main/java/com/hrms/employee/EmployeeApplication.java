@@ -16,6 +16,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "com.hrms.leave",
     "com.hrms.attendance", 
     "com.hrms.payroll",
+    "com.hrms.dashboard",
     "com.hrms.common"
 })
 @EnableJpaRepositories(basePackages = {

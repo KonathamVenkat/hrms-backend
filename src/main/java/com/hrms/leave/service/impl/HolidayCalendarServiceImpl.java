@@ -9,6 +9,8 @@ import com.hrms.leave.repository.HolidayCalendarRepository;
 import com.hrms.leave.service.HolidayCalendarService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,7 +73,7 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
             .isRecurring(boolToInt(request.getIsRecurring()))
             .year(request.getHolidayDate().getYear())   // also set by DB trigger
             .isActive(request.getIsActive() != null ? boolToInt(request.getIsActive()) : 1)
-            .createdBy("SYSTEM")
+            .createdBy(getCurrentAuditor())
             .createdAt(LocalDateTime.now())
             .build();
 
@@ -106,7 +108,7 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
         if (request.getIsActive() != null) {
             existing.setIsActive(boolToInt(request.getIsActive()));
         }
-        existing.setUpdatedBy("SYSTEM");
+        existing.setUpdatedBy(getCurrentAuditor());
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(holidayRepository.save(existing));
@@ -119,6 +121,7 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
     public void deactivateHoliday(Long id) {
         HolidayCalendar h = findById(id);
         h.setIsActive(0);
+        h.setUpdatedBy(getCurrentAuditor());
         h.setUpdatedAt(LocalDateTime.now());
         holidayRepository.save(h);
         log.info("Holiday deactivated. ID: {}", id);
@@ -130,6 +133,7 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
         HolidayCalendar h = holidayRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Holiday", "id", id));
         h.setIsActive(1);
+        h.setUpdatedBy(getCurrentAuditor());
         h.setUpdatedAt(LocalDateTime.now());
         holidayRepository.save(h);
         log.info("Holiday activated. ID: {}", id);
@@ -147,6 +151,12 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
     private HolidayCalendar findById(Long id) {
         return holidayRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Holiday", "id", id));
+    }
+
+    private String getCurrentAuditor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
+        return auth.getName();
     }
 
     private HolidayResponse toResponse(HolidayCalendar h) {

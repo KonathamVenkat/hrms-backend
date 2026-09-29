@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.leave.dto.request.AdjustBalanceRequest;
@@ -31,11 +32,14 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final LeaveTypeRepository    leaveTypeRepository;
     private final EmployeeRepository     employeeRepository;
+    private final EmployeeAccessGuard    employeeAccessGuard;
 
     // ── Get balances ──────────────────────────────────────────
 
     @Override
     public List<LeaveBalanceResponse> getEmployeeBalances(Long employeeId, Integer year) {
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+
         if (!employeeRepository.existsById(employeeId)) {
             throw new ResourceNotFoundException("Employee", "id", employeeId);
         }

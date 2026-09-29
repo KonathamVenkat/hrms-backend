@@ -7,12 +7,16 @@ import com.hrms.employee.dto.response.WorkShiftResponse;
 import com.hrms.employee.entity.WorkShift;
 import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.employee.service.WorkShiftService;
+import com.hrms.common.exception.BusinessRuleException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -57,8 +61,10 @@ public class WorkShiftServiceImpl implements WorkShiftService {
             throw new DuplicateResourceException("WorkShift", "shiftName", request.getShiftName());
         }
 
+        validateShiftTiming(request);
+
         WorkShift entity = buildEntity(request);
-        entity.setCreatedBy("SYSTEM");
+        entity.setCreatedBy(getCurrentAuditor());
         entity.setCreatedAt(LocalDateTime.now());
 
         WorkShift saved = workShiftRepository.save(entity);
@@ -74,6 +80,8 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         log.info("Updating work shift id: {}", id);
 
         WorkShift existing = findById(id);
+
+        validateShiftTiming(request);
 
         if (workShiftRepository.existsByShiftCodeIgnoreCaseAndShiftIdNot(
                 request.getShiftCode(), id)) {
@@ -101,7 +109,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         if (request.getIsActive() != null) {
             existing.setIsActive(boolToInt(request.getIsActive()));
         }
-        existing.setUpdatedBy("SYSTEM");
+        existing.setUpdatedBy(getCurrentAuditor());
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(workShiftRepository.save(existing));
@@ -114,6 +122,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
     public void deactivateShift(Long id) {
         WorkShift ws = findById(id);
         ws.setIsActive(0);
+        ws.setUpdatedBy(getCurrentAuditor());
         ws.setUpdatedAt(LocalDateTime.now());
         workShiftRepository.save(ws);
         log.info("Work shift deactivated. ID: {}", id);
@@ -125,6 +134,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         WorkShift ws = workShiftRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("WorkShift", "id", id));
         ws.setIsActive(1);
+        ws.setUpdatedBy(getCurrentAuditor());
         ws.setUpdatedAt(LocalDateTime.now());
         workShiftRepository.save(ws);
         log.info("Work shift activated. ID: {}", id);
@@ -135,6 +145,50 @@ public class WorkShiftServiceImpl implements WorkShiftService {
     private WorkShift findById(Long id) {
         return workShiftRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("WorkShift", "id", id));
+    }
+
+    private String getCurrentAuditor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
+        return auth.getName();
+    }
+
+    /**
+     * Cross-checks isOvernight against the actual start/end order, and workingHours
+     * against the span those times + breakDuration actually produce (5-minute tolerance
+     * for rounding). These feed attendance/payroll downstream, so a mismatch here would
+     * silently corrupt hours-worked and overtime calculations rather than fail loudly.
+     */
+    private void validateShiftTiming(WorkShiftRequest request) {
+        LocalTime start = LocalTime.parse(request.getStartTime());
+        LocalTime end = LocalTime.parse(request.getEndTime());
+        boolean overnight = Boolean.TRUE.equals(request.getIsOvernight());
+
+        if (start.equals(end)) {
+            throw new BusinessRuleException("INVALID_SHIFT_TIMES",
+                "Start time and end time cannot be the same.");
+        }
+        boolean crossesMidnight = end.isBefore(start);
+        if (overnight != crossesMidnight) {
+            throw new BusinessRuleException("INVALID_SHIFT_TIMES",
+                crossesMidnight
+                    ? "End time is before start time — mark this shift as overnight."
+                    : "End time is after start time — this shift doesn't cross midnight, uncheck overnight.");
+        }
+
+        long spanMinutes = crossesMidnight
+            ? (24 * 60 - start.toSecondOfDay() / 60) + end.toSecondOfDay() / 60
+            : (end.toSecondOfDay() - start.toSecondOfDay()) / 60;
+        int breakMinutes = request.getBreakDuration() != null ? request.getBreakDuration() : 0;
+        long expectedWorkingMinutes = spanMinutes - breakMinutes;
+
+        long actualWorkingMinutes = Math.round(request.getWorkingHours().doubleValue() * 60);
+        if (Math.abs(expectedWorkingMinutes - actualWorkingMinutes) > 5) {
+            throw new BusinessRuleException("INVALID_SHIFT_TIMES",
+                String.format(
+                    "Working hours (%.2f) don't match start/end time minus break (expected ~%.2f hours).",
+                    request.getWorkingHours().doubleValue(), expectedWorkingMinutes / 60.0));
+        }
     }
 
     private WorkShift buildEntity(WorkShiftRequest req) {

@@ -10,7 +10,7 @@ public interface LeaveService {
     // Employee actions
     LeaveRequestResponse                applyLeave(Long employeeId, CreateLeaveRequest request);
     PagedResponse<LeaveRequestResponse> getLeavesByEmployee(Long employeeId, LeaveFilterRequest filter);
-    LeaveRequestResponse                getLeaveById(Long leaveReqId);
+    LeaveRequestResponse                getLeaveById(Long employeeId, Long leaveReqId);
     void                                cancelLeave(Long leaveReqId, Long employeeId);
     List<LeaveBalanceResponse>          getBalances(Long employeeId, Integer year);
 

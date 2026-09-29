@@ -95,7 +95,7 @@ public class LeaveController {
             ApiResponse.<LeaveRequestResponse>builder()
                 .success(true)
                 .message("Leave request fetched")
-                .data(leaveService.getLeaveById(leaveReqId))
+                .data(leaveService.getLeaveById(employeeId, leaveReqId))
                 .statusCode(200)
                 .build());
     }

@@ -4,6 +4,7 @@ import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.EmployeeDocumentRequest;
 import com.hrms.employee.dto.response.EmployeeDocumentResponse;
+import com.hrms.employee.entity.DocumentType;
 import com.hrms.employee.entity.EmployeeDocument;
 import com.hrms.employee.repository.DocumentTypeRepository;
 import com.hrms.employee.repository.EmployeeDocumentRepository;
@@ -95,10 +96,14 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             employeeId, request.getDocTypeId());
         validateEmployee(employeeId);
 
-        // ── Validate document type exists ─────────────────────
-        docTypeRepository.findById(request.getDocTypeId())
+        // ── Validate document type exists and is active ───────
+        DocumentType docType = docTypeRepository.findById(request.getDocTypeId())
             .orElseThrow(() -> new ResourceNotFoundException(
                 "DocumentType", "id", request.getDocTypeId()));
+        if (docType.getIsActive() != 1) {
+            throw new BusinessRuleException("DOCUMENT_TYPE_INACTIVE",
+                "This document type is no longer active and cannot accept uploads.");
+        }
 
         // ── Validate file ─────────────────────────────────────
         if (file == null || file.isEmpty()) {
@@ -110,16 +115,29 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         String extension    = extensionLc.toUpperCase();
         long   sizeBytes    = file.getSize();
 
-        // Max 50 MB guard
-        if (sizeBytes > 50 * 1024 * 1024) {
+        // Max size guard — the document type's configured limit, itself capped at 1-50 MB
+        // by DocumentTypeRequest validation, so this can never exceed the servlet's own cap.
+        long maxSizeBytes = (docType.getMaxFileSizeMb() != null ? docType.getMaxFileSizeMb() : 5)
+            * 1024L * 1024L;
+        if (sizeBytes > maxSizeBytes) {
             throw new BusinessRuleException("FILE_TOO_LARGE",
-                "File size exceeds maximum allowed 50 MB.");
+                "File size exceeds the maximum allowed for this document type ("
+                    + (maxSizeBytes / (1024 * 1024)) + " MB).");
         }
 
         // ── Extension / content-type / actual-content whitelist ─
-        if (!ALLOWED_EXTENSIONS.contains(extensionLc)) {
+        // Global list is the hard security ceiling (only formats we know how to signature-
+        // check); the document type's own configured list narrows it further per type.
+        Set<String> typeExtensions = docType.getAllowedExtensions() != null
+            ? java.util.Arrays.stream(docType.getAllowedExtensions().split(","))
+                .map(String::trim).map(String::toLowerCase)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet())
+            : ALLOWED_EXTENSIONS;
+        if (!ALLOWED_EXTENSIONS.contains(extensionLc) || !typeExtensions.contains(extensionLc)) {
             throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
-                "Unsupported file type. Allowed: PDF, JPG, JPEG, PNG, DOC, DOCX.");
+                "Unsupported file type for this document type. Allowed: "
+                    + String.join(", ", typeExtensions).toUpperCase() + ".");
         }
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {

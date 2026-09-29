@@ -1,6 +1,8 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.PagedResponse;
+import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.entity.Employee;
@@ -13,13 +15,17 @@ import com.hrms.leave.service.LeaveService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -28,10 +34,12 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class LeaveServiceImpl implements LeaveService {
 
-    private final LeaveRequestRepository leaveRequestRepository;
-    private final LeaveBalanceRepository leaveBalanceRepository;
-    private final LeaveTypeRepository    leaveTypeRepository;
-    private final EmployeeRepository     employeeRepository;
+    private final LeaveRequestRepository    leaveRequestRepository;
+    private final LeaveBalanceRepository    leaveBalanceRepository;
+    private final LeaveTypeRepository       leaveTypeRepository;
+    private final EmployeeRepository        employeeRepository;
+    private final HolidayCalendarRepository holidayCalendarRepository;
+    private final EmployeeAccessGuard       employeeAccessGuard;
 
     // ══════════════════════════════════════════════════════════
     // APPLY LEAVE
@@ -45,6 +53,8 @@ public class LeaveServiceImpl implements LeaveService {
             employeeId, request.getLeaveTypeCode(),
             request.getStartDate(), request.getEndDate());
 
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+
         Employee employee = employeeRepository.findById(employeeId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Employee", "id", employeeId));
@@ -55,6 +65,17 @@ public class LeaveServiceImpl implements LeaveService {
                 "INVALID_LEAVE_TYPE",
                 "Leave type '" + request.getLeaveTypeCode() + "' not found."));
 
+        if (leaveType.getIsActive() != 1) {
+            throw new BusinessRuleException("LEAVE_TYPE_INACTIVE",
+                "Leave type '" + leaveType.getNameEn() + "' is no longer active.");
+        }
+
+        if (!isGenderEligible(employee.getGender(), leaveType.getApplicableGender())) {
+            throw new BusinessRuleException("GENDER_NOT_ELIGIBLE",
+                leaveType.getNameEn() + " is only available to "
+                + leaveType.getApplicableGender().toLowerCase() + " employees.");
+        }
+
         if (request.getEndDate().isBefore(request.getStartDate())) {
             throw new BusinessRuleException("INVALID_DATES",
                 "End date cannot be before start date.");
@@ -64,11 +85,25 @@ public class LeaveServiceImpl implements LeaveService {
                 "Leave cannot be applied for past dates.");
         }
 
+        int minNoticeDays = leaveType.getMinNoticeDays() != null ? leaveType.getMinNoticeDays() : 0;
+        if (minNoticeDays > 0 && request.getStartDate().isBefore(LocalDate.now().plusDays(minNoticeDays))) {
+            throw new BusinessRuleException("INSUFFICIENT_NOTICE",
+                leaveType.getNameEn() + " requires at least " + minNoticeDays
+                + " day(s) notice before the start date.");
+        }
+
         double leaveDays = calculateWorkingDays(
             request.getStartDate(), request.getEndDate());
         if (leaveDays <= 0) {
             throw new BusinessRuleException("NO_WORKING_DAYS",
                 "Selected date range contains no working days.");
+        }
+
+        Integer maxConsecutiveDays = leaveType.getMaxConsecutiveDays();
+        if (maxConsecutiveDays != null && maxConsecutiveDays > 0 && leaveDays > maxConsecutiveDays) {
+            throw new BusinessRuleException("EXCEEDS_MAX_CONSECUTIVE",
+                leaveType.getNameEn() + " cannot be requested for more than "
+                + maxConsecutiveDays + " consecutive day(s).");
         }
 
         List<LeaveRequest> overlapping = leaveRequestRepository.findOverlapping(
@@ -103,7 +138,9 @@ public class LeaveServiceImpl implements LeaveService {
         leaveRequest.setReason(request.getReason());
         leaveRequest.setStatus(LeaveStatus.PENDING);
         leaveRequest.setIsActive(true);
+        leaveRequest.setCreatedBy(getCurrentAuditor());
         leaveRequest.setCreatedAt(LocalDateTime.now());
+        leaveRequest.setUpdatedBy(getCurrentAuditor());
         leaveRequest.setUpdatedAt(LocalDateTime.now());
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
@@ -123,6 +160,8 @@ public class LeaveServiceImpl implements LeaveService {
     @Override
     public PagedResponse<LeaveRequestResponse> getLeavesByEmployee(
             Long employeeId, LeaveFilterRequest filter) {
+
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
 
         if (!employeeRepository.existsById(employeeId)) {
             throw new ResourceNotFoundException("Employee", "id", employeeId);
@@ -165,10 +204,17 @@ public class LeaveServiceImpl implements LeaveService {
     // ══════════════════════════════════════════════════════════
 
     @Override
-    public LeaveRequestResponse getLeaveById(Long leaveReqId) {
+    public LeaveRequestResponse getLeaveById(Long employeeId, Long leaveReqId) {
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+
         LeaveRequest lr = leaveRequestRepository.findById(leaveReqId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "LeaveRequest", "id", leaveReqId));
+
+        if (!lr.getEmployeeId().equals(employeeId)) {
+            throw new ResourceNotFoundException("LeaveRequest", "id", leaveReqId);
+        }
+
         return toResponse(lr, null, null, null);
     }
 
@@ -181,6 +227,8 @@ public class LeaveServiceImpl implements LeaveService {
     public void cancelLeave(Long leaveReqId, Long employeeId) {
         log.info("Cancelling leave — leaveReqId={} employeeId={}",
             leaveReqId, employeeId);
+
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
 
         LeaveRequest lr = leaveRequestRepository.findById(leaveReqId)
             .orElseThrow(() -> new ResourceNotFoundException(
@@ -209,6 +257,7 @@ public class LeaveServiceImpl implements LeaveService {
             });
 
         lr.setStatus(LeaveStatus.CANCELLED);
+        lr.setUpdatedBy(getCurrentAuditor());
         lr.setUpdatedAt(LocalDateTime.now());
         leaveRequestRepository.save(lr);
     }
@@ -219,6 +268,8 @@ public class LeaveServiceImpl implements LeaveService {
 
     @Override
     public List<LeaveBalanceResponse> getBalances(Long employeeId, Integer year) {
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+
         int targetYear = (year != null) ? year : LocalDate.now().getYear();
         return leaveBalanceRepository
             .findByEmployeeIdAndYear(employeeId, targetYear)
@@ -305,6 +356,7 @@ public class LeaveServiceImpl implements LeaveService {
 
         lr.setApprovedBy(approver);
         lr.setApprovedAt(LocalDateTime.now());
+        lr.setUpdatedBy(approver);
         lr.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(leaveRequestRepository.save(lr), null, null, balance);
@@ -321,15 +373,43 @@ public class LeaveServiceImpl implements LeaveService {
 
     // ── Private helpers ───────────────────────────────────────
 
+    /**
+     * Counts working days between two dates (inclusive), excluding the
+     * Friday/Saturday weekend (this is an Oman-based company — see the
+     * matching definition in LeaveCalendarServiceImpl) and any active
+     * public holiday falling on what would otherwise be a working day.
+     */
     private double calculateWorkingDays(LocalDate start, LocalDate end) {
+        Set<LocalDate> holidayDates = holidayCalendarRepository
+            .findHolidaysBetween(start, end)
+            .stream()
+            .map(HolidayCalendar::getHolidayDate)
+            .collect(Collectors.toSet());
+
         double days = 0;
         LocalDate current = start;
         while (!current.isAfter(end)) {
-            int dow = current.getDayOfWeek().getValue();
-            if (dow < 6) days++;
+            DayOfWeek dow = current.getDayOfWeek();
+            boolean isWeekend = dow == DayOfWeek.FRIDAY || dow == DayOfWeek.SATURDAY;
+            if (!isWeekend && !holidayDates.contains(current)) {
+                days++;
+            }
             current = current.plusDays(1);
         }
         return days;
+    }
+
+    private boolean isGenderEligible(Gender employeeGender, String applicableGender) {
+        if (applicableGender == null || "ALL".equalsIgnoreCase(applicableGender)) {
+            return true;
+        }
+        return employeeGender != null && employeeGender.name().equalsIgnoreCase(applicableGender);
+    }
+
+    private String getCurrentAuditor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
+        return auth.getName();
     }
 
     private Pageable buildPageable(LeaveFilterRequest filter) {

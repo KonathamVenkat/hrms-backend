@@ -3,6 +3,7 @@ package com.hrms.common.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -52,6 +53,28 @@ public class JwtTokenProvider {
 
     @Value("${hrms.jwt.refresh-expiration-ms:604800000}")  // default: 7 days
     private long refreshExpirationMs;
+
+    /**
+     * Fails application startup (rather than the first login) when the secret is
+     * missing, not Base64, or shorter than 256 bits. The secret value is never logged.
+     */
+    @PostConstruct
+    void validateSecret() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException(
+                "hrms.jwt.secret (env HRMS_JWT_SECRET) is not set");
+        }
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(jwtSecret);
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException("hrms.jwt.secret must be Base64-encoded");
+        }
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException(
+                "hrms.jwt.secret must decode to at least 32 bytes (256 bits)");
+        }
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Token generation

@@ -130,10 +130,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employeeRepository.existsByPersonalEmailIgnoreCase(request.getPersonalEmail())) {
             throw new DuplicateResourceException("Employee", "personalEmail", request.getPersonalEmail());
         }
-        if (authUserRepository.existsByUsername(request.getUsername())) {
+        if (authUserRepository.existsByUsernameIgnoreCase(request.getUsername())) {
             throw new DuplicateResourceException("AuthUser", "username", request.getUsername());
         }
-        if (authUserRepository.existsByEmail(workEmail)) {
+        if (authUserRepository.existsByEmailIgnoreCase(workEmail)) {
             throw new DuplicateResourceException("AuthUser", "email", workEmail);
         }
 

@@ -252,7 +252,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
     // ── Full employee detail with job details ─────────────────────────────────
 
     /**
-     * Fetches full employee detail.
+     * Fetches full employee detail, including deactivated employees (HR must be able to open
+     * them to reactivate); {@code isActive} in the result tells the caller which it is.
      * Department and Designation resolved via EMPLOYEE_JOB_DETAILS (IS_CURRENT=1)
      * so the detail page always shows the latest job assignment.
      */
@@ -306,7 +307,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
             ON dsig.DESIG_ID = ejd.DESIGNATION_ID
         WHERE
             e.EMPLOYEE_ID = :id
-            AND e.IS_ACTIVE = 1
         """,
         nativeQuery = true)
     Optional<EmployeeDetailProjection> findDetailById(@Param("id") Long id);

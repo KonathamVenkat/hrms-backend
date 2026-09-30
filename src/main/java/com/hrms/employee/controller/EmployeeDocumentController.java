@@ -10,8 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -98,8 +97,10 @@ public class EmployeeDocumentController {
     public ResponseEntity<ApiResponse<EmployeeDocumentResponse>> verifyDocument(
             @PathVariable Long employeeId,
             @PathVariable Long documentId,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        String verifiedBy = userDetails != null ? userDetails.getUsername() : "SYSTEM";
+            Authentication authentication) {
+        // The principal type isn't guaranteed to be UserDetails, so use the authentication's
+        // name (the username) — otherwise the audit trail silently falls back to "SYSTEM".
+        String verifiedBy = authentication != null ? authentication.getName() : "SYSTEM";
         return ResponseEntity.ok(
             ApiResponse.<EmployeeDocumentResponse>builder()
                 .success(true).message("Document verified")

@@ -2,6 +2,8 @@ package com.hrms.employee.service.impl;
 
 import com.hrms.auth.entity.AuthUser;
 import com.hrms.auth.repository.AuthUserRepository;
+import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.auth.security.PasswordPolicy;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.enums.EmploymentStatus;
 import com.hrms.common.enums.EmploymentType;
@@ -68,6 +70,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeMapper      employeeMapper;
     private final AuthUserRepository  authUserRepository;
     private final PasswordEncoder     passwordEncoder;
+    private final EmployeeAccessGuard accessGuard;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -93,6 +96,24 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public EmployeeResponse createEmployee(CreateEmployeeRequest request) {
         log.info("Creating new employee: {} {}", request.getFirstName(), request.getLastName());
+
+        // ── 0. Role + password checks (before anything is written) ──────────────
+        // Same rule as updateEmployee: only HR_ADMIN may hand out an elevated role, so an
+        // HR_MANAGER cannot mint an HR_ADMIN (or peer manager) account for themselves.
+        UserRole userRole;
+        try {
+            userRole = UserRole.valueOf(request.getRole().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessRuleException(
+                "INVALID_ROLE",
+                "Invalid role: '" + request.getRole() +
+                "'. Allowed values: HR_ADMIN, HR_MANAGER, EMPLOYEE");
+        }
+        if (userRole != UserRole.EMPLOYEE && !isCurrentUserHrAdmin()) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                "Only HR_ADMIN can create an account with the " + userRole + " role");
+        }
+        PasswordPolicy.validate(request.getPassword());
 
         // ── 1. Resolve workEmail ───────────────────────────────
         // If the frontend/caller did not supply a workEmail, generate one.
@@ -178,16 +199,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             request.getLastName().trim()
         );
 
-        UserRole userRole;
-        try {
-            userRole = UserRole.valueOf(request.getRole().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessRuleException(
-                "INVALID_ROLE",
-                "Invalid role: '" + request.getRole() +
-                "'. Allowed values: HR_ADMIN, HR_MANAGER, EMPLOYEE");
-        }
-
         // ── 6. Hash password and save AuthUser ─────────────────
         String hashedPassword = passwordEncoder.encode(request.getPassword());
 
@@ -249,6 +260,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = employeeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", id));
 
+        if (!Boolean.TRUE.equals(employee.getIsActive())) {
+            throw new BusinessRuleException(
+                "EMP_INACTIVE",
+                "This employee is deactivated. Reactivate the employee before editing.");
+        }
+
         // ── 2. Personal email uniqueness check (allow same) ────
         if (!employee.getPersonalEmail().equalsIgnoreCase(request.getPersonalEmail())
                 && employeeRepository.existsByPersonalEmailIgnoreCaseAndIdNot(
@@ -285,7 +302,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setMaritalStatus(request.getMaritalStatus());
         employee.setNationality(request.getNationality());
         employee.setReligion(request.getReligion());
-        employee.setProfilePhotoUrl(request.getProfilePhotoUrl());
+        employee.setProfilePhotoUrl(validatePhotoUrl(request.getProfilePhotoUrl()));
         employee.setPersonalEmail(request.getPersonalEmail().trim().toLowerCase());
         employee.setPersonalPhone(request.getPersonalPhone());
         employee.setWorkPhone(request.getWorkPhone());
@@ -306,6 +323,18 @@ public class EmployeeServiceImpl implements EmployeeService {
                 throw new org.springframework.security.access.AccessDeniedException(
                     "Only HR_ADMIN can change an employee's role");
             }
+            // An HR_ADMIN must not strip their own admin rights (the last admin could lock
+            // everyone out of role management); another HR_ADMIN has to do it.
+            if (!"HR_ADMIN".equalsIgnoreCase(request.getRole())
+                    && id.equals(accessGuard.currentEmployeeId())) {
+                authUserRepository.findByEmployeeId(id).ifPresent(au -> {
+                    if (au.getRole() == UserRole.HR_ADMIN) {
+                        throw new BusinessRuleException(
+                            "CANNOT_DEMOTE_SELF",
+                            "You cannot remove your own HR_ADMIN role. Ask another HR_ADMIN to do it.");
+                    }
+                });
+            }
             updateAuthUserRole(updated, request.getRole());
         }
 
@@ -320,7 +349,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public EmployeeResponse updateProfilePhoto(Long id, String photoUrl) {
         Employee employee = findActiveEmployeeById(id);
-        employee.setProfilePhotoUrl(photoUrl);
+        employee.setProfilePhotoUrl(validatePhotoUrl(photoUrl));
         return employeeMapper.toResponse(employeeRepository.save(employee));
     }
 
@@ -330,11 +359,27 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional
-    public void deactivateEmployee(Long id) {
+    public void deactivateEmployee(Long id, EmploymentStatus exitStatus) {
         log.info("Deactivating employee ID: {}", id);
         Employee employee = findActiveEmployeeById(id);
 
-        if (!employee.getEmploymentStatus().isCurrentlyEmployed()) {
+        // Deactivating yourself would revoke the login you are using and can leave the
+        // system without any HR_ADMIN.
+        if (id.equals(accessGuard.currentEmployeeId())) {
+            throw new BusinessRuleException(
+                "CANNOT_DEACTIVATE_SELF", "You cannot deactivate your own account.");
+        }
+
+        if (exitStatus != null) {
+            if (exitStatus.isCurrentlyEmployed()) {
+                throw new BusinessRuleException(
+                    "INVALID_EXIT_STATUS",
+                    "Exit status must be a non-employed status (e.g. TERMINATED, RESIGNED, RETIRED), not "
+                        + exitStatus + ".");
+            }
+            employee.setEmploymentStatus(exitStatus);
+            employeeRepository.saveAndFlush(employee);
+        } else if (!employee.getEmploymentStatus().isCurrentlyEmployed()) {
             log.warn("Deactivating employee ID: {} who has status: {}",
                 id, employee.getEmploymentStatus());
         }
@@ -376,6 +421,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         employee.setIsActive(true);
+        // A rehire: an exited status (TERMINATED, RESIGNED, ...) with a working login makes no
+        // sense, and a plain update refuses to move an exited employee back, so do it here.
+        if (!employee.getEmploymentStatus().isCurrentlyEmployed()) {
+            employee.setEmploymentStatus(EmploymentStatus.ACTIVE);
+        }
         Employee reactivated = employeeRepository.save(employee);
 
         // Restore system access that was revoked on deactivation.
@@ -442,7 +492,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeDetailProjection p = employeeRepository.findDetailById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", id));
 
-        return toDetailResponse(p);
+        EmployeeDetailResponse response = toDetailResponse(p);
+        authUserRepository.findByEmployeeId(id)
+            .ifPresent(au -> response.setRole(au.getRole().name()));
+        return response;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -713,8 +766,34 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
     }
 
+    /**
+     * Only accepts URLs the browser can safely load as an image source (http/https or an
+     * app-relative path); anything else is rejected rather than stored and rendered later.
+     * Blank clears the photo.
+     */
+    private String validatePhotoUrl(String url) {
+        if (!StringUtils.hasText(url)) return null;
+        String trimmed = url.trim();
+        if (trimmed.length() > 500 || !trimmed.matches("^(https?://|/)\\S+$")) {
+            throw new BusinessRuleException(
+                "INVALID_PHOTO_URL",
+                "Profile photo must be an http(s) URL or an app-relative path (max 500 characters).");
+        }
+        return trimmed;
+    }
+
     private void validateStatusTransition(Employee current, UpdateEmployeeRequest request) {
         if (request.getEmploymentStatus() == null) return;
+
+        // Leaving employment is recorded through Deactivate, which also revokes the login;
+        // setting it here would leave a terminated employee with a working account.
+        if (request.getEmploymentStatus() != current.getEmploymentStatus()
+                && !request.getEmploymentStatus().isCurrentlyEmployed()) {
+            throw new BusinessRuleException(
+                "USE_DEACTIVATE_FOR_EXIT",
+                "To record " + request.getEmploymentStatus().getDisplayName()
+                    + ", use Deactivate instead — it also revokes the employee's login.");
+        }
 
         boolean currentlyExited = !current.getEmploymentStatus().isCurrentlyEmployed();
         boolean newStatusIsActive = request.getEmploymentStatus().isCurrentlyEmployed();

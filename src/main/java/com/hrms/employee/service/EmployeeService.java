@@ -125,9 +125,13 @@ public interface EmployeeService {
      * <p>Physical deletion is never performed — employee records must be retained
      * for payroll history, leave records, and audit compliance.</p>
      *
-     * @param id  the employee's primary key
+     * <p>Also revokes the employee's login. An optional exit status (TERMINATED, RESIGNED,
+     * RETIRED, ...) is recorded in the same step, since a plain update may not set one.</p>
+     *
+     * @param id          the employee's primary key
+     * @param exitStatus  optional non-employed status to record; {@code null} leaves the status as is
      */
-    void deactivateEmployee(Long id);
+    void deactivateEmployee(Long id, com.hrms.common.enums.EmploymentStatus exitStatus);
 
     /**
      * Reactivates a previously deactivated employee.

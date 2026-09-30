@@ -63,6 +63,10 @@ public class EmployeeDetailResponse {
     private String designationCode;
     private String gradeLevel;
 
+    // ── Login account ─────────────────────────────────────────
+    /** The linked login's role (HR_ADMIN / HR_MANAGER / EMPLOYEE); absent if the employee has no login. */
+    private String role;
+
     // ── Audit ─────────────────────────────────────────────────
     private String createdBy;
     private String createdAt;

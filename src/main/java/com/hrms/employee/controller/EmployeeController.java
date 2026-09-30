@@ -1,7 +1,9 @@
 package com.hrms.employee.controller;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.PagedResponse;
+import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.enums.EmploymentStatus;
 import com.hrms.common.enums.EmploymentType;
 import com.hrms.common.enums.Gender;
@@ -62,9 +64,11 @@ import java.util.Map;
 public class EmployeeController {
 
     private final EmployeeService employeeService;
+    private final EmployeeAccessGuard accessGuard;
 
-    public EmployeeController(EmployeeService employeeService) {
+    public EmployeeController(EmployeeService employeeService, EmployeeAccessGuard accessGuard) {
     	this.employeeService = employeeService;
+    	this.accessGuard = accessGuard;
     }
     // ──────────────────────────────────────────────────────────────────────────
     // POST /api/v1/employees  →  Create new employee
@@ -130,7 +134,10 @@ public class EmployeeController {
             @PathVariable Long id) {
  
         log.info("GET /api/v1/employees/{}", id);
- 
+
+        // An EMPLOYEE may only read their own record; HR roles may read any.
+        accessGuard.assertSelfOrPrivileged(id);
+
         EmployeeDetailResponse detail = employeeService.getEmployeeById(id);
  
         return ResponseEntity.ok(
@@ -158,9 +165,10 @@ public class EmployeeController {
             @Parameter(description = "Unique employee code", example = "EMP-2024-001")
             @PathVariable @NotBlank String employeeCode) {
 
-        return ResponseEntity.ok(
-            ApiResponse.success(employeeService.getEmployeeByCode(employeeCode))
-        );
+        EmployeeResponse employee = employeeService.getEmployeeByCode(employeeCode);
+        // Same ownership rule as GET /{id}, checked against the record that was actually found.
+        accessGuard.assertSelfOrPrivileged(employee.getId());
+        return ResponseEntity.ok(ApiResponse.success(employee));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -184,7 +192,7 @@ public class EmployeeController {
         		ApiResponse.<PagedResponse<EmployeeSummaryResponse>>builder()
                 .success(true)
                 .message("Employees fetched successfully")
-                .data(employeeService.getEmployees(filterRequest))
+                .data(result)
                 .statusCode(200)
                 .build()
         );
@@ -195,7 +203,7 @@ public class EmployeeController {
     // ──────────────────────────────────────────────────────────────────────────
 
     @GetMapping("/lookup")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
     @Operation(
         summary     = "Get all active employees for lookup/autocomplete",
         description = "Returns a lightweight list of all active employees. "
@@ -261,6 +269,7 @@ public class EmployeeController {
             @PathVariable @Positive Long id,
             @RequestBody Map<String, String> body) {
 
+        accessGuard.assertSelfOrPrivileged(id);
         String photoUrl = body.get("profilePhotoUrl");
         if (photoUrl == null || photoUrl.isBlank()) {
             return ResponseEntity
@@ -292,10 +301,12 @@ public class EmployeeController {
     })
     public ResponseEntity<ApiResponse<Void>> deactivateEmployee(
             @Parameter(description = "Employee database ID")
-            @PathVariable @Positive Long id) {
+            @PathVariable @Positive Long id,
+            @Parameter(description = "Optional exit status to record: TERMINATED, RESIGNED, RETIRED, ...")
+            @RequestParam(required = false) String exitStatus) {
 
         log.info("DELETE /api/v1/employees/{} (soft delete)", id);
-        employeeService.deactivateEmployee(id);
+        employeeService.deactivateEmployee(id, parseEnum(EmploymentStatus.class, exitStatus, "exitStatus"));
         return ResponseEntity.ok(ApiResponse.noContent("Employee deactivated successfully"));
     }
 
@@ -358,19 +369,11 @@ public class EmployeeController {
         req.setKeyword(keyword);
         req.setDepartmentId(departmentId);
 
-        // ✅ Safe String → Enum conversion
-        if (employmentStatus != null && !employmentStatus.isBlank()) {
-            try { req.setEmploymentStatus(EmploymentStatus.valueOf(employmentStatus.toUpperCase())); }
-            catch (IllegalArgumentException ignored) { /* invalid value — skip filter */ }
-        }
-        if (employmentType != null && !employmentType.isBlank()) {
-            try { req.setEmploymentType(EmploymentType.valueOf(employmentType.toUpperCase())); }
-            catch (IllegalArgumentException ignored) { }
-        }
-        if (gender != null && !gender.isBlank()) {
-            try { req.setGender(Gender.valueOf(gender.toUpperCase())); }
-            catch (IllegalArgumentException ignored) { }
-        }
+        // An unknown value is a client error, not "no filter" — silently dropping it
+        // would return every employee for a mistyped status.
+        req.setEmploymentStatus(parseEnum(EmploymentStatus.class, employmentStatus, "employmentStatus"));
+        req.setEmploymentType(parseEnum(EmploymentType.class, employmentType, "employmentType"));
+        req.setGender(parseEnum(Gender.class, gender, "gender"));
 
         if (isActive != null) {
             req.setIsActive(isActive);
@@ -388,6 +391,19 @@ public class EmployeeController {
                     .statusCode(200)
                     .build());
     }
-    
+
+    /** Blank/absent → null; unknown value → 422 naming the field and the allowed values. */
+    private static <E extends Enum<E>> E parseEnum(Class<E> type, String value, String field) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Enum.valueOf(type, value.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessRuleException(
+                "INVALID_FILTER",
+                "Invalid " + field + ": '" + value + "'. Allowed values: "
+                    + java.util.Arrays.toString(type.getEnumConstants()));
+        }
+    }
+
     
 }

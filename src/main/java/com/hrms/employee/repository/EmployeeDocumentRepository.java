@@ -76,6 +76,7 @@ public interface EmployeeDocumentRepository
         JOIN HRMS.DOCUMENT_TYPES     dt ON dt.DOC_TYPE_ID = ed.DOC_TYPE_ID
         WHERE ed.DOCUMENT_ID = :documentId
           AND ed.EMPLOYEE_ID = :employeeId
+          AND ed.IS_ACTIVE   = 1
         """, nativeQuery = true)
     Optional<EmployeeDocumentProjection> findByDocumentIdAndEmployeeId(
             @Param("documentId")  Long documentId,

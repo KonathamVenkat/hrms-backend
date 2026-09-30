@@ -16,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -197,7 +199,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             .notes(clean(request.getNotes()))
             .isVerified(0)
             .isActive(1)
-            .uploadedBy("SYSTEM")
+            .uploadedBy(getCurrentAuditor())
             .createdAt(LocalDateTime.now())
             .build();
 
@@ -283,10 +285,19 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     private EmployeeDocument findEntity(Long employeeId, Long documentId) {
         EmployeeDocument doc = documentRepository.findById(documentId)
             .orElseThrow(() -> new ResourceNotFoundException("Document", "id", documentId));
-        if (!doc.getEmployeeId().equals(employeeId)) {
+        // A soft-deleted document is gone as far as callers are concerned — it must not
+        // still be downloadable, verifiable or editable by guessing its id.
+        if (!doc.getEmployeeId().equals(employeeId)
+                || !Integer.valueOf(1).equals(doc.getIsActive())) {
             throw new ResourceNotFoundException("Document", "id", documentId);
         }
         return doc;
+    }
+
+    private String getCurrentAuditor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
+        return auth.getName();
     }
 
     private EmployeeDocumentProjection findProjection(Long employeeId, Long documentId) {

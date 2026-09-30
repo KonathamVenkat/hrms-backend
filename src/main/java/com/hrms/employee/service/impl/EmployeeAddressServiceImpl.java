@@ -146,10 +146,27 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
                 "Cannot deactivate the only active address.");
         }
 
+        boolean wasPrimary = address.getIsPrimary() != null && address.getIsPrimary() == 1;
+
         address.setIsActive(0);
         address.setIsPrimary(0);
         address.setUpdatedAt(LocalDateTime.now());
         addressRepository.save(address);
+
+        // Never leave an employee with active addresses but no primary one.
+        if (wasPrimary) {
+            addressRepository.findByEmployeeIdAndIsActiveOrderByAddressTypeAsc(employeeId, 1)
+                .stream()
+                .filter(a -> !a.getEmployeeAddressesId().equals(addressId))
+                .findFirst()
+                .ifPresent(next -> {
+                    next.setIsPrimary(1);
+                    next.setUpdatedAt(LocalDateTime.now());
+                    addressRepository.save(next);
+                    log.info("Address {} promoted to primary for employee {}",
+                        next.getEmployeeAddressesId(), employeeId);
+                });
+        }
         log.info("Address {} deactivated for employee {}", addressId, employeeId);
     }
 

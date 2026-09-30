@@ -186,7 +186,7 @@ public class EmployeeController {
     public ResponseEntity<ApiResponse<PagedResponse<EmployeeSummaryResponse>>> searchEmployees(
             @Valid @RequestBody EmployeeFilterRequest filterRequest) {
 
-        log.debug("POST /api/v1/employees/search - Filter: {}", filterRequest);
+        log.debug("POST /api/v1/employees/search");
         PagedResponse<EmployeeSummaryResponse> result = employeeService.getEmployees(filterRequest);
         return ResponseEntity.ok(
         		ApiResponse.<PagedResponse<EmployeeSummaryResponse>>builder()

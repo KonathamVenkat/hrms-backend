@@ -20,6 +20,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -182,6 +184,22 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             throw new BusinessRuleException("FILE_SAVE_ERROR",
                 "Failed to save file. Please try again.");
         }
+
+        // The file is written before the database row, so a later failure or rollback would
+        // leave an orphan identity document on disk with nothing pointing at it. Remove it
+        // unless the transaction actually commits.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    try {
+                        Files.deleteIfExists(targetPath);
+                    } catch (IOException e) {
+                        log.warn("Could not remove orphaned upload {}: {}", targetPath, e.getMessage());
+                    }
+                }
+            }
+        });
 
         // ── Save metadata to DB ───────────────────────────────
         EmployeeDocument entity = EmployeeDocument.builder()

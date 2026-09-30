@@ -83,10 +83,12 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final String DEFAULT_SORT_FIELD = "id";
 
     /**
-     * Work email domain used for auto-generation.
-     * Move to application.properties / @Value if the domain should be configurable.
+     * Work email domain used for auto-generation (first.last@domain). Required, with no
+     * default: a wrong domain here becomes every employee's stored work email and login
+     * address, so the deployment has to state it explicitly ({@code hrms.work-email-domain}).
      */
-    private static final String WORK_EMAIL_DOMAIN = "hrms.com";
+    @org.springframework.beans.factory.annotation.Value("${hrms.work-email-domain}")
+    private String workEmailDomain;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Create
@@ -95,7 +97,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeResponse createEmployee(CreateEmployeeRequest request) {
-        log.info("Creating new employee: {} {}", request.getFirstName(), request.getLastName());
+        log.info("Creating new employee");
 
         // ── 0. Role + password checks (before anything is written) ──────────────
         // Same rule as updateEmployee: only HR_ADMIN may hand out an elevated role, so an
@@ -188,9 +190,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             // departmentId / designationId are null on initial create; set via Job Details tab
             .build();
 
-        Employee savedEmployee = employeeRepository.save(employee);
-        log.info("Employee saved. ID: {}, Code: {}, workEmail: {}",
-            savedEmployee.getId(), savedEmployee.getEmployeeCode(), workEmail);
+        Employee savedEmployee = employeeRepository.saveAndFlush(employee);
+        // EMPLOYEE_CODE is filled in by the database, and Hibernate does not read a
+        // database-assigned value back on insert. Without this refresh the code is null here,
+        // so the new login and the response below would carry no employee code.
+        entityManager.refresh(savedEmployee);
+        log.info("Employee saved. ID: {}, Code: {}",
+            savedEmployee.getId(), savedEmployee.getEmployeeCode());
 
         // ── 5. Build full name for AUTH_USERS ──────────────────
         String fullNameEn = buildFullName(
@@ -218,11 +224,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             .createdAt(java.time.LocalDateTime.now())
             .build();
 
-        log.info("Building AuthUser — fullNameEn: '{}', username: '{}', email: '{}'",
-            fullNameEn, request.getUsername(), workEmail);
-
         authUserRepository.save(authUser);
-        log.info("AuthUser created for employee. Username: {}", request.getUsername());
+        log.info("AuthUser created for employee ID: {}", savedEmployee.getId());
 
         // TODO: publish Kafka event → EmployeeCreatedEvent
 
@@ -522,7 +525,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         String base = sanitizeEmailPart(request.getFirstName())
                     + "."
                     + sanitizeEmailPart(request.getLastName())
-                    + "@" + WORK_EMAIL_DOMAIN;
+                    + "@" + workEmailDomain;
 
         if (!employeeRepository.existsByWorkEmailIgnoreCase(base)
                 && !authUserRepository.existsByEmail(base)) {
@@ -536,7 +539,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                              + "."
                              + sanitizeEmailPart(request.getLastName())
                              + counter
-                             + "@" + WORK_EMAIL_DOMAIN;
+                             + "@" + workEmailDomain;
             if (!employeeRepository.existsByWorkEmailIgnoreCase(candidate)
                     && !authUserRepository.existsByEmail(candidate)) {
                 return candidate;
@@ -545,7 +548,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         // Extremely unlikely fallback — use username@domain
-        return request.getUsername().toLowerCase() + "@" + WORK_EMAIL_DOMAIN;
+        return request.getUsername().toLowerCase() + "@" + workEmailDomain;
     }
 
     /** Lowercases and strips characters that are not valid in an email local-part. */

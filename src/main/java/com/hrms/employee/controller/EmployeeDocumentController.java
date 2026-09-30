@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -136,7 +137,9 @@ public class EmployeeDocumentController {
         return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
             .header(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + resource.getFilename() + "\"")
+                ContentDisposition.attachment()
+                    .filename(resource.getFilename(), StandardCharsets.UTF_8).build().toString())
+            .header("X-Content-Type-Options", "nosniff")
             .body(resource);
     }
 }

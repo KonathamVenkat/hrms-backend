@@ -1,41 +1,37 @@
 package com.hrms.leave.service.impl;
 
 import com.hrms.common.exception.BusinessRuleException;
-import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.employee.config.UploadLimits;
 import com.hrms.leave.entity.LeaveType;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Validates and stores the supporting document attached to a leave request
- * (e.g. a medical certificate). Validation mirrors the employee-document upload:
+ * Validates the supporting document attached to a leave request (e.g. a medical certificate)
+ * and hands back its bytes; the caller saves them to the database with the request.
+ * Validation mirrors the employee-document upload:
  * the extension, declared content-type AND the file's leading bytes must agree,
  * because the first two are client-supplied and trivially spoofed.
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class LeaveAttachmentStorage {
 
-    /** Result of a successful store — the values persisted on the leave request. */
-    public record Stored(String relativePath, String originalName, long sizeBytes) {}
+    /** A validated attachment: the bytes to store and the values kept on the leave request. */
+    public record Prepared(byte[] bytes, String originalName, long sizeBytes) {}
 
+    private final UploadLimits uploadLimits;
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
 
@@ -48,18 +44,16 @@ public class LeaveAttachmentStorage {
         "jpeg", new byte[][] { {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF} },
         "png",  new byte[][] { {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} });
 
-    @Value("${app.leave-upload.dir:uploads/leave-attachments}")
-    private String uploadDir;
-
     /**
-     * Throws BusinessRuleException if the file is missing or fails any check; writes nothing.
-     * The leave type's configured limits narrow the global PDF/JPG/JPEG/PNG whitelist.
+     * Throws BusinessRuleException if the file is missing or fails any check.
+     * The leave type's configured limits narrow the global PDF/JPG/JPEG/PNG whitelist
+     * (and its size limit is never above the global upload cap).
      */
-    public Stored store(Long employeeId, MultipartFile file, LeaveType leaveType) {
+    public Prepared prepare(MultipartFile file, LeaveType leaveType) {
         if (file == null || file.isEmpty()) {
             throw new BusinessRuleException("NO_FILE", "No file provided.");
         }
-        int maxMb = leaveType.resolveDocMaxFileSizeMb();
+        int maxMb = uploadLimits.effectiveMb(leaveType.resolveDocMaxFileSizeMb());
         if (file.getSize() > maxMb * 1024L * 1024L) {
             throw new BusinessRuleException("FILE_TOO_LARGE",
                 "Attachment exceeds the maximum size of " + maxMb + " MB for this leave type.");
@@ -100,49 +94,7 @@ public class LeaveAttachmentStorage {
                 "The file's content does not match its extension.");
         }
 
-        String subDir     = "employee_" + employeeId;
-        String storedName = UUID.randomUUID() + "." + extension;
-        Path   targetDir  = Paths.get(uploadDir, subDir);
-        try {
-            Files.createDirectories(targetDir);
-            Files.write(targetDir.resolve(storedName), bytes);
-        } catch (IOException e) {
-            log.error("Failed to store leave attachment: {}", e.getMessage());
-            throw new BusinessRuleException("FILE_SAVE_ERROR",
-                "Failed to save attachment. Please try again.");
-        }
-        return new Stored(subDir + "/" + storedName, sanitizeName(originalName), file.getSize());
-    }
-
-    /** Best-effort removal, used to roll back when the DB save fails after the file was written. */
-    public void deleteQuietly(String relativePath) {
-        try {
-            Files.deleteIfExists(resolve(relativePath));
-        } catch (IOException | RuntimeException e) {
-            log.warn("Could not delete orphaned leave attachment {}: {}", relativePath, e.getMessage());
-        }
-    }
-
-    public Resource load(String relativePath) {
-        try {
-            Resource resource = new UrlResource(resolve(relativePath).toUri());
-            if (!resource.exists()) {
-                throw new ResourceNotFoundException("LeaveAttachment", "path", relativePath);
-            }
-            return resource;
-        } catch (MalformedURLException e) {
-            throw new BusinessRuleException("FILE_ERROR", "Could not read attachment.");
-        }
-    }
-
-    /** Resolves under the upload root and refuses anything that escapes it. */
-    private Path resolve(String relativePath) {
-        Path root     = Paths.get(uploadDir).toAbsolutePath().normalize();
-        Path resolved = root.resolve(relativePath).normalize();
-        if (!resolved.startsWith(root)) {
-            throw new BusinessRuleException("FILE_ERROR", "Invalid attachment path.");
-        }
-        return resolved;
+        return new Prepared(bytes, sanitizeName(originalName), file.getSize());
     }
 
     private String extensionOf(String filename) {

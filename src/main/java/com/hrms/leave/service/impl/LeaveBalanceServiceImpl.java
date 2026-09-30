@@ -3,6 +3,7 @@ package com.hrms.leave.service.impl;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.employee.config.UploadLimits;
 import com.hrms.leave.dto.request.AdjustBalanceRequest;
 import com.hrms.leave.dto.request.InitializeBalancesRequest;
 import com.hrms.leave.dto.response.InitializationResultResponse;
@@ -33,6 +34,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     private final LeaveTypeRepository    leaveTypeRepository;
     private final EmployeeRepository     employeeRepository;
     private final EmployeeAccessGuard    employeeAccessGuard;
+    private final UploadLimits           uploadLimits;
 
     // ── Get balances ──────────────────────────────────────────
 
@@ -287,7 +289,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 isCarryForward  = lt.get().getIsCarryForward() == 1;
                 requiresDocument = lt.get().getRequiresDocument() != null
                     && lt.get().getRequiresDocument() == 1;
-                docMaxFileSizeMb     = lt.get().resolveDocMaxFileSizeMb();
+                docMaxFileSizeMb     = uploadLimits.effectiveMb(lt.get().resolveDocMaxFileSizeMb());
                 docAllowedExtensions = lt.get().resolveDocAllowedExtensions();
             }
         } catch (Exception ignored) { /* graceful fallback */ }

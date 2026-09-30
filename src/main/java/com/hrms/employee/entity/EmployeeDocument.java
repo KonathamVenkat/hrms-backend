@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  *
  * Stores metadata for uploaded employee documents.
  * Each document is linked to a DocumentType (Phase 1 admin config).
- * Actual file storage is on server filesystem or object storage.
+ * The file bytes live in the database too, in {@link EmployeeDocumentContent}.
  *
  * An employee can have multiple documents of the same type
  * (e.g. multiple passports over time).
@@ -45,9 +45,6 @@ public class EmployeeDocument {
 
     @Column(name = "ORIGINAL_FILE_NAME", nullable = false, length = 300)
     private String originalFileName;
-
-    @Column(name = "FILE_PATH", nullable = false, length = 1000)
-    private String filePath;
 
     /** File size in bytes */
     @Column(name = "FILE_SIZE", nullable = false)

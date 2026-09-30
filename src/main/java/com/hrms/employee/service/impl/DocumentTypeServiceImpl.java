@@ -2,6 +2,7 @@ package com.hrms.employee.service.impl;
 
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.employee.config.UploadLimits;
 import com.hrms.employee.dto.request.DocumentTypeRequest;
 import com.hrms.employee.dto.response.DocumentTypeResponse;
 import com.hrms.employee.entity.DocumentType;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class DocumentTypeServiceImpl implements DocumentTypeService {
 
     private final DocumentTypeRepository docTypeRepository;
+    private final UploadLimits           uploadLimits;
 
     @Override
     public List<DocumentTypeResponse> getAllDocumentTypes() {
@@ -60,6 +62,8 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
         if (docTypeRepository.existsByDocTypeNameIgnoreCase(request.getDocTypeName())) {
             throw new DuplicateResourceException("DocumentType", "name", request.getDocTypeName());
         }
+
+        uploadLimits.assertWithinCap(request.getMaxFileSizeMb());
 
         DocumentType entity = DocumentType.builder()
             .docTypeCode(request.getDocTypeCode().toUpperCase().trim())
@@ -98,6 +102,8 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
                 request.getDocTypeName(), id)) {
             throw new DuplicateResourceException("DocumentType", "name", request.getDocTypeName());
         }
+
+        uploadLimits.assertWithinCap(request.getMaxFileSizeMb());
 
         existing.setDocTypeCode(request.getDocTypeCode().toUpperCase().trim());
         existing.setDocTypeName(request.getDocTypeName().trim());

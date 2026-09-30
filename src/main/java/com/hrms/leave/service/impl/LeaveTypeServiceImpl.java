@@ -2,6 +2,7 @@ package com.hrms.leave.service.impl;
 
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.employee.config.UploadLimits;
 import com.hrms.leave.dto.request.LeaveTypeRequest;
 import com.hrms.leave.dto.response.LeaveTypeResponse;
 import com.hrms.leave.entity.LeaveType;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 public class LeaveTypeServiceImpl implements LeaveTypeService {
  
     private final LeaveTypeRepository leaveTypeRepository;
+    private final UploadLimits        uploadLimits;
  
     // ── Read ──────────────────────────────────────────────────
  
@@ -52,6 +54,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     @Transactional
     public LeaveTypeResponse createLeaveType(LeaveTypeRequest request) {
         log.info("Creating leave type: {}", request.getCode());
+        uploadLimits.assertWithinCap(request.getDocMaxFileSizeMb());
  
         if (leaveTypeRepository.existsByCodeIgnoreCase(request.getCode())) {
             throw new DuplicateResourceException("LeaveType", "code", request.getCode());
@@ -75,6 +78,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     @Transactional
     public LeaveTypeResponse updateLeaveType(Long id, LeaveTypeRequest request) {
         log.info("Updating leave type id: {}", id);
+        uploadLimits.assertWithinCap(request.getDocMaxFileSizeMb());
  
         LeaveType existing = findById(id);
  

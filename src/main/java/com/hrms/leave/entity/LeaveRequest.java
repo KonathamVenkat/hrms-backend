@@ -96,10 +96,7 @@ public class LeaveRequest {
 
     // ── Supporting document (optional; required when LeaveType.requiresDocument) ──
 
-    /** Path relative to app.leave-upload.dir, e.g. "employee_12/uuid.pdf". */
-    @Column(name = "ATTACHMENT_PATH", length = 300)
-    private String attachmentPath;
-
+    /** Non-null exactly when an attachment exists; the bytes are in {@link LeaveRequestAttachmentContent}. */
     @Column(name = "ATTACHMENT_NAME", length = 255)
     private String attachmentName;
 

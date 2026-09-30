@@ -5,8 +5,11 @@ import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.EmployeeDocumentRequest;
 import com.hrms.employee.dto.response.EmployeeDocumentResponse;
 import com.hrms.employee.entity.DocumentType;
+import com.hrms.employee.config.UploadLimits;
 import com.hrms.employee.entity.EmployeeDocument;
+import com.hrms.employee.entity.EmployeeDocumentContent;
 import com.hrms.employee.repository.DocumentTypeRepository;
+import com.hrms.employee.repository.EmployeeDocumentContentRepository;
 import com.hrms.employee.repository.EmployeeDocumentRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.repository.projection.EmployeeDocumentProjection;
@@ -14,25 +17,20 @@ import com.hrms.employee.service.EmployeeDocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -44,9 +42,8 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     private final EmployeeDocumentRepository documentRepository;
     private final DocumentTypeRepository     docTypeRepository;
     private final EmployeeRepository         employeeRepository;
-
-    @Value("${app.upload.dir:uploads/employee-documents}")
-    private String uploadDir;
+    private final EmployeeDocumentContentRepository contentRepository;
+    private final UploadLimits               uploadLimits;
 
     @Value("${app.base-url:http://localhost:8082}")
     private String baseUrl;
@@ -119,9 +116,10 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         String extension    = extensionLc.toUpperCase();
         long   sizeBytes    = file.getSize();
 
-        // Max size guard — the document type's configured limit, itself capped at 1-50 MB
-        // by DocumentTypeRequest validation, so this can never exceed the servlet's own cap.
-        long maxSizeBytes = (docType.getMaxFileSizeMb() != null ? docType.getMaxFileSizeMb() : 5)
+        // Max size guard — the document type's configured limit, never above the global cap
+        // (hrms.upload.max-file-size-mb) even if the cap was lowered after the type was saved.
+        long maxSizeBytes = uploadLimits.effectiveMb(
+                docType.getMaxFileSizeMb() != null ? docType.getMaxFileSizeMb() : 5)
             * 1024L * 1024L;
         if (sizeBytes > maxSizeBytes) {
             throw new BusinessRuleException("FILE_TOO_LARGE",
@@ -170,44 +168,12 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             }
         }
 
-        // ── Save file to disk ─────────────────────────────────
-        String storedFileName = UUID.randomUUID() + "." + extensionLc;
-        String subDir         = "employee_" + employeeId;
-        Path   targetDir      = Paths.get(uploadDir, subDir);
-        Path   targetPath     = targetDir.resolve(storedFileName);
-
-        try {
-            Files.createDirectories(targetDir);
-            Files.write(targetPath, fileBytes);
-        } catch (IOException e) {
-            log.error("Failed to store file: {}", e.getMessage());
-            throw new BusinessRuleException("FILE_SAVE_ERROR",
-                "Failed to save file. Please try again.");
-        }
-
-        // The file is written before the database row, so a later failure or rollback would
-        // leave an orphan identity document on disk with nothing pointing at it. Remove it
-        // unless the transaction actually commits.
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
-                    try {
-                        Files.deleteIfExists(targetPath);
-                    } catch (IOException e) {
-                        log.warn("Could not remove orphaned upload {}: {}", targetPath, e.getMessage());
-                    }
-                }
-            }
-        });
-
-        // ── Save metadata to DB ───────────────────────────────
+        // ── Save metadata + file bytes to DB (same transaction) ─
         EmployeeDocument entity = EmployeeDocument.builder()
             .employeeId(employeeId)
             .docTypeId(request.getDocTypeId())
             .documentName(request.getDocumentName().trim())
             .originalFileName(originalName)
-            .filePath(subDir + "/" + storedFileName)
             .fileSize(sizeBytes)
             .fileExtension(extension)
             .documentNumber(clean(request.getDocumentNumber()))
@@ -221,7 +187,8 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             .createdAt(LocalDateTime.now())
             .build();
 
-        EmployeeDocument saved = documentRepository.save(entity);
+        EmployeeDocument saved = documentRepository.saveAndFlush(entity);
+        contentRepository.save(new EmployeeDocumentContent(saved.getDocumentId(), fileBytes));
         log.info("Document uploaded. ID: {}", saved.getDocumentId());
 
         return toResponse(findProjection(employeeId, saved.getDocumentId()));
@@ -278,18 +245,17 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     @Override
     public Resource downloadDocument(Long employeeId, Long documentId) {
         EmployeeDocument doc = findEntity(employeeId, documentId);
-        try {
-            Path filePath = Paths.get(uploadDir).resolve(doc.getFilePath());
-            Resource resource = new UrlResource(filePath.toUri());
-            if (!resource.exists()) {
-                throw new BusinessRuleException("FILE_NOT_FOUND",
-                    "File not found on server.");
+        byte[] bytes = contentRepository.findById(documentId)
+            .orElseThrow(() -> new BusinessRuleException("FILE_NOT_FOUND",
+                "File content not found for this document."))
+            .getContent();
+        String fileName = doc.getOriginalFileName();
+        return new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                return fileName;
             }
-            return resource;
-        } catch (MalformedURLException e) {
-            throw new BusinessRuleException("FILE_ERROR",
-                "Could not read file.");
-        }
+        };
     }
 
     // ── Private helpers ───────────────────────────────────────

@@ -38,8 +38,8 @@ public class DocumentTypeRequest {
     @Size(max = 200)
     private String allowedExtensions;
 
+    // The upper bound is the global upload cap (hrms.upload.max-file-size-mb), checked in the service.
     @Min(value = 1,  message = "Max file size must be at least 1 MB")
-    @Max(value = 50, message = "Max file size cannot exceed 50 MB")
     private Integer maxFileSizeMb;
 
     @Min(value = 0)

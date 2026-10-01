@@ -269,12 +269,6 @@ public class Employee extends Auditable {
     @Column(name = "IS_ACTIVE", nullable = false)           // ✅ no columnDefinition needed
     @Builder.Default
     private Boolean isActive = true;
-    
-    @Column(name = "DEPARTMENT_ID")
-    private Long departmentId;
-    
-    @Column(name = "DESIGNATION_ID")    // ← ADD THIS
-    private Long designationId;
 
 
     // ──────────────────────────────────────────────────────────────────────────

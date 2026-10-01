@@ -116,25 +116,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
     );
 
 
-    boolean existsByEmployeeCodeIgnoreCase(String employeeCode);
-
     boolean existsByWorkEmailIgnoreCase(String workEmail);
 
     boolean existsByPersonalEmailIgnoreCase(String personalEmail);
 
-    boolean existsByEmployeeCodeIgnoreCaseAndIdNot(String employeeCode, Long id);
-
-    boolean existsByWorkEmailIgnoreCaseAndIdNot(String workEmail, Long id);
-
     boolean existsByPersonalEmailIgnoreCaseAndIdNot(String personalEmail, Long id);
 
     Optional<Employee> findByEmployeeCodeIgnoreCase(String employeeCode);
-
-    Optional<Employee> findByWorkEmailIgnoreCase(String workEmail);
-
-    Optional<Employee> findByPersonalEmailIgnoreCase(String personalEmail);
-
-    Page<Employee> findAllByIsActive(Boolean isActive, Pageable pageable);
 
     Optional<Employee> findByIdAndIsActive(Long id, Boolean isActive);
 
@@ -145,73 +133,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Employee e WHERE e.id = :id")
     Optional<Employee> findByIdForUpdate(@Param("id") Long id);
-
-    Page<Employee> findAllByEmploymentStatusAndIsActive(
-            EmploymentStatus status, Boolean isActive, Pageable pageable);
-
-    Page<Employee> findAllByEmploymentTypeAndIsActive(
-            EmploymentType type, Boolean isActive, Pageable pageable);
-
-    Page<Employee> findAllByGenderAndIsActive(
-            Gender gender, Boolean isActive, Pageable pageable);
-
-    // ── Probation management ──────────────────────────────────────────────────
-
-    @Query("""
-            SELECT e FROM Employee e
-            WHERE e.employmentStatus = 'PROBATION'
-              AND e.probationEndDate IS NOT NULL
-              AND e.probationEndDate <= :today
-              AND e.isActive = true
-            """)
-    List<Employee> findEmployeesWithExpiredProbation(@Param("today") LocalDate today);
-
-    @Query("""
-            SELECT e FROM Employee e
-            WHERE e.employmentStatus = 'PROBATION'
-              AND e.probationEndDate BETWEEN :today AND :cutoffDate
-              AND e.isActive = true
-            """)
-    List<Employee> findEmployeesWithUpcomingProbationEnd(
-            @Param("today") LocalDate today,
-            @Param("cutoffDate") LocalDate cutoffDate);
-
-    // ── Reporting & analytics ─────────────────────────────────────────────────
-
-    @Query("""
-            SELECT e.employmentStatus, COUNT(e)
-            FROM Employee e
-            WHERE e.isActive = true
-            GROUP BY e.employmentStatus
-            """)
-    List<Object[]> countByEmploymentStatus();
-
-    @Query("""
-            SELECT e.employmentType, COUNT(e)
-            FROM Employee e
-            WHERE e.isActive = true
-            GROUP BY e.employmentType
-            """)
-    List<Object[]> countByEmploymentType();
-
-    @Query("""
-            SELECT e.gender, COUNT(e)
-            FROM Employee e
-            WHERE e.isActive = true
-            GROUP BY e.gender
-            """)
-    List<Object[]> countByGender();
-
-    @Query("""
-            SELECT e FROM Employee e
-            WHERE e.hireDate BETWEEN :startDate AND :endDate
-              AND e.isActive = :isActive
-            ORDER BY e.hireDate DESC
-            """)
-    List<Employee> findByHireDateBetween(
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate")   LocalDate endDate,
-            @Param("isActive")  Boolean   isActive);
 
     // ── Dashboard headcount ───────────────────────────────────────────────────
 
@@ -242,22 +163,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
         @Param("id") Long id,
         @Param("updatedBy") String updatedBy
     );
-
-    @Modifying
-    @Query("""
-            UPDATE Employee e
-            SET e.employmentStatus = :newStatus, e.updatedBy = :updatedBy
-            WHERE e.id IN :ids AND e.isActive = true
-            """)
-    int bulkUpdateStatus(
-            @Param("ids")       List<Long>       ids,
-            @Param("newStatus") EmploymentStatus newStatus,
-            @Param("updatedBy") String           updatedBy);
-
-    // ── Nationality filter ────────────────────────────────────────────────────
-
-    Page<Employee> findAllByNationalityIgnoreCaseAndIsActive(
-            String nationality, Boolean isActive, Pageable pageable);
 
     // ── Full employee detail with job details ─────────────────────────────────
 

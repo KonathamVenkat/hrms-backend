@@ -155,7 +155,8 @@ class EmployeeEndpointSecurityTest {
     @Test
     @WithMockUser(roles = "EMPLOYEE")
     void employeeCannotListOrLookUpEmployees() throws Exception {
-        mvc.perform(get("/api/v1/employees")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/employees/search").contentType(MediaType.APPLICATION_JSON).content("{\"page\":0,\"size\":10}"))
+            .andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/employees/lookup")).andExpect(status().isForbidden());
         verifyNoInteractions(employeeService);
     }

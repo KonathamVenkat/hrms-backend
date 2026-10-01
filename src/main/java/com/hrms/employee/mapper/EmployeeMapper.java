@@ -1,7 +1,5 @@
 package com.hrms.employee.mapper;
 
-import com.hrms.employee.dto.request.CreateEmployeeRequest;
-import com.hrms.employee.dto.request.UpdateEmployeeRequest;
 import com.hrms.employee.dto.response.EmployeeResponse;
 import com.hrms.employee.dto.response.EmployeeSummaryResponse;
 import com.hrms.employee.entity.Employee;
@@ -16,7 +14,7 @@ import java.util.List;
 @Mapper(
 	    componentModel = "spring",
 	    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
-	    unmappedTargetPolicy = ReportingPolicy.IGNORE
+	    unmappedTargetPolicy = ReportingPolicy.WARN
 	)
 	public interface EmployeeMapper {
 
@@ -40,6 +38,13 @@ import java.util.List;
 
 	    // ── Entity → EmployeeSummaryResponse ─────────────────────
 	    @Mapping(target = "employeeId",       source = "id")   // ✅ SummaryResponse has employeeId
+	    // Department and designation come from the current job record, not from the employee row.
+	    @Mapping(target = "departmentId",     ignore = true)
+	    @Mapping(target = "departmentName",   ignore = true)
+	    @Mapping(target = "departmentCode",   ignore = true)
+	    @Mapping(target = "designationId",    ignore = true)
+	    @Mapping(target = "designationTitle", ignore = true)
+	    @Mapping(target = "gradeLevel",       ignore = true)
 	    @Mapping(target = "fullNameEn",
 	             expression = "java(employee.getFullName())")
 	    @Mapping(target = "gender",
@@ -52,15 +57,4 @@ import java.util.List;
 
 	    List<EmployeeSummaryResponse> toSummaryResponseList(List<Employee> employees);
 
-	    // ── CreateRequest → Entity ────────────────────────────────
-	    @Mapping(target = "id",               ignore = true)
-	    @Mapping(target = "isActive",         constant = "true")
-	    Employee toEntity(CreateEmployeeRequest request);
-
-	    // ── UpdateRequest → Entity ────────────────────────────────
-	    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-	    @Mapping(target = "id",           ignore = true)
-	    @Mapping(target = "employeeCode", ignore = true)
-	    @Mapping(target = "workEmail",    ignore = true)
-	    void updateEntityFromRequest(UpdateEmployeeRequest request, @MappingTarget Employee employee);
 	}

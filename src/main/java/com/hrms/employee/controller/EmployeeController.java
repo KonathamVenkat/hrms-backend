@@ -105,24 +105,6 @@ public class EmployeeController {
     // GET /api/v1/employees/{id}  →  Get employee by ID
     // ──────────────────────────────────────────────────────────────────────────
 
-    /*  @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
-    @Operation(
-        summary     = "Get employee by ID",
-        description = "Returns full employee details by their database primary key."
-    )
-    @ApiResponses({
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Employee found"),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Employee not found")
-    })
-    public ResponseEntity<ApiResponse<EmployeeResponse>> getEmployeeById(
-            @Parameter(description = "Employee database ID", example = "1001")
-            @PathVariable @Positive(message = "Employee ID must be a positive number") Long id) {
-
-        log.debug("GET /api/v1/employees/{}", id);
-        return ResponseEntity.ok(ApiResponse.success(employeeService.getEmployeeById(id)));
-    }*/
-    
     /**
      * GET /api/v1/employees/{id}
      * Returns full employee detail with department and designation.
@@ -345,50 +327,6 @@ public class EmployeeController {
             ApiResponse.success(employeeService.existsActiveEmployee(id))
         );
     }
-    
-    
- // ADD this to your existing EmployeeController
-
-    @GetMapping
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
-    public ResponseEntity<ApiResponse<PagedResponse<EmployeeSummaryResponse>>> getEmployees(
-            @RequestParam(required = false)              String  keyword,
-            @RequestParam(required = false)              Long    departmentId,
-            @RequestParam(required = false)              String  employmentStatus,
-            @RequestParam(required = false)              String  employmentType,
-            @RequestParam(required = false)              String  gender,
-            @RequestParam(required = false)              Boolean isActive,
-            @RequestParam(defaultValue = "0")            int     page,
-            @RequestParam(defaultValue = "10")           int     size,
-            @RequestParam(defaultValue = "employeeCode") String  sortBy,
-            @RequestParam(defaultValue = "ASC")          String  sortDir
-    ) {
-        EmployeeFilterRequest req = new EmployeeFilterRequest();
-        req.setKeyword(keyword);
-        req.setDepartmentId(departmentId);
-
-        // An unknown value is a client error, not "no filter" — silently dropping it
-        // would return every employee for a mistyped status.
-        req.setEmploymentStatus(parseEnum(EmploymentStatus.class, employmentStatus, "employmentStatus"));
-        req.setEmploymentType(parseEnum(EmploymentType.class, employmentType, "employmentType"));
-        req.setGender(parseEnum(Gender.class, gender, "gender"));
-
-        if (isActive != null) {
-            req.setIsActive(isActive);
-        }
-        req.setPage(page);
-        req.setSize(size);
-        req.setSortBy(sortBy);
-        req.setSortDir(sortDir);
-
-        return ResponseEntity.ok(
-                ApiResponse.<PagedResponse<EmployeeSummaryResponse>>builder()
-                    .success(true)
-                    .message("Employees fetched successfully")
-                    .data(employeeService.getEmployees(req))
-                    .statusCode(200)
-                    .build());
-    }
 
     /** Blank/absent → null; unknown value → 422 naming the field and the allowed values. */
     private static <E extends Enum<E>> E parseEnum(Class<E> type, String value, String field) {
@@ -402,6 +340,4 @@ public class EmployeeController {
                     + java.util.Arrays.toString(type.getEnumConstants()));
         }
     }
-
-    
 }

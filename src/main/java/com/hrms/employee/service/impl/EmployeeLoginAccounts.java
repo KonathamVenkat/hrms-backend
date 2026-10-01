@@ -79,21 +79,24 @@ public class EmployeeLoginAccounts {
     }
 
     public void changeRole(Employee employee, String roleStr) {
+        UserRole newRole;
         try {
-            UserRole newRole = UserRole.valueOf(roleStr.toUpperCase());
-            authUserRepository.findByEmployeeId(employee.getId())
-                .ifPresent(authUser -> {
-                    if (!authUser.getRole().equals(newRole)) {
-                        authUser.setRole(newRole);
-                        authUser.setUpdatedAt(LocalDateTime.now());
-                        authUserRepository.save(authUser);
-                        log.info("Updated auth user role to {} for employee {}",
-                            newRole, employee.getId());
-                    }
-                });
+            newRole = UserRole.valueOf(roleStr.toUpperCase());
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid role value during update: {}", roleStr);
+            throw new BusinessRuleException(
+                "INVALID_ROLE",
+                "Invalid role: '" + roleStr + "'. Allowed values: HR_ADMIN, HR_MANAGER, EMPLOYEE");
         }
+        authUserRepository.findByEmployeeId(employee.getId())
+            .ifPresent(authUser -> {
+                if (!authUser.getRole().equals(newRole)) {
+                    authUser.setRole(newRole);
+                    authUser.setUpdatedAt(LocalDateTime.now());
+                    authUserRepository.save(authUser);
+                    log.info("Updated auth user role to {} for employee {}",
+                        newRole, employee.getId());
+                }
+            });
     }
 
     public void syncFullName(Employee employee) {

@@ -3,7 +3,9 @@ package com.hrms.auth.controller;
 import com.hrms.auth.dto.request.*;
 import com.hrms.auth.dto.response.*;
 import com.hrms.auth.service.AuthService;
-import com.hrms.common.dto.ApiResponse;          // ← add this import
+import com.hrms.auth.security.RefreshCookie;
+import com.hrms.common.dto.ApiResponse;
+import com.hrms.common.exception.InvalidTokenException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -13,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +30,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final RefreshCookie refreshCookie;
 
     // ── POST /api/v1/auth/login ───────────────────────────────────────────
     @Operation(
@@ -47,35 +51,39 @@ public class AuthController {
 
         log.info("Login attempt — identifier={}", request.username());
         LoginResponse response = authService.login(request, httpRequest);
-        return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, refreshCookie.create(response.refreshToken()))
+            .body(ApiResponse.success("Login successful", response.withoutRefreshToken()));
     }
 
     // ── POST /api/v1/auth/refresh ─────────────────────────────────────────
     @Operation(
         summary     = "Refresh access token",
-        description = "Exchanges a valid refresh token for a new access token.")
+        description = "Exchanges the refresh token (sent as an HttpOnly cookie) for a new access token "
+                    + "and sets the replacement refresh cookie.")
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<LoginResponse>> refresh(  // ✅ wrapped
-            @Valid @RequestBody RefreshTokenRequest request,
-            HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<LoginResponse>> refresh(HttpServletRequest httpRequest) {
 
         log.debug("Token refresh request received");
-        LoginResponse response = authService.refreshToken(request, httpRequest);
-        return ResponseEntity.ok(ApiResponse.success("Token refreshed", response));
+        String token = refreshCookie.read(httpRequest)
+            .orElseThrow(() -> new InvalidTokenException("Refresh token not found."));
+        LoginResponse response = authService.refreshToken(new RefreshTokenRequest(token), httpRequest);
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, refreshCookie.create(response.refreshToken()))
+            .body(ApiResponse.success("Token refreshed", response.withoutRefreshToken()));
     }
 
     // ── POST /api/v1/auth/logout ──────────────────────────────────────────
     @Operation(
         summary     = "Logout",
-        description = "Revokes the refresh token server-side. "
-                    + "Angular frontend must clear localStorage on receiving 200.")
+        description = "Revokes the refresh token (from the HttpOnly cookie) server-side and removes the cookie.")
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(
-            @Valid @RequestBody LogoutRequest request) {  // ✅ @Valid enforced — no longer optional
+    public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest httpRequest) {
 
-        authService.logout(request);
-        return ResponseEntity.ok(
-                ApiResponse.success("Logged out successfully. Please clear your token.", null));
+        refreshCookie.read(httpRequest).ifPresent(token -> authService.logout(new LogoutRequest(token)));
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, refreshCookie.clear())
+            .body(ApiResponse.success("Logged out successfully.", null));
     }
 
     // ── GET /api/v1/auth/validate ─────────────────────────────────────────
@@ -126,7 +134,9 @@ public class AuthController {
             Authentication authentication) {
 
         authService.changePassword(authentication.getName(), request);
-        return ResponseEntity.ok(
-                ApiResponse.success("Password changed. Please sign in again.", null));
+        // Every refresh token of this user was revoked, so drop the now-useless cookie too.
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, refreshCookie.clear())
+            .body(ApiResponse.success("Password changed. Please sign in again.", null));
     }
 }

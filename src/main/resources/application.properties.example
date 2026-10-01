@@ -49,6 +49,10 @@ hrms.jwt.secret=${HRMS_JWT_SECRET}
 hrms.jwt.expiration-ms=86400000
 hrms.jwt.refresh-expiration-ms=604800000
 
+# Refresh-token cookie. Secure must stay true outside local development (HTTPS only).
+hrms.auth.refresh-cookie.secure=${HRMS_REFRESH_COOKIE_SECURE:true}
+hrms.auth.refresh-cookie.same-site=${HRMS_REFRESH_COOKIE_SAME_SITE:Strict}
+
 # CORS
 hrms.cors.allowed-origins=${HRMS_CORS_ALLOWED_ORIGINS:http://localhost:4200}
 

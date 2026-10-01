@@ -14,4 +14,9 @@ public record LoginResponse(
     @JsonProperty("tokenType")    String           tokenType,
     @JsonProperty("expiresIn")    long             expiresIn,
     @JsonProperty("user")         UserInfoResponse user
-) {}
+) {
+    /** The same response without the refresh token, which is delivered in an HttpOnly cookie instead. */
+    public LoginResponse withoutRefreshToken() {
+        return new LoginResponse(accessToken, null, tokenType, expiresIn, user);
+    }
+}

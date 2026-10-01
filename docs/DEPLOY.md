@@ -36,6 +36,8 @@ configuration, build and the checks to run after the first start. It contains no
 | `HRMS_WORK_EMAIL_DOMAIN` | company domain for generated work emails; no default, startup fails without it |
 | `HRMS_BUSINESS_ZONE` | time zone for dates and the nightly attendance jobs, e.g. `Africa/Juba` |
 | `APP_BASE_URL` | public URL of this service, if it is not `http://localhost:8082` |
+| `HRMS_REFRESH_COOKIE_SECURE` | optional, default `true`. Leave it `true` in production: the refresh cookie is then only sent over HTTPS. Set `false` only for local development over plain http |
+| `HRMS_REFRESH_COOKIE_SAME_SITE` | optional, default `Strict` |
 | `HRMS_UPLOAD_MAX_FILE_SIZE_MB` | optional, default 25 |
 
 - [ ] Set them in the service manager, container or secret store, not in a file in the repository.
@@ -55,6 +57,9 @@ configuration, build and the checks to run after the first start. It contains no
 - [ ] Frontend: set `serviceUrl` in `environment.prod.ts` to the backend's public address, then
       `ng build ehrms`.
 - [ ] Serve both over HTTPS behind a reverse proxy. Do not expose port 8082 publicly.
+- [ ] Host the frontend and the API on the **same site** (the same registrable domain, for example
+      `hrms.example.com` and `api.example.com`). The refresh token is a SameSite cookie, so on two
+      unrelated domains the browser will not send it and users would be signed out on every page reload.
 
 ## 6. Checks after the first start
 
@@ -63,6 +68,9 @@ configuration, build and the checks to run after the first start. It contains no
 - [ ] `/swagger-ui.html` and `/v3/api-docs` are not reachable without signing in as HR_ADMIN.
 - [ ] Sign in from the real frontend origin. A CORS error means `HRMS_CORS_ALLOWED_ORIGINS` does not
       match the origin exactly.
+- [ ] After signing in, reload the page: you stay signed in. In the browser tools the `hrms_refresh`
+      cookie is HttpOnly, Secure and scoped to `/api/v1/auth`, and local/session storage hold no token.
+- [ ] Sign out: the cookie is removed and a reload shows the sign-in page.
 - [ ] Create a test employee: the work email should end with the configured domain.
 - [ ] Read the first minutes of the log: no bound values (national IDs, password hashes) and no SQL.
 - [ ] A token issued by a development instance is rejected with 401, which shows the production

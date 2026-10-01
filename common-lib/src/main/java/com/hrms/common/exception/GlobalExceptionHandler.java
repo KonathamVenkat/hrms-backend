@@ -155,9 +155,26 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(401, "Invalid username or password"));
     }
 
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidToken(InvalidTokenException ex) {
+        log.warn("Invalid token: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(401, ex.getMessage()));
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // 403 Forbidden
     // ──────────────────────────────────────────────────────────────────────────
+
+    /** Locked or disabled accounts: the message is written for the user ("Contact HR", "try again later"). */
+    @ExceptionHandler({AccountLockedException.class, AccountDisabledException.class})
+    public ResponseEntity<ApiResponse<Void>> handleAccountState(RuntimeException ex) {
+        log.warn("Sign-in refused: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(403, ex.getMessage()));
+    }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(

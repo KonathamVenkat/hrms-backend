@@ -8,6 +8,7 @@ import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.EmployeeDocumentRequest;
 import com.hrms.employee.dto.response.EmployeeDocumentResponse;
 import com.hrms.employee.entity.DocumentType;
+import com.hrms.employee.config.OfficePackage;
 import com.hrms.employee.config.UploadHeader;
 import com.hrms.employee.config.UploadLimits;
 import com.hrms.employee.entity.EmployeeDocument;
@@ -161,6 +162,11 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             log.error("Failed to read uploaded file: {}", e.getMessage());
             throw new BusinessRuleException("FILE_SAVE_ERROR",
                 "Failed to save file. Please try again.");
+        }
+        // A .docx is a ZIP; the leading bytes only prove it is a ZIP, so check it is a Word package.
+        if ("docx".equals(extensionLc) && !OfficePackage.isWordDocument(fileBytes)) {
+            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
+                "The file is not a valid Word (.docx) document.");
         }
 
         // ── Expiry date validation ────────────────────────────

@@ -65,7 +65,7 @@ public class SecurityConfig {
                     "/api/v1/auth/logout",
                     "/api/v1/auth/health"
                 ).permitAll()
-                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").hasRole("HR_ADMIN")
                 // Only the bare health status is public; every other actuator endpoint
                 // (info, metrics, ...) is HR_ADMIN-only.
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()

@@ -16,7 +16,7 @@
 
     <groupId>com.hrms</groupId>
     <artifactId>common-lib</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
     <name>HRMS Common Library</name>
     <description>Shared enums, exceptions, JWT, audit classes for HRMS </description>

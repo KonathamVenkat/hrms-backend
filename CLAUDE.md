@@ -11,7 +11,7 @@ Spring Boot backend for the HRMS system. Package root: `com.hrms`. Companion Ang
 - **Mapping**: MapStruct 1.6.3 + Lombok 1.18.36, wired together via `lombok-mapstruct-binding` 0.2.0 in the `maven-compiler-plugin` annotation-processor config — both annotation processors must stay listed together or MapStruct-generated mappers using Lombok-built objects will silently stop being generated correctly.
 - **API docs**: springdoc-openapi (Swagger UI at `/swagger-ui.html`, OpenAPI JSON at `/v3/api-docs`)
 - **AI**: `spring-ai` (BOM `spring-ai-bom` 2.0.0-M4) — vector store starter for Oracle, model starter for OpenAI, advisors-vector-store. Currently disabled (`spring.ai.openai.api-key=DISABLED`), wired for future use — don't assume AI endpoints are live.
-- **Shared code**: internal dependency `com.hrms:common-lib:1.0.0-SNAPSHOT` (separate Maven module, own repo/folder — not part of this `employee` source tree). Package root `com.hrms.common`, with:
+- **Shared code**: internal dependency `com.hrms:common-lib:1.0.0` (separate Maven module, own repo/folder — not part of this `employee` source tree). Package root `com.hrms.common`, with:
   - `common.audit` — shared auditing support (e.g. created/modified-by/date base entities or listeners)
   - `common.dto` — shared/cross-cutting DTOs used by more than one service module
   - `common.enums` — shared enum types (distinct from a feature module's own `<feature>.enums`, which holds enums local to that feature)

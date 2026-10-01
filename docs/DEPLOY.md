@@ -1,0 +1,75 @@
+# Deploying the employee service
+
+Server setup checklist for the Spring Boot backend (`com.hrms`, port 8082). It covers secrets,
+configuration, build and the checks to run after the first start. It contains no secret values.
+
+## 1. Production database user (once, by the DBA)
+
+- [ ] Create a dedicated user for the application, separate from any development user.
+- [ ] Grant SELECT, INSERT, UPDATE and DELETE on the `HRMS` tables and SELECT on the `HRMS`
+      sequences. No DDL rights: Hibernate only validates the schema (`ddl-auto=validate`).
+- [ ] Give it a new strong password.
+- [ ] Confirm the unique index `UQ_EJD_ONE_CURRENT` (one current job row per employee) exists in the
+      production schema:
+
+  ```sql
+  CREATE UNIQUE INDEX HRMS.UQ_EJD_ONE_CURRENT
+    ON HRMS.EMPLOYEE_JOB_DETAILS (CASE WHEN IS_CURRENT = 1 THEN EMPLOYEE_ID END);
+  ```
+
+## 2. JWT secret
+
+- [ ] Generate a new secret for production: `openssl rand -base64 48`.
+- [ ] It must be Base64 and decode to at least 32 bytes, otherwise the application refuses to start.
+- [ ] Store it in the secret store or password manager. Do not write it into a file in the repository.
+- [ ] Never reuse a development secret in production.
+
+## 3. Environment variables
+
+| Variable | Value |
+|---|---|
+| `SPRING_DATASOURCE_URL` | `jdbc:oracle:thin:@<host>:1521/<service>` |
+| `SPRING_DATASOURCE_USERNAME` | the production database user |
+| `SPRING_DATASOURCE_PASSWORD` | its password |
+| `HRMS_JWT_SECRET` | the secret from step 2 |
+| `HRMS_CORS_ALLOWED_ORIGINS` | exact frontend origin (scheme, host, port); comma-separated, no spaces, e.g. `https://hrms.example.com` |
+| `HRMS_WORK_EMAIL_DOMAIN` | company domain for generated work emails; no default, startup fails without it |
+| `HRMS_BUSINESS_ZONE` | time zone for dates and the nightly attendance jobs, e.g. `Africa/Juba` |
+| `APP_BASE_URL` | public URL of this service, if it is not `http://localhost:8082` |
+| `HRMS_UPLOAD_MAX_FILE_SIZE_MB` | optional, default 25 |
+
+- [ ] Set them in the service manager, container or secret store, not in a file in the repository.
+
+## 4. Configuration file
+
+- [ ] Either copy `src/main/resources/application.properties.example` to `application.properties`
+      next to the jar (it reads the variables above and holds no secrets), or use environment
+      variables only.
+- [ ] `application.properties` is gitignored. Keep it that way.
+- [ ] Leave Swagger/OpenAPI and Hibernate bind-value logging off (the defaults in the example file).
+
+## 5. Build and deploy
+
+- [ ] Install the shared library first: `mvnw -f common-lib/pom.xml install`.
+- [ ] Build and test the service: `mvnw clean verify`; run the jar from `target/`.
+- [ ] Frontend: set `serviceUrl` in `environment.prod.ts` to the backend's public address, then
+      `ng build ehrms`.
+- [ ] Serve both over HTTPS behind a reverse proxy. Do not expose port 8082 publicly.
+
+## 6. Checks after the first start
+
+- [ ] The application starts. A missing variable fails at startup with a clear message.
+- [ ] `GET /actuator/health` returns UP, with no database details for an anonymous caller.
+- [ ] `/swagger-ui.html` and `/v3/api-docs` are not reachable without signing in as HR_ADMIN.
+- [ ] Sign in from the real frontend origin. A CORS error means `HRMS_CORS_ALLOWED_ORIGINS` does not
+      match the origin exactly.
+- [ ] Create a test employee: the work email should end with the configured domain.
+- [ ] Read the first minutes of the log: no bound values (national IDs, password hashes) and no SQL.
+- [ ] A token issued by a development instance is rejected with 401, which shows the production
+      secret is in use.
+
+## 7. Afterwards
+
+- [ ] Change the development database password if it was ever reused elsewhere.
+- [ ] Record the date the JWT secret was set and plan to rotate it on a schedule. Rotating it signs
+      every user out.

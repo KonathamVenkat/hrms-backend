@@ -212,6 +212,17 @@ class EmployeeEndpointSecurityTest {
 
     @Test
     @WithMockUser(roles = "HR_ADMIN")
+    void aBlankPhotoUrlIsABadRequestWithTheStandardBody() throws Exception {
+        mvc.perform(patch("/api/v1/employees/5/photo")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"profilePhotoUrl\":\"  \"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").value("profilePhotoUrl is required in request body"));
+        verify(employeeService, never()).updateProfilePhoto(anyLong(), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
     void missingEmployeeIsNotFound() throws Exception {
         doThrow(new ResourceNotFoundException("Employee", "id", 5L))
             .when(employeeService).deactivateEmployee(eq(5L), any());

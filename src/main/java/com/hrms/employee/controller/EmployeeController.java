@@ -3,6 +3,7 @@ package com.hrms.employee.controller;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.PagedResponse;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.enums.EmploymentStatus;
 import com.hrms.common.enums.EmploymentType;
@@ -254,9 +255,7 @@ public class EmployeeController {
         accessGuard.assertSelfOrPrivileged(id);
         String photoUrl = body.get("profilePhotoUrl");
         if (photoUrl == null || photoUrl.isBlank()) {
-            return ResponseEntity
-                .badRequest()
-                .body(ApiResponse.error(400, "profilePhotoUrl is required in request body"));
+            throw new BadRequestException("profilePhotoUrl is required in request body");
         }
         return ResponseEntity.ok(
             ApiResponse.success("Profile photo updated", employeeService.updateProfilePhoto(id, photoUrl))

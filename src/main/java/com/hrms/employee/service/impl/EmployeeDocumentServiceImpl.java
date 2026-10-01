@@ -249,8 +249,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     public Resource downloadDocument(Long employeeId, Long documentId) {
         EmployeeDocument doc = findEntity(employeeId, documentId);
         byte[] bytes = contentRepository.findById(documentId)
-            .orElseThrow(() -> new BusinessRuleException("FILE_NOT_FOUND",
-                "File content not found for this document."))
+            .orElseThrow(() -> new ResourceNotFoundException("DocumentContent", "documentId", documentId))
             .getContent();
         String fileName = doc.getOriginalFileName();
         return new ByteArrayResource(bytes) {

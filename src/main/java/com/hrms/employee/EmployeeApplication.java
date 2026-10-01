@@ -1,5 +1,6 @@
 package com.hrms.employee;
 
+import com.hrms.employee.config.BusinessTimeZone;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -36,6 +37,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class EmployeeApplication {
     public static void main(String[] args) {
-        SpringApplication.run(EmployeeApplication.class, args);
+        SpringApplication app = new SpringApplication(EmployeeApplication.class);
+        app.addListeners(new BusinessTimeZone());
+        app.run(args);
     }
 }

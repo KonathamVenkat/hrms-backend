@@ -154,14 +154,5 @@ public interface EmployeeService {
      */
     boolean existsActiveEmployee(Long id);
 
-    /**
-     * Validates that a list of employee IDs all correspond to active employees.
-     * Used in bulk operations (e.g., bulk status updates).
-     *
-     * @param ids  list of employee IDs to validate
-     * @return     {@code true} if ALL given IDs refer to active employees
-     */
-    boolean allEmployeesExist(List<Long> ids);
-    
     EmployeeDetailResponse getEmployeeById(Long id);
 }

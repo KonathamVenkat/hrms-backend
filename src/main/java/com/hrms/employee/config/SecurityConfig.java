@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -19,9 +18,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -42,7 +38,6 @@ import java.util.Map;
 public class SecurityConfig {
 
     private final JwtTokenProvider   jwtTokenProvider;
-    private final UserDetailsService userDetailsService; // UserDetailsServiceImpl from auth.security
     private final ObjectMapper       objectMapper;
     private final AuthUserRepository authUserRepository;
 
@@ -70,8 +65,6 @@ public class SecurityConfig {
                 // (info, metrics, ...) is HR_ADMIN-only.
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 .requestMatchers("/actuator/**").hasRole("HR_ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/v1/employees/*/exists").authenticated()
-                .requestMatchers("/api/v1/menu/sidebar").authenticated()
                 .anyRequest().authenticated()
             )
             .exceptionHandling(ex -> ex
@@ -103,7 +96,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+        config.setAllowedOrigins(parseOrigins(allowedOrigins));
         config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","X-Requested-With","X-Correlation-ID"));
         config.setExposedHeaders(List.of("X-Total-Count","X-Correlation-ID"));
@@ -114,16 +107,11 @@ public class SecurityConfig {
         return source;
     }
 
-  /*  @Bean
-    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
-
- 
-
-   @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration c) throws Exception {
-        return c.getAuthenticationManager();
-    }*/
-
-   // @Bean
-   // public ObjectMapper objectMapper() { return new ObjectMapper(); }
+    /** Splits the comma-separated origin list, ignoring spaces around entries and empty entries. */
+    static List<String> parseOrigins(String origins) {
+        return java.util.Arrays.stream(origins.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
+    }
 }

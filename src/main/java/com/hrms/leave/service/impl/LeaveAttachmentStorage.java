@@ -1,6 +1,7 @@
 package com.hrms.leave.service.impl;
 
 import com.hrms.common.exception.BusinessRuleException;
+import com.hrms.employee.config.UploadHeader;
 import com.hrms.employee.config.UploadLimits;
 import com.hrms.leave.entity.LeaveType;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +82,11 @@ public class LeaveAttachmentStorage {
                 "Unsupported file type. Allowed: PDF, JPG, JPEG, PNG.");
         }
 
+        // Check the leading bytes first so a mislabelled file is rejected without being loaded.
+        if (!matchesSignature(UploadHeader.read(file), extension)) {
+            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
+                "The file's content does not match its extension.");
+        }
         byte[] bytes;
         try {
             bytes = file.getBytes();
@@ -88,10 +94,6 @@ public class LeaveAttachmentStorage {
             log.error("Failed to read leave attachment: {}", e.getMessage());
             throw new BusinessRuleException("FILE_SAVE_ERROR",
                 "Failed to save attachment. Please try again.");
-        }
-        if (!matchesSignature(bytes, extension)) {
-            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
-                "The file's content does not match its extension.");
         }
 
         return new Prepared(bytes, sanitizeName(originalName), file.getSize());

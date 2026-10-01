@@ -1,5 +1,7 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.common.util.Strings;
+import com.hrms.employee.service.EmployeeChecks;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -31,7 +33,7 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
     // ── Get identity info ─────────────────────────────────────
     @Override
     public IdentityInfoResponse getIdentityInfo(Long employeeId) {
-        validateEmployee(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
         // HR_ADMIN and the employee themself see real values; everyone else (HR_MANAGER) gets last-4 only.
         boolean masked = !accessGuard.canViewUnmasked(employeeId);
 
@@ -46,7 +48,7 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
     public IdentityInfoResponse saveIdentityInfo(Long employeeId,
                                                   IdentityInfoRequest request) {
         log.info("Saving identity info for employee {}", employeeId);
-        validateEmployee(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
 
         // ── Uniqueness validations ────────────────────────────
         validateUniqueFields(employeeId, request);
@@ -68,36 +70,36 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
         if (existing.isPresent()) {
             // ── Update existing record ────────────────────────
             entity = existing.get();
-            entity.setNationalId(clean(request.getNationalId()));
-            entity.setPassportNumber(clean(request.getPassportNumber()));
-            entity.setTaxId(clean(request.getTaxId()));
-            entity.setSocialSecurityNumber(clean(request.getSocialSecurityNumber()));
-            entity.setDrivingLicenseNumber(clean(request.getDrivingLicenseNumber()));
-            entity.setVisaNumber(clean(request.getVisaNumber()));
-            entity.setVisaType(clean(request.getVisaType()));
+            entity.setNationalId(Strings.trimToNull(request.getNationalId()));
+            entity.setPassportNumber(Strings.trimToNull(request.getPassportNumber()));
+            entity.setTaxId(Strings.trimToNull(request.getTaxId()));
+            entity.setSocialSecurityNumber(Strings.trimToNull(request.getSocialSecurityNumber()));
+            entity.setDrivingLicenseNumber(Strings.trimToNull(request.getDrivingLicenseNumber()));
+            entity.setVisaNumber(Strings.trimToNull(request.getVisaNumber()));
+            entity.setVisaType(Strings.trimToNull(request.getVisaType()));
             entity.setVisaIssueDate(request.getVisaIssueDate());
             entity.setVisaExpiryDate(request.getVisaExpiryDate());
-            entity.setWorkPermitNumber(clean(request.getWorkPermitNumber()));
+            entity.setWorkPermitNumber(Strings.trimToNull(request.getWorkPermitNumber()));
             entity.setWorkPermitExpiry(request.getWorkPermitExpiry());
-            entity.setBiometricId(clean(request.getBiometricId()));
+            entity.setBiometricId(Strings.trimToNull(request.getBiometricId()));
             entity.setUpdatedAt(LocalDateTime.now());
             log.info("Updated identity info for employee {}", employeeId);
         } else {
             // ── Create new record ─────────────────────────────
             entity = EmployeeIdentityInfo.builder()
                 .employeeId(employeeId)
-                .nationalId(clean(request.getNationalId()))
-                .passportNumber(clean(request.getPassportNumber()))
-                .taxId(clean(request.getTaxId()))
-                .socialSecurityNumber(clean(request.getSocialSecurityNumber()))
-                .drivingLicenseNumber(clean(request.getDrivingLicenseNumber()))
-                .visaNumber(clean(request.getVisaNumber()))
-                .visaType(clean(request.getVisaType()))
+                .nationalId(Strings.trimToNull(request.getNationalId()))
+                .passportNumber(Strings.trimToNull(request.getPassportNumber()))
+                .taxId(Strings.trimToNull(request.getTaxId()))
+                .socialSecurityNumber(Strings.trimToNull(request.getSocialSecurityNumber()))
+                .drivingLicenseNumber(Strings.trimToNull(request.getDrivingLicenseNumber()))
+                .visaNumber(Strings.trimToNull(request.getVisaNumber()))
+                .visaType(Strings.trimToNull(request.getVisaType()))
                 .visaIssueDate(request.getVisaIssueDate())
                 .visaExpiryDate(request.getVisaExpiryDate())
-                .workPermitNumber(clean(request.getWorkPermitNumber()))
+                .workPermitNumber(Strings.trimToNull(request.getWorkPermitNumber()))
                 .workPermitExpiry(request.getWorkPermitExpiry())
-                .biometricId(clean(request.getBiometricId()))
+                .biometricId(Strings.trimToNull(request.getBiometricId()))
                 .createdAt(LocalDateTime.now())
                 .build();
             log.info("Created identity info for employee {}", employeeId);
@@ -107,12 +109,6 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
     }
 
     // ── Private helpers ───────────────────────────────────────
-
-    private void validateEmployee(Long employeeId) {
-        if (!employeeRepository.existsById(employeeId)) {
-            throw new ResourceNotFoundException("Employee", "id", employeeId);
-        }
-    }
 
     private void validateUniqueFields(Long employeeId, IdentityInfoRequest req) {
         if (hasValue(req.getNationalId()) &&
@@ -200,10 +196,6 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
         return IdentityInfoResponse.builder()
             .employeeId(employeeId)
             .build();
-    }
-
-    private String clean(String val) {
-        return (val != null && !val.isBlank()) ? val.trim() : null;
     }
 
     private boolean hasValue(String val) {

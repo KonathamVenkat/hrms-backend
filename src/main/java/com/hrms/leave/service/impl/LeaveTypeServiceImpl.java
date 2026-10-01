@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.config.UploadLimits;
@@ -10,8 +11,6 @@ import com.hrms.leave.repository.LeaveTypeRepository;
 import com.hrms.leave.service.LeaveTypeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +63,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         }
  
         LeaveType entity = buildEntity(request, null);
-        entity.setCreatedBy(getCurrentAuditor());
+        entity.setCreatedBy(CurrentAuditor.name());
         entity.setCreatedAt(LocalDateTime.now());
  
         LeaveType saved = leaveTypeRepository.save(entity);
@@ -114,7 +113,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         if (request.getIsActive() != null) {
             existing.setIsActive(boolToInt(request.getIsActive()));
         }
-        existing.setUpdatedBy(getCurrentAuditor());
+        existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(leaveTypeRepository.save(existing));
@@ -128,7 +127,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         log.info("Deactivating leave type id: {}", id);
         LeaveType lt = findById(id);
         lt.setIsActive(0);
-        lt.setUpdatedBy(getCurrentAuditor());
+        lt.setUpdatedBy(CurrentAuditor.name());
         lt.setUpdatedAt(LocalDateTime.now());
         leaveTypeRepository.save(lt);
     }
@@ -140,7 +139,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         LeaveType lt = leaveTypeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("LeaveType", "id", id));
         lt.setIsActive(1);
-        lt.setUpdatedBy(getCurrentAuditor());
+        lt.setUpdatedBy(CurrentAuditor.name());
         lt.setUpdatedAt(LocalDateTime.now());
         leaveTypeRepository.save(lt);
     }
@@ -162,11 +161,6 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
             .collect(java.util.stream.Collectors.joining(","));
     }
 
-    private String getCurrentAuditor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
-        return auth.getName();
-    }
  
     private LeaveType buildEntity(LeaveTypeRequest req, Long id) {
         return LeaveType.builder()

@@ -1,10 +1,14 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.common.util.Strings;
+import com.hrms.employee.service.EmployeeChecks;
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.EmployeeDocumentRequest;
 import com.hrms.employee.dto.response.EmployeeDocumentResponse;
 import com.hrms.employee.entity.DocumentType;
+import com.hrms.employee.config.UploadHeader;
 import com.hrms.employee.config.UploadLimits;
 import com.hrms.employee.entity.EmployeeDocument;
 import com.hrms.employee.entity.EmployeeDocumentContent;
@@ -19,8 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -75,7 +77,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     // ── Get all documents ─────────────────────────────────────
     @Override
     public List<EmployeeDocumentResponse> getDocuments(Long employeeId) {
-        validateEmployee(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
         return documentRepository.findActiveByEmployee(employeeId)
             .stream().map(this::toResponse)
             .collect(Collectors.toList());
@@ -95,7 +97,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
                                                     MultipartFile file) {
         log.info("Uploading document for employee {}, type {}",
             employeeId, request.getDocTypeId());
-        validateEmployee(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
 
         // ── Validate document type exists and is active ───────
         DocumentType docType = docTypeRepository.findById(request.getDocTypeId())
@@ -147,6 +149,11 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
                 "Unsupported file type. Allowed: PDF, JPG, JPEG, PNG, DOC, DOCX.");
         }
 
+        // Check the leading bytes first so a mislabelled file is rejected without being loaded.
+        if (!matchesFileSignature(UploadHeader.read(file), extensionLc)) {
+            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
+                "The file's content does not match its extension.");
+        }
         byte[] fileBytes;
         try {
             fileBytes = file.getBytes();
@@ -154,10 +161,6 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             log.error("Failed to read uploaded file: {}", e.getMessage());
             throw new BusinessRuleException("FILE_SAVE_ERROR",
                 "Failed to save file. Please try again.");
-        }
-        if (!matchesFileSignature(fileBytes, extensionLc)) {
-            throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
-                "The file's content does not match its extension.");
         }
 
         // ── Expiry date validation ────────────────────────────
@@ -176,14 +179,14 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             .originalFileName(originalName)
             .fileSize(sizeBytes)
             .fileExtension(extension)
-            .documentNumber(clean(request.getDocumentNumber()))
+            .documentNumber(Strings.trimToNull(request.getDocumentNumber()))
             .issueDate(request.getIssueDate())
             .expiryDate(request.getExpiryDate())
-            .issuedBy(clean(request.getIssuedBy()))
-            .notes(clean(request.getNotes()))
+            .issuedBy(Strings.trimToNull(request.getIssuedBy()))
+            .notes(Strings.trimToNull(request.getNotes()))
             .isVerified(0)
             .isActive(1)
-            .uploadedBy(getCurrentAuditor())
+            .uploadedBy(CurrentAuditor.name())
             .createdAt(LocalDateTime.now())
             .build();
 
@@ -203,11 +206,11 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         EmployeeDocument doc = findEntity(employeeId, documentId);
 
         doc.setDocumentName(request.getDocumentName().trim());
-        doc.setDocumentNumber(clean(request.getDocumentNumber()));
+        doc.setDocumentNumber(Strings.trimToNull(request.getDocumentNumber()));
         doc.setIssueDate(request.getIssueDate());
         doc.setExpiryDate(request.getExpiryDate());
-        doc.setIssuedBy(clean(request.getIssuedBy()));
-        doc.setNotes(clean(request.getNotes()));
+        doc.setIssuedBy(Strings.trimToNull(request.getIssuedBy()));
+        doc.setNotes(Strings.trimToNull(request.getNotes()));
         doc.setUpdatedAt(LocalDateTime.now());
 
         documentRepository.save(doc);
@@ -260,12 +263,6 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
 
     // ── Private helpers ───────────────────────────────────────
 
-    private void validateEmployee(Long employeeId) {
-        if (!employeeRepository.existsById(employeeId)) {
-            throw new ResourceNotFoundException("Employee", "id", employeeId);
-        }
-    }
-
     private EmployeeDocument findEntity(Long employeeId, Long documentId) {
         EmployeeDocument doc = documentRepository.findById(documentId)
             .orElseThrow(() -> new ResourceNotFoundException("Document", "id", documentId));
@@ -276,12 +273,6 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             throw new ResourceNotFoundException("Document", "id", documentId);
         }
         return doc;
-    }
-
-    private String getCurrentAuditor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
-        return auth.getName();
     }
 
     private EmployeeDocumentProjection findProjection(Long employeeId, Long documentId) {
@@ -358,7 +349,4 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         return false;
     }
 
-    private String clean(String val) {
-        return (val != null && !val.isBlank()) ? val.trim() : null;
-    }
 }

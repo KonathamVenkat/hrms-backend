@@ -13,7 +13,9 @@ import com.hrms.employee.dto.request.UpdateEmployeeRequest;
 import com.hrms.employee.entity.Employee;
 import com.hrms.employee.mapper.EmployeeMapper;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.employee.service.impl.EmployeeLoginAccounts;
 import com.hrms.employee.service.impl.EmployeeServiceImpl;
+import com.hrms.employee.service.impl.WorkEmailGenerator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,7 +29,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -56,8 +57,26 @@ class EmployeeServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new EmployeeServiceImpl(
-            employeeRepository, employeeMapper, authUserRepository, passwordEncoder, accessGuard);
-        ReflectionTestUtils.setField(service, "workEmailDomain", "nilepet.com");
+            employeeRepository, employeeMapper, accessGuard,
+            new WorkEmailGenerator(employeeRepository, authUserRepository, "nilepet.com"),
+            new EmployeeLoginAccounts(authUserRepository, passwordEncoder));
+    }
+
+    @Test
+    void searchEscapesLikeWildcardsAndIgnoresRequestedSort() {
+        when(employeeRepository.findAllWithFilters(any(), any(), any(), any(), any(), any(), any()))
+            .thenReturn(org.springframework.data.domain.Page.empty());
+        var req = com.hrms.employee.dto.request.EmployeeFilterRequest.builder()
+            .keyword("50%_a\\b").sortBy("bogus; DROP").sortDir("desc").page(0).size(500).build();
+
+        service.getEmployees(req);
+
+        var keyword  = org.mockito.ArgumentCaptor.forClass(String.class);
+        var pageable = org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+        verify(employeeRepository).findAllWithFilters(keyword.capture(), any(), any(), any(), any(), any(), pageable.capture());
+        assertEquals("50\\%\\_a\\\\b", keyword.getValue());
+        assertTrue(pageable.getValue().getSort().isUnsorted());
+        assertEquals(100, pageable.getValue().getPageSize());
     }
 
     @AfterEach

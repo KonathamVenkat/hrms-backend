@@ -330,16 +330,14 @@ public class EmployeeController {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // GET /api/v1/employees/{id}/exists  →  Existence check (internal use)
+    // GET /api/v1/employees/{id}/exists  →  Existence check
     // ──────────────────────────────────────────────────────────────────────────
 
     @GetMapping("/{id}/exists")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'SYSTEM')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
     @Operation(
         summary     = "Check if an active employee exists",
-        description = "Lightweight existence check used by other microservices "
-                    + "(leave-service, payroll-service) via internal Feign clients "
-                    + "to verify employee IDs before creating linked records."
+        description = "Lightweight check that an employee id refers to an active employee."
     )
     public ResponseEntity<ApiResponse<Boolean>> checkEmployeeExists(
             @PathVariable @Positive Long id) {

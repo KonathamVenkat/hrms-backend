@@ -135,6 +135,42 @@ class JobDetailsServiceImplTest {
     }
 
     @Test
+    void futureDatedAssignmentIsRejected() {
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+            () -> service.assignJob(5L, request(LocalDate.now().plusDays(30))));
+        assertEquals("FUTURE_EFFECTIVE_FROM", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).closeCurrentRecord(anyLong(), any(), anyString());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void assignmentStartingTomorrowIsRejected() {
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+            () -> service.assignJob(5L, request(LocalDate.now().plusDays(1))));
+        assertEquals("FUTURE_EFFECTIVE_FROM", ex.getRuleCode());
+    }
+
+    @Test
+    void assignmentStartingTodayIsAllowed() {
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.empty());
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        assertThrows(java.util.NoSuchElementException.class,   // reaches the final lookup, i.e. past the date check
+            () -> service.assignJob(5L, request(LocalDate.now())));
+        verify(jobDetailsRepository).save(any());
+    }
+
+    @Test
+    void jobChangesLockTheEmployeeRowFirst() {
+        JobDetailsRequest req = request(LocalDate.now().plusDays(30));
+        assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+
+        var order = inOrder(employeeRepository);
+        order.verify(employeeRepository).findByIdForUpdate(5L);
+        order.verify(employeeRepository).findByIdAndIsActive(5L, true);
+    }
+
+    @Test
     void newAssignmentMustStartAfterTheCurrentOne() {
         LocalDate currentFrom = LocalDate.now().minusDays(30);
         EmployeeJobDetails current = mock(EmployeeJobDetails.class);

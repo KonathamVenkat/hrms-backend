@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.employee.service.EmployeeChecks;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.EmployeeAddressRequest;
@@ -29,7 +30,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     // ── Get all addresses ─────────────────────────────────────
     @Override
     public List<EmployeeAddressResponse> getAddresses(Long employeeId) {
-        validateEmployee(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
         return addressRepository
             .findByEmployeeIdOrderByAddressTypeAsc(employeeId)
             .stream().map(this::toResponse)
@@ -47,7 +48,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     @Transactional
     public EmployeeAddressResponse addAddress(Long employeeId, EmployeeAddressRequest request) {
         log.info("Adding {} address for employee {}", request.getAddressType(), employeeId);
-        validateEmployee(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
 
         // Each type can only have one active address
         if (addressRepository.existsByEmployeeIdAndAddressTypeAndIsActive(
@@ -171,11 +172,6 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     }
 
     // ── Helpers ───────────────────────────────────────────────
-    private void validateEmployee(Long employeeId) {
-        if (!employeeRepository.existsById(employeeId)) {
-            throw new ResourceNotFoundException("Employee", "id", employeeId);
-        }
-    }
 
     private EmployeeAddress findAddress(Long employeeId, Long addressId) {
         EmployeeAddress address = addressRepository.findById(addressId)

@@ -182,6 +182,35 @@ class EmployeeEndpointSecurityTest {
 
     @Test
     @WithMockUser(roles = "HR_ADMIN")
+    void uniqueConstraintViolationIsAConflict() throws Exception {
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("could not execute statement",
+                new java.sql.SQLException("ORA-00001: unique constraint (HRMS.UQ_EMPLOYEES_WORK_EMAIL) violated")))
+            .when(employeeService).deactivateEmployee(eq(5L), any());
+
+        mvc.perform(delete("/api/v1/employees/5"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value("Work email address is already registered."));
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void unexpectedErrorsReturnAGenericMessage() throws Exception {
+        doThrow(new IllegalStateException("secret internal detail"))
+            .when(employeeService).deactivateEmployee(eq(5L), any());
+
+        mvc.perform(delete("/api/v1/employees/5"))
+            .andExpect(status().isInternalServerError())
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secret internal detail"))));
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void unsupportedMethodIsNotAServerError() throws Exception {
+        mvc.perform(patch("/api/v1/employees/5/identity")).andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
     void missingEmployeeIsNotFound() throws Exception {
         doThrow(new ResourceNotFoundException("Employee", "id", 5L))
             .when(employeeService).deactivateEmployee(eq(5L), any());

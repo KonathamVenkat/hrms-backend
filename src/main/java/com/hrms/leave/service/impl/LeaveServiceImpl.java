@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.enums.Gender;
@@ -16,8 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.*;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -158,9 +157,9 @@ public class LeaveServiceImpl implements LeaveService {
         }
         leaveRequest.setStatus(LeaveStatus.PENDING);
         leaveRequest.setIsActive(true);
-        leaveRequest.setCreatedBy(getCurrentAuditor());
+        leaveRequest.setCreatedBy(CurrentAuditor.name());
         leaveRequest.setCreatedAt(LocalDateTime.now());
-        leaveRequest.setUpdatedBy(getCurrentAuditor());
+        leaveRequest.setUpdatedBy(CurrentAuditor.name());
         leaveRequest.setUpdatedAt(LocalDateTime.now());
 
         // Request, attachment bytes and balance change commit or roll back together.
@@ -305,7 +304,7 @@ public class LeaveServiceImpl implements LeaveService {
             });
 
         lr.setStatus(LeaveStatus.CANCELLED);
-        lr.setUpdatedBy(getCurrentAuditor());
+        lr.setUpdatedBy(CurrentAuditor.name());
         lr.setUpdatedAt(LocalDateTime.now());
         leaveRequestRepository.save(lr);
     }
@@ -452,12 +451,6 @@ public class LeaveServiceImpl implements LeaveService {
             return true;
         }
         return employeeGender != null && employeeGender.name().equalsIgnoreCase(applicableGender);
-    }
-
-    private String getCurrentAuditor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
-        return auth.getName();
     }
 
     private Pageable buildPageable(LeaveFilterRequest filter) {

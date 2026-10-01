@@ -11,6 +11,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -72,10 +74,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
             WHERE (:isActive IS NULL OR e.IS_ACTIVE = :isActive)
                 AND (
                     :keyword IS NULL OR :keyword = ''
-                    OR LOWER(e.FIRST_NAME)    LIKE LOWER('%' || :keyword || '%')
-                    OR LOWER(e.LAST_NAME)     LIKE LOWER('%' || :keyword || '%')
-                    OR LOWER(e.WORK_EMAIL)    LIKE LOWER('%' || :keyword || '%')
-                    OR LOWER(e.EMPLOYEE_CODE) LIKE LOWER('%' || :keyword || '%')
+                    OR LOWER(e.FIRST_NAME)    LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
+                    OR LOWER(e.LAST_NAME)     LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
+                    OR LOWER(e.WORK_EMAIL)    LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
+                    OR LOWER(e.EMPLOYEE_CODE) LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
                 )
                 AND (:departmentId IS NULL OR ejd.DEPARTMENT_ID = :departmentId)
                 AND (:status IS NULL OR e.EMPLOYMENT_STATUS = :status)
@@ -92,10 +94,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
             WHERE (:isActive IS NULL OR e.IS_ACTIVE = :isActive)
                 AND (
                     :keyword IS NULL OR :keyword = ''
-                    OR LOWER(e.FIRST_NAME)    LIKE LOWER('%' || :keyword || '%')
-                    OR LOWER(e.LAST_NAME)     LIKE LOWER('%' || :keyword || '%')
-                    OR LOWER(e.WORK_EMAIL)    LIKE LOWER('%' || :keyword || '%')
-                    OR LOWER(e.EMPLOYEE_CODE) LIKE LOWER('%' || :keyword || '%')
+                    OR LOWER(e.FIRST_NAME)    LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
+                    OR LOWER(e.LAST_NAME)     LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
+                    OR LOWER(e.WORK_EMAIL)    LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
+                    OR LOWER(e.EMPLOYEE_CODE) LIKE LOWER('%' || :keyword || '%') ESCAPE '\\'
                 )
                 AND (:departmentId IS NULL OR ejd.DEPARTMENT_ID = :departmentId)
                 AND (:status IS NULL OR e.EMPLOYMENT_STATUS = :status)
@@ -135,6 +137,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
     Page<Employee> findAllByIsActive(Boolean isActive, Pageable pageable);
 
     Optional<Employee> findByIdAndIsActive(Long id, Boolean isActive);
+
+    /**
+     * Takes a row lock on the employee until the surrounding transaction ends. Used to serialise
+     * changes to one employee's job history so two requests cannot both close and re-open it.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Employee e WHERE e.id = :id")
+    Optional<Employee> findByIdForUpdate(@Param("id") Long id);
 
     Page<Employee> findAllByEmploymentStatusAndIsActive(
             EmploymentStatus status, Boolean isActive, Pageable pageable);

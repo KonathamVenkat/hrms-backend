@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.WorkShiftRequest;
@@ -10,8 +11,6 @@ import com.hrms.employee.service.WorkShiftService;
 import com.hrms.common.exception.BusinessRuleException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +63,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         validateShiftTiming(request);
 
         WorkShift entity = buildEntity(request);
-        entity.setCreatedBy(getCurrentAuditor());
+        entity.setCreatedBy(CurrentAuditor.name());
         entity.setCreatedAt(LocalDateTime.now());
 
         WorkShift saved = workShiftRepository.save(entity);
@@ -109,7 +108,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         if (request.getIsActive() != null) {
             existing.setIsActive(boolToInt(request.getIsActive()));
         }
-        existing.setUpdatedBy(getCurrentAuditor());
+        existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(workShiftRepository.save(existing));
@@ -122,7 +121,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
     public void deactivateShift(Long id) {
         WorkShift ws = findById(id);
         ws.setIsActive(0);
-        ws.setUpdatedBy(getCurrentAuditor());
+        ws.setUpdatedBy(CurrentAuditor.name());
         ws.setUpdatedAt(LocalDateTime.now());
         workShiftRepository.save(ws);
         log.info("Work shift deactivated. ID: {}", id);
@@ -134,7 +133,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         WorkShift ws = workShiftRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("WorkShift", "id", id));
         ws.setIsActive(1);
-        ws.setUpdatedBy(getCurrentAuditor());
+        ws.setUpdatedBy(CurrentAuditor.name());
         ws.setUpdatedAt(LocalDateTime.now());
         workShiftRepository.save(ws);
         log.info("Work shift activated. ID: {}", id);
@@ -145,12 +144,6 @@ public class WorkShiftServiceImpl implements WorkShiftService {
     private WorkShift findById(Long id) {
         return workShiftRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("WorkShift", "id", id));
-    }
-
-    private String getCurrentAuditor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
-        return auth.getName();
     }
 
     /**

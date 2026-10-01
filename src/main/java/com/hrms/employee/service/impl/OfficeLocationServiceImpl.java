@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.OfficeLocationRequest;
@@ -9,8 +10,6 @@ import com.hrms.employee.repository.OfficeLocationRepository;
 import com.hrms.employee.service.OfficeLocationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,7 +72,7 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
             .longitude(request.getLongitude())
             .isActive(request.getIsActive() != null ? boolToInt(request.getIsActive()) : 1)
             .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
-            .createdBy(getCurrentAuditor())
+            .createdBy(CurrentAuditor.name())
             .createdAt(LocalDateTime.now())
             .build();
 
@@ -114,7 +113,7 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
         existing.setLongitude(request.getLongitude());
         existing.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
         if (request.getIsActive() != null) existing.setIsActive(boolToInt(request.getIsActive()));
-        existing.setUpdatedBy(getCurrentAuditor());
+        existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(locationRepository.save(existing));
@@ -123,7 +122,7 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
     @Override @Transactional
     public void deactivateLocation(Long id) {
         OfficeLocation loc = findById(id);
-        loc.setIsActive(0); loc.setUpdatedBy(getCurrentAuditor()); loc.setUpdatedAt(LocalDateTime.now());
+        loc.setIsActive(0); loc.setUpdatedBy(CurrentAuditor.name()); loc.setUpdatedAt(LocalDateTime.now());
         locationRepository.save(loc);
     }
 
@@ -131,19 +130,13 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
     public void activateLocation(Long id) {
         OfficeLocation loc = locationRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("OfficeLocation", "id", id));
-        loc.setIsActive(1); loc.setUpdatedBy(getCurrentAuditor()); loc.setUpdatedAt(LocalDateTime.now());
+        loc.setIsActive(1); loc.setUpdatedBy(CurrentAuditor.name()); loc.setUpdatedAt(LocalDateTime.now());
         locationRepository.save(loc);
     }
 
     private OfficeLocation findById(Long id) {
         return locationRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("OfficeLocation", "id", id));
-    }
-
-    private String getCurrentAuditor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
-        return auth.getName();
     }
 
     private OfficeLocationResponse toResponse(OfficeLocation loc) {

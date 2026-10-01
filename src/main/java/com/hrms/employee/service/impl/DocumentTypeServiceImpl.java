@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.config.UploadLimits;
@@ -10,8 +11,6 @@ import com.hrms.employee.repository.DocumentTypeRepository;
 import com.hrms.employee.service.DocumentTypeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,7 +78,7 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
             .maxFileSizeMb(request.getMaxFileSizeMb() != null ? request.getMaxFileSizeMb() : 5)
             .isActive(request.getIsActive() != null ? boolToInt(request.getIsActive()) : 1)
             .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
-            .createdBy(getCurrentAuditor())
+            .createdBy(CurrentAuditor.name())
             .createdAt(LocalDateTime.now())
             .build();
 
@@ -118,7 +117,7 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
         existing.setMaxFileSizeMb(request.getMaxFileSizeMb() != null ? request.getMaxFileSizeMb() : 5);
         existing.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
         if (request.getIsActive() != null) existing.setIsActive(boolToInt(request.getIsActive()));
-        existing.setUpdatedBy(getCurrentAuditor());
+        existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(docTypeRepository.save(existing));
@@ -127,7 +126,7 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
     @Override @Transactional
     public void deactivateDocumentType(Long id) {
         DocumentType dt = findById(id);
-        dt.setIsActive(0); dt.setUpdatedBy(getCurrentAuditor()); dt.setUpdatedAt(LocalDateTime.now());
+        dt.setIsActive(0); dt.setUpdatedBy(CurrentAuditor.name()); dt.setUpdatedAt(LocalDateTime.now());
         docTypeRepository.save(dt);
     }
 
@@ -135,19 +134,13 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
     public void activateDocumentType(Long id) {
         DocumentType dt = docTypeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("DocumentType", "id", id));
-        dt.setIsActive(1); dt.setUpdatedBy(getCurrentAuditor()); dt.setUpdatedAt(LocalDateTime.now());
+        dt.setIsActive(1); dt.setUpdatedBy(CurrentAuditor.name()); dt.setUpdatedAt(LocalDateTime.now());
         docTypeRepository.save(dt);
     }
 
     private DocumentType findById(Long id) {
         return docTypeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("DocumentType", "id", id));
-    }
-
-    private String getCurrentAuditor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
-        return auth.getName();
     }
 
     private DocumentTypeResponse toResponse(DocumentType dt) {

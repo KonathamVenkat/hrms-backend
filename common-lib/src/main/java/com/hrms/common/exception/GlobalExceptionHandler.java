@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
@@ -234,6 +235,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleAll(
             Exception ex, HttpServletRequest request) {
+
+        // Framework errors that already carry their own status (405, 415, 404 for unknown paths,
+        // oversized uploads, missing parts...) must not be reported as 500.
+        if (ex instanceof ErrorResponse errorResponse && errorResponse.getStatusCode().is4xxClientError()) {
+            HttpStatus status = HttpStatus.resolve(errorResponse.getStatusCode().value());
+            String reason = status != null ? status.getReasonPhrase() : "Bad request";
+            log.warn("Request rejected on [{}] with {}: {}", request.getRequestURI(),
+                    errorResponse.getStatusCode().value(), ex.getMessage());
+            return ResponseEntity
+                    .status(errorResponse.getStatusCode())
+                    .body(ApiResponse.error(errorResponse.getStatusCode().value(), reason));
+        }
 
         log.error("Unhandled exception on [{}]: {}", request.getRequestURI(), ex.getMessage(), ex);
         return ResponseEntity

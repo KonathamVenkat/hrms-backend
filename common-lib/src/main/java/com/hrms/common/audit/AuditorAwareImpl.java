@@ -1,8 +1,6 @@
 package com.hrms.common.audit;
 
 import org.springframework.data.domain.AuditorAware;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -26,20 +24,10 @@ import java.util.Optional;
 @Component("auditorAwareImpl")
 public class AuditorAwareImpl implements AuditorAware<String> {
 
-    private static final String SYSTEM_USER = "SYSTEM";
-
     @Override
     public Optional<String> getCurrentAuditor() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null
-                || !authentication.isAuthenticated()
-                || "anonymousUser".equals(authentication.getPrincipal())) {
-            // Fallback for system operations (e.g., scheduled tasks, data migrations)
-            return Optional.of(SYSTEM_USER);
-        }
-
-        // The JWT filter populates the principal with the user's UUID string
-        return Optional.ofNullable(authentication.getName());
+        // The JWT filter populates the principal with the user's UUID string; system operations
+        // (scheduled tasks, data migrations) fall back to SYSTEM.
+        return Optional.of(CurrentAuditor.name());
     }
 }

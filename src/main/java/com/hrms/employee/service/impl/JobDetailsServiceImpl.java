@@ -1,5 +1,8 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.common.util.Strings;
+import com.hrms.employee.service.EmployeeChecks;
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.JobDetailsRequest;
@@ -15,8 +18,6 @@ import com.hrms.employee.repository.projection.JobDetailsProjection;
 import com.hrms.employee.service.JobDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +44,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
 
     @Override
     public JobDetailsResponse getCurrentJob(Long employeeId) {
-        validateEmployeeExists(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
 
         return jobDetailsRepository
             .findCurrentJobByEmployee(employeeId)
@@ -56,7 +57,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
 
     @Override
     public List<JobDetailsResponse> getJobHistory(Long employeeId) {
-        validateEmployeeExists(employeeId);
+        EmployeeChecks.requireExists(employeeRepository, employeeId);
 
         return jobDetailsRepository
             .findJobHistoryByEmployee(employeeId)
@@ -71,15 +72,23 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     @Transactional
     public JobDetailsResponse assignJob(Long employeeId, JobDetailsRequest request) {
         log.info("Assigning new job to employee id: {}", employeeId);
+        lockEmployee(employeeId);
         requireActiveEmployee(employeeId);
         validateAssignmentReferences(employeeId, request);
-        String auditor = getCurrentAuditor();
+        String auditor = CurrentAuditor.name();
 
         // ── Validate effective date ───────────────────────────
         if (request.getEffectiveFrom().isBefore(LocalDate.now().minusYears(1))) {
             throw new BusinessRuleException(
                 "INVALID_DATE",
                 "Effective from date cannot be more than 1 year in the past.");
+        }
+        // A new assignment becomes the current record immediately and nothing activates it later,
+        // so a future start date would show the new department before it applies.
+        if (request.getEffectiveFrom().isAfter(LocalDate.now())) {
+            throw new BusinessRuleException(
+                "FUTURE_EFFECTIVE_FROM",
+                "Effective from date cannot be in the future. Record the assignment on or after its start date.");
         }
 
         // ── Close current record (SCD Type 2) ────────────────
@@ -128,8 +137,6 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         EmployeeJobDetails saved = jobDetailsRepository.save(newJob);
         log.info("New job assigned. JOB_DETAILS_ID: {}", saved.getJobDetailsId());
 
-        // TODO: Kafka → EmployeeJobChangedEvent (notification to manager)
-
         return jobDetailsRepository
             .findCurrentJobByEmployee(employeeId)
             .map(this::toResponse)
@@ -143,6 +150,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     public JobDetailsResponse updateCurrentJob(Long employeeId, JobDetailsRequest request) {
         log.info("Updating current job for employee id: {}", employeeId);
 
+        lockEmployee(employeeId);
         requireActiveEmployee(employeeId);
 
         EmployeeJobDetails current = jobDetailsRepository
@@ -158,8 +166,8 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 || !Objects.equals(request.getLocationId(), current.getLocationId())
                 || !Objects.equals(request.getReportingManagerId(), current.getReportingManagerId())
                 || !Objects.equals(request.getFunctionalManagerId(), current.getFunctionalManagerId())
-                || !Objects.equals(blankToNull(request.getJobPositionId()),
-                                   blankToNull(current.getJobPositionId()))) {
+                || !Objects.equals(Strings.trimToNull(request.getJobPositionId()),
+                                   Strings.trimToNull(current.getJobPositionId()))) {
             throw new BusinessRuleException(
                 "STRUCTURAL_CHANGE_NOT_ALLOWED",
                 "Department, designation, position, location and managers can only be changed "
@@ -173,7 +181,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         current.setShiftId(request.getShiftId());
         current.setWorkMode(request.getWorkMode());
         current.setRemarks(request.getRemarks());
-        current.setUpdatedBy(getCurrentAuditor());
+        current.setUpdatedBy(CurrentAuditor.name());
         current.setUpdatedAt(LocalDateTime.now());
 
         jobDetailsRepository.save(current);
@@ -186,16 +194,19 @@ public class JobDetailsServiceImpl implements JobDetailsService {
 
     // ── Private helpers ───────────────────────────────────────
 
-    private void validateEmployeeExists(Long employeeId) {
-        if (!employeeRepository.existsById(employeeId)) {
-            throw new ResourceNotFoundException("Employee", "id", employeeId);
-        }
+    /**
+     * Serialises concurrent job changes for one employee. Without it two assignments can both
+     * read the same current row, both close it and both insert a current row, after which
+     * every job lookup for that employee fails on two matches.
+     */
+    private void lockEmployee(Long employeeId) {
+        employeeRepository.findByIdForUpdate(employeeId);
     }
 
     /** Job changes only make sense for an employee who is still on the books. */
     private void requireActiveEmployee(Long employeeId) {
         if (employeeRepository.findByIdAndIsActive(employeeId, true).isEmpty()) {
-            validateEmployeeExists(employeeId);   // 404 if it doesn't exist at all
+            EmployeeChecks.requireExists(employeeRepository, employeeId);   // 404 if it doesn't exist at all
             throw new BusinessRuleException(
                 "EMP_INACTIVE",
                 "This employee is deactivated. Reactivate the employee before changing job details.");
@@ -257,16 +268,6 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             throw new BusinessRuleException(
                 "MANAGER_INVALID", label + " must be an existing, active employee.");
         }
-    }
-
-    private String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
-    }
-
-    private String getCurrentAuditor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return "SYSTEM";
-        return auth.getName();
     }
 
     private JobDetailsResponse toResponse(JobDetailsProjection p) {

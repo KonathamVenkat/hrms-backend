@@ -1,0 +1,83 @@
+# ****************************************************************
+# HRMS Employee Service — application.properties TEMPLATE
+# Copy to application.properties (gitignored) for local runs, or supply the
+# values below as environment variables on the server. Never commit real secrets.
+# ****************************************************************
+
+# ---- Required environment variables (override the file via relaxed binding) ----
+#   SPRING_DATASOURCE_URL        e.g. jdbc:oracle:thin:@<host>:1521/<service>
+#   SPRING_DATASOURCE_USERNAME   dedicated production DB user
+#   SPRING_DATASOURCE_PASSWORD
+#   HRMS_JWT_SECRET              Base64, decodes to >= 32 bytes. Generate with: openssl rand -base64 48
+#   HRMS_CORS_ALLOWED_ORIGINS    comma-separated, no spaces, e.g. https://hrms.example.com
+#   HRMS_WORK_EMAIL_DOMAIN       real company domain for generated work emails
+
+server.port=8082
+spring.application.name=employee-service
+spring.profiles.active=prod
+
+spring.datasource.url=${SPRING_DATASOURCE_URL}
+spring.datasource.username=${SPRING_DATASOURCE_USERNAME}
+spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}
+spring.datasource.driver-class-name=oracle.jdbc.OracleDriver
+
+spring.datasource.hikari.pool-name=HrmsOraclePool
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=30000
+spring.datasource.hikari.idle-timeout=600000
+spring.datasource.hikari.max-lifetime=1800000
+spring.datasource.hikari.connection-test-query=SELECT 1 FROM DUAL
+spring.datasource.hikari.auto-commit=false
+
+spring.jpa.database-platform=org.hibernate.dialect.OracleDialect
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.open-in-view=false
+spring.jpa.properties.hibernate.jdbc.batch_size=0
+spring.jpa.properties.hibernate.jdbc.fetch_size=100
+spring.jpa.properties.hibernate.order_inserts=false
+spring.jpa.properties.hibernate.order_updates=false
+spring.jpa.properties.hibernate.default_schema=HRMS
+
+spring.jackson.property-naming-strategy=LOWER_CAMEL_CASE
+spring.jackson.serialization.fail-on-empty-beans=false
+spring.jackson.deserialization.fail-on-unknown-properties=false
+spring.jackson.default-property-inclusion=NON_NULL
+
+# JWT
+hrms.jwt.secret=${HRMS_JWT_SECRET}
+hrms.jwt.expiration-ms=86400000
+hrms.jwt.refresh-expiration-ms=604800000
+
+# CORS
+hrms.cors.allowed-origins=${HRMS_CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+# Actuator
+management.endpoints.web.exposure.include=health,info,metrics
+management.endpoint.health.show-details=when-authorized
+
+# API docs are OFF by default (they publish the full API map).
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.api-docs.enabled=false
+springdoc.swagger-ui.enabled=false
+
+# Logging: keep Hibernate bind logging off (it writes national IDs, salaries and hashes).
+logging.level.root=INFO
+logging.level.com.hrms=INFO
+logging.level.org.springframework.security=WARN
+logging.level.org.hibernate.SQL=WARN
+logging.level.org.hibernate.type.descriptor.sql.BasicBinder=WARN
+
+# Company email domain for generated work emails (first.last@<domain>). MUST be the real domain.
+hrms.work-email-domain=${HRMS_WORK_EMAIL_DOMAIN}
+
+# Business time zone: sets the JVM default so "today", expiry checks and the nightly attendance jobs
+# follow local time even on a UTC server.
+hrms.business-zone=${HRMS_BUSINESS_ZONE:Africa/Juba}
+
+# Document / attachment storage is in the database; this is the global upload size cap (MB).
+hrms.upload.max-file-size-mb=25
+app.base-url=${APP_BASE_URL:http://localhost:8082}
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=55MB

@@ -37,6 +37,10 @@ public class IdentityInfoResponse {
     // Biometric
     private String    biometricId;
 
+    // True when the identifying numbers above are masked for this viewer (only the last 4
+    // characters are shown). A masked response must not be used to prefill an edit form.
+    private Boolean   masked;
+
     // Audit
     private String    createdAt;
     private String    updatedAt;

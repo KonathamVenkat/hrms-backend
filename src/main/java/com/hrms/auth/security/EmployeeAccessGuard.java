@@ -58,6 +58,22 @@ public class EmployeeAccessGuard {
         return currentEmployeeId(auth);
     }
 
+    /**
+     * True when the caller may see sensitive values (identity numbers) unmasked: HR_ADMIN, or the
+     * employee themself. HR_MANAGER and everyone else get masked values.
+     */
+    public boolean canViewUnmasked(Long employeeId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
+        }
+        if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_HR_ADMIN"))) {
+            return true;
+        }
+        Long callerEmployeeId = currentEmployeeId(auth);
+        return callerEmployeeId != null && callerEmployeeId.equals(employeeId);
+    }
+
     private boolean isPrivileged(Authentication auth) {
         return auth.getAuthorities().stream().anyMatch(a ->
             a.getAuthority().equals("ROLE_HR_ADMIN") || a.getAuthority().equals("ROLE_HR_MANAGER"));

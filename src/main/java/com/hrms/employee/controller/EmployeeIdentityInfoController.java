@@ -1,5 +1,6 @@
 package com.hrms.employee.controller;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.employee.dto.request.IdentityInfoRequest;
 import com.hrms.employee.dto.response.IdentityInfoResponse;
@@ -18,15 +19,21 @@ import org.springframework.web.bind.annotation.*;
 public class EmployeeIdentityInfoController {
 
     private final IdentityInfoService identityService;
+    private final EmployeeAccessGuard accessGuard;
 
     /**
      * GET /api/v1/employees/{employeeId}/identity
      * Returns identity info — empty shell if not yet created.
+     * Identity numbers are masked (last 4 characters only) unless the caller is HR_ADMIN or the
+     * employee themself.
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<IdentityInfoResponse>> getIdentityInfo(
             @PathVariable Long employeeId) {
+
+        // Employee: own record only. HR_MANAGER: any employee, but masked. HR_ADMIN: any, unmasked.
+        accessGuard.assertSelfOrPrivileged(employeeId);
 
         log.info("GET identity info — employeeId: {}", employeeId);
         return ResponseEntity.ok(

@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.IdentityInfoRequest;
@@ -25,14 +26,17 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
 
     private final EmployeeIdentityInfoRepository identityRepository;
     private final EmployeeRepository             employeeRepository;
+    private final EmployeeAccessGuard            accessGuard;
 
     // ── Get identity info ─────────────────────────────────────
     @Override
     public IdentityInfoResponse getIdentityInfo(Long employeeId) {
         validateEmployee(employeeId);
+        // HR_ADMIN and the employee themself see real values; everyone else (HR_MANAGER) gets last-4 only.
+        boolean masked = !accessGuard.canViewUnmasked(employeeId);
 
         return identityRepository.findByEmployeeId(employeeId)
-            .map(this::toResponse)
+            .map(info -> toResponse(info, masked))
             .orElseGet(() -> emptyResponse(employeeId));
     }
 
@@ -99,7 +103,7 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             log.info("Created identity info for employee {}", employeeId);
         }
 
-        return toResponse(identityRepository.save(entity));
+        return toResponse(identityRepository.save(entity), false); // HR_ADMIN only
     }
 
     // ── Private helpers ───────────────────────────────────────
@@ -141,7 +145,7 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
         }
     }
 
-    private IdentityInfoResponse toResponse(EmployeeIdentityInfo info) {
+    private IdentityInfoResponse toResponse(EmployeeIdentityInfo info, boolean masked) {
         LocalDate today = LocalDate.now();
         LocalDate in60Days = today.plusDays(60);
 
@@ -156,25 +160,39 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
         return IdentityInfoResponse.builder()
             .employeeIdentityId(info.getEmployeeIdentityId())
             .employeeId(info.getEmployeeId())
-            .nationalId(info.getNationalId())
-            .passportNumber(info.getPassportNumber())
-            .taxId(info.getTaxId())
-            .socialSecurityNumber(info.getSocialSecurityNumber())
-            .drivingLicenseNumber(info.getDrivingLicenseNumber())
-            .visaNumber(info.getVisaNumber())
+            .nationalId(show(info.getNationalId(), masked))
+            .passportNumber(show(info.getPassportNumber(), masked))
+            .taxId(show(info.getTaxId(), masked))
+            .socialSecurityNumber(show(info.getSocialSecurityNumber(), masked))
+            .drivingLicenseNumber(show(info.getDrivingLicenseNumber(), masked))
+            .visaNumber(show(info.getVisaNumber(), masked))
             .visaType(info.getVisaType())
             .visaIssueDate(info.getVisaIssueDate())
             .visaExpiryDate(info.getVisaExpiryDate())
             .visaExpiringSoon(visaExpiringSoon)
-            .workPermitNumber(info.getWorkPermitNumber())
+            .workPermitNumber(show(info.getWorkPermitNumber(), masked))
             .workPermitExpiry(info.getWorkPermitExpiry())
             .workPermitExpiringSoon(permitExpiringSoon)
-            .biometricId(info.getBiometricId())
+            .biometricId(show(info.getBiometricId(), masked))
+            .masked(masked)
             .createdAt(info.getCreatedAt() != null
                 ? info.getCreatedAt().toString() : null)
             .updatedAt(info.getUpdatedAt() != null
                 ? info.getUpdatedAt().toString() : null)
             .build();
+    }
+
+    private String show(String value, boolean masked) {
+        return masked ? mask(value) : value;
+    }
+
+    /** Keeps only the last 4 characters; values of 4 characters or fewer are fully masked. */
+    public static String mask(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        int visible = value.length() > 4 ? 4 : 0;
+        return "*".repeat(value.length() - visible) + value.substring(value.length() - visible);
     }
 
     /** Empty response when no identity record exists yet */

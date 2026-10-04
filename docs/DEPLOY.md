@@ -16,6 +16,12 @@ configuration, build and the checks to run after the first start. It contains no
   CREATE UNIQUE INDEX HRMS.UQ_EJD_ONE_CURRENT
     ON HRMS.EMPLOYEE_JOB_DETAILS (CASE WHEN IS_CURRENT = 1 THEN EMPLOYEE_ID END);
   ```
+- [ ] Apply every script in `db/` that the production schema does not have yet, **before** deploying
+      the backend build (Hibernate only validates, so a missing table or column stops the
+      application from starting):
+  - `leave_request_attachment.sql`, then `store_documents_in_db.sql` (run in this order)
+  - `auth_must_change_password.sql`
+  - `employee_photo.sql` (table `HRMS.EMPLOYEE_PHOTO`, employee profile photos)
 
 ## 2. JWT secret
 
@@ -72,6 +78,8 @@ configuration, build and the checks to run after the first start. It contains no
       cookie is HttpOnly, Secure and scoped to `/api/v1/auth`, and local/session storage hold no token.
 - [ ] Sign out: the cookie is removed and a reload shows the sign-in page.
 - [ ] Create a test employee: the work email should end with the configured domain.
+- [ ] Open an employee, upload a profile photo (JPG, PNG or WebP, up to 2 MB), reload the page: the photo
+      is still shown. Remove it again.
 - [ ] Read the first minutes of the log: no bound values (national IDs, password hashes) and no SQL.
 - [ ] A token issued by a development instance is rejected with 401, which shows the production
       secret is in use.

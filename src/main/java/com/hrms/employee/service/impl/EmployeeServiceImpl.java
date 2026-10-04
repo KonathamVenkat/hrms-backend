@@ -317,14 +317,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         return getEmployeeById(id);
     }
 
-    @Override
-    @Transactional
-    public EmployeeResponse updateProfilePhoto(Long id, String photoUrl) {
-        Employee employee = findActiveEmployeeById(id);
-        employee.setProfilePhotoUrl(EmployeeRules.validatePhotoUrl(photoUrl));
-        return employeeMapper.toResponse(employeeRepository.save(employee));
-    }
-
     // ──────────────────────────────────────────────────────────────────────────
     // Deactivation / reactivation
     // ──────────────────────────────────────────────────────────────────────────

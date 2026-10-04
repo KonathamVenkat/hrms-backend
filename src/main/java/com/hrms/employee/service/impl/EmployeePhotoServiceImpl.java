@@ -87,9 +87,13 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
         return employeeMapper.toResponse(employeeRepository.save(employee));
     }
 
-    /** App-relative path the frontend recognises as "load this with the signed-in session". */
+    /**
+     * App-relative path the frontend recognises as "load this with the signed-in session". The
+     * version parameter changes with every upload so browsers and the frontend cache never show a
+     * replaced photo; the download endpoint ignores it.
+     */
     static String photoUrl(Long employeeId) {
-        return "/api/v1/employees/" + employeeId + "/photo";
+        return "/api/v1/employees/" + employeeId + "/photo?v=" + System.currentTimeMillis();
     }
 
     private Employee findActiveEmployee(Long employeeId) {

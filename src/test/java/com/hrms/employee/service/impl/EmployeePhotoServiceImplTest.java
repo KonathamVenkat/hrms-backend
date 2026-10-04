@@ -57,7 +57,7 @@ class EmployeePhotoServiceImplTest {
         verify(photos).save(saved.capture());
         assertEquals("image/png", saved.getValue().getContentType()); // from the bytes, not the header
         assertArrayEquals(PNG, saved.getValue().getContent());
-        assertEquals("/api/v1/employees/5/photo", employee.getProfilePhotoUrl());
+        assertTrue(employee.getProfilePhotoUrl().matches("/api/v1/employees/5/photo\\?v=\\d+"));
     }
 
     @Test

@@ -3,7 +3,6 @@ package com.hrms.employee.controller;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.PagedResponse;
-import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.enums.EmploymentStatus;
 import com.hrms.common.enums.EmploymentType;
@@ -34,7 +33,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * REST controller for all HRMS employee operations.
@@ -233,32 +231,6 @@ public class EmployeeController {
                 .data(updated)
                 .statusCode(200)
                 .build()
-        );
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // PATCH /api/v1/employees/{id}/photo  →  Update profile photo only
-    // ──────────────────────────────────────────────────────────────────────────
-
-    @PatchMapping("/{id}/photo")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
-    @Operation(
-        summary     = "Update employee profile photo",
-        description = "Updates only the employee's profile photo URL after a successful "
-                    + "file upload to the object storage (S3/Azure Blob). "
-                    + "The file upload itself is handled by a separate media upload service."
-    )
-    public ResponseEntity<ApiResponse<EmployeeResponse>> updateProfilePhoto(
-            @PathVariable @Positive Long id,
-            @RequestBody Map<String, String> body) {
-
-        accessGuard.assertSelfOrPrivileged(id);
-        String photoUrl = body.get("profilePhotoUrl");
-        if (photoUrl == null || photoUrl.isBlank()) {
-            throw new BadRequestException("profilePhotoUrl is required in request body");
-        }
-        return ResponseEntity.ok(
-            ApiResponse.success("Profile photo updated", employeeService.updateProfilePhoto(id, photoUrl))
         );
     }
 

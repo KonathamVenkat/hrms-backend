@@ -106,15 +106,6 @@ public interface EmployeeService {
     	EmployeeDetailResponse updateEmployee(Long id, UpdateEmployeeRequest request);
     
 
-    /**
-     * Updates only the employee's profile photo URL (after a successful file upload).
-     *
-     * @param id      the employee's primary key
-     * @param photoUrl  the new profile photo URL
-     * @return        updated employee summary
-     */
-    EmployeeResponse updateProfilePhoto(Long id, String photoUrl);
-
     // ──────────────────────────────────────────────────────────────────────────
     // Delete / Deactivation
     // ──────────────────────────────────────────────────────────────────────────

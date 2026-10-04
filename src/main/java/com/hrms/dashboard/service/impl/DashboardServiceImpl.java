@@ -29,7 +29,7 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public HrDashboardResponse getHrSummary() {
         LocalDate today     = LocalDate.now();
-        // Company week runs Sunday–Saturday (Friday/Saturday weekend)
+        // Company week runs Sunday–Saturday
         LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY));
         LocalDate weekEnd   = weekStart.plusDays(6);
 

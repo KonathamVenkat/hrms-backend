@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  *
  * <ul>
  *   <li><b>Weekly off</b>: any day not listed in the employee's shift {@code workingDays}. With no
- *       shift assigned the company weekend applies (Friday and Saturday).</li>
+ *       shift assigned the company weekend applies (Saturday and Sunday).</li>
  *   <li><b>Public holiday</b>: an active calendar entry of type PUBLIC or RELIGIOUS. OPTIONAL and
  *       RESTRICTED holidays are days an employee may choose to take, not days off for everyone.</li>
  *   <li><b>Precedence</b>: weekly off, then holiday, then leave. A holiday that falls on the weekly
@@ -43,7 +43,7 @@ public class AttendanceDayClassifier {
     public enum LeaveCover { NONE, HALF, FULL }
 
     private static final Set<String> DAY_OFF_HOLIDAYS = Set.of("PUBLIC", "RELIGIOUS");
-    private static final Set<DayOfWeek> DEFAULT_WEEKEND = Set.of(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY);
+    private static final Set<DayOfWeek> DEFAULT_WEEKEND = Set.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
 
     private final HolidayCalendarRepository holidayRepo;
     private final LeaveRequestRepository    leaveRepo;

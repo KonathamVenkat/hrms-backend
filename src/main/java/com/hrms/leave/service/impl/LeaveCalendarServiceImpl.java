@@ -102,9 +102,9 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
             final LocalDate d = cursor;
             boolean isCurrentMonth = d.getMonthValue() == month;
 
-            // Oman weekend: Friday + Saturday
-            boolean isWeekend = d.getDayOfWeek() == DayOfWeek.FRIDAY
-                             || d.getDayOfWeek() == DayOfWeek.SATURDAY;
+            // Weekend: Saturday + Sunday
+            boolean isWeekend = d.getDayOfWeek() == DayOfWeek.SATURDAY
+                             || d.getDayOfWeek() == DayOfWeek.SUNDAY;
 
             List<HolidayCalendar> dayHols   = holidayMap.getOrDefault(d, List.of());
             List<LeaveRequest>    dayLeaves = leavesByDate.getOrDefault(d, List.of());

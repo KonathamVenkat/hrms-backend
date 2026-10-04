@@ -71,10 +71,10 @@ class AttendanceDayClassifierTest {
     }
 
     @Test
-    void withoutAShiftTheCompanyWeekendIsFridayAndSaturday() {
-        assertTrue(classifier.isWeeklyOff(null, FRIDAY));
+    void withoutAShiftTheCompanyWeekendIsSaturdayAndSunday() {
+        assertFalse(classifier.isWeeklyOff(null, FRIDAY));
         assertTrue(classifier.isWeeklyOff(null, SATURDAY));
-        assertFalse(classifier.isWeeklyOff(null, SUNDAY));
+        assertTrue(classifier.isWeeklyOff(null, SUNDAY));
     }
 
     @Test

@@ -422,8 +422,8 @@ public class LeaveServiceImpl implements LeaveService {
 
     /**
      * Counts working days between two dates (inclusive), excluding the
-     * Friday/Saturday weekend (this is an Oman-based company — see the
-     * matching definition in LeaveCalendarServiceImpl) and any active
+     * Saturday/Sunday weekend (see the matching definition in
+     * LeaveCalendarServiceImpl) and any active
      * public holiday falling on what would otherwise be a working day.
      */
     private double calculateWorkingDays(LocalDate start, LocalDate end) {
@@ -437,7 +437,7 @@ public class LeaveServiceImpl implements LeaveService {
         LocalDate current = start;
         while (!current.isAfter(end)) {
             DayOfWeek dow = current.getDayOfWeek();
-            boolean isWeekend = dow == DayOfWeek.FRIDAY || dow == DayOfWeek.SATURDAY;
+            boolean isWeekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
             if (!isWeekend && !holidayDates.contains(current)) {
                 days++;
             }

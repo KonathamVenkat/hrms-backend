@@ -378,7 +378,7 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
             Employee employee, LocalDate otDate, LocalDateTime start, LocalDateTime end) {
 
         java.time.DayOfWeek dow = otDate.getDayOfWeek();
-        boolean weekend = dow == java.time.DayOfWeek.FRIDAY || dow == java.time.DayOfWeek.SATURDAY;
+        boolean weekend = dow == java.time.DayOfWeek.SATURDAY || dow == java.time.DayOfWeek.SUNDAY;
         if (weekend || holidayRepo.countHolidaysBetween(otDate, otDate) > 0) return;
 
         WorkShift shift = calculator.resolveShift(employee.getId());

@@ -5,7 +5,7 @@ package com.hrms.attendance.enums;
  *
  * PRE_APPROVED  → Employee notifies HR before working overtime
  * POST_FACTO    → Employee logs overtime after completing the work
- * WEEKEND       → Work done on Friday/Saturday (Oman weekend)
+ * WEEKEND       → Work done on Saturday/Sunday (weekend)
  * HOLIDAY       → Work done on a public holiday
  */
 public enum OvertimeType {

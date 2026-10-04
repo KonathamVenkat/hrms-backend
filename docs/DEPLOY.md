@@ -22,6 +22,7 @@ configuration, build and the checks to run after the first start. It contains no
   - `leave_request_attachment.sql`, then `store_documents_in_db.sql` (run in this order)
   - `auth_must_change_password.sql`
   - `employee_photo.sql` (table `HRMS.EMPLOYEE_PHOTO`, employee profile photos)
+  - `employee_menu_profile.sql` (data only: Employee > Profile in the sidebar opens `/app/profile`)
 
 ## 2. JWT secret
 
@@ -78,6 +79,7 @@ configuration, build and the checks to run after the first start. It contains no
       cookie is HttpOnly, Secure and scoped to `/api/v1/auth`, and local/session storage hold no token.
 - [ ] Sign out: the cookie is removed and a reload shows the sign-in page.
 - [ ] Create a test employee: the work email should end with the configured domain.
+- [ ] Sign in as an EMPLOYEE: Employee > Profile in the sidebar opens their own profile.
 - [ ] Open an employee, upload a profile photo (JPG, PNG or WebP, up to 2 MB), reload the page: the photo
       is still shown. Remove it again.
 - [ ] Read the first minutes of the log: no bound values (national IDs, password hashes) and no SQL.

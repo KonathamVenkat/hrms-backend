@@ -38,6 +38,7 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
     private final AttendanceLogRepository     logRepo;
     private final EmployeeRepository          employeeRepo;
     private final EmployeeAccessGuard         accessGuard;
+    private final AttendanceDayClassifier     classifier;
 
     // ────────────────────────────────────────────────────────
     // SINGLE EMPLOYEE MONTHLY SUMMARY — HYBRID
@@ -166,13 +167,23 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
         int lateDays = 0, holidayDays = 0, weekendDays = 0;
         long workMins = 0, otMins = 0, lateMins = 0;
 
+        java.util.Set<LocalDate> halfLeaveDays = classifier.halfDayLeaveDates(employeeId, from, to);
+
         for (AttendanceLog l : logs) {
             switch (l.getStatus()) {
                 case PRESENT  -> presentDays = presentDays.add(BigDecimal.ONE);
                 case LATE     -> { presentDays = presentDays.add(BigDecimal.ONE); lateDays++; }
                 case ABSENT   -> absentDays   = absentDays.add(BigDecimal.ONE);
                 case HALF_DAY -> halfDays     = halfDays.add(new BigDecimal("0.5"));
-                case ON_LEAVE -> leaveDays    = leaveDays.add(BigDecimal.ONE);
+                case ON_LEAVE -> {
+                    // A half-day leave with no punch is half leave, half absent.
+                    if (halfLeaveDays.contains(l.getAttendanceDate())) {
+                        leaveDays  = leaveDays.add(new BigDecimal("0.5"));
+                        absentDays = absentDays.add(new BigDecimal("0.5"));
+                    } else {
+                        leaveDays = leaveDays.add(BigDecimal.ONE);
+                    }
+                }
                 case HOLIDAY  -> holidayDays++;
                 case WEEKEND  -> weekendDays++;
             }

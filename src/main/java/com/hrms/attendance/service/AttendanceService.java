@@ -4,6 +4,7 @@ import com.hrms.attendance.dto.request.CheckInRequest;
 import com.hrms.attendance.dto.request.CheckOutRequest;
 import com.hrms.attendance.dto.response.AttendanceLogResponse;
 import com.hrms.attendance.dto.response.AttendanceSummaryResponse;
+import com.hrms.attendance.dto.response.DayRecordsResult;
 import com.hrms.common.dto.PagedResponse;
 import org.springframework.data.domain.Pageable;
 
@@ -31,4 +32,11 @@ public interface AttendanceService {
 
     // ── Scheduler entry point ─────────────────────────────────
     void calculateAndStoreDailySummary(LocalDate date);
+
+    /**
+     * Writes or corrects the absent / weekend / holiday / leave rows for the finished days
+     * {@code from..to} and refreshes the affected monthly summaries. Used by the nightly recovery
+     * job (so a leave approved late fixes an earlier ABSENT row) and by HR for a back-fill.
+     */
+    DayRecordsResult regenerateDayRecords(LocalDate from, LocalDate to);
 }

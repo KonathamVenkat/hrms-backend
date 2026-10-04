@@ -4,6 +4,7 @@ import com.hrms.attendance.dto.request.CheckInRequest;
 import com.hrms.attendance.dto.request.CheckOutRequest;
 import com.hrms.attendance.dto.response.AttendanceLogResponse;
 import com.hrms.attendance.dto.response.AttendanceSummaryResponse;
+import com.hrms.attendance.dto.response.DayRecordsResult;
 import com.hrms.attendance.entity.AttendanceLog;
 import com.hrms.attendance.enums.PunchSource;
 import com.hrms.attendance.repository.AttendanceLogRepository;
@@ -36,11 +37,16 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AttendanceServiceImpl implements AttendanceService {
 
+    /** Most days an HR admin can regenerate in one call. */
+    static final int MAX_REGENERATE_DAYS = 62;
+
     private final AttendanceLogRepository logRepo;
     private final EmployeeRepository      employeeRepo;
     private final AttendanceCalculator    calculator;
     private final AttendanceSummaryService summaryService;
     private final EmployeeAccessGuard     accessGuard;
+    private final AttendanceDayClassifier classifier;
+    private final AttendanceDayRecorder   recorder;
 
     // ────────────────────────────────────────────────────────
     // CHECK-IN
@@ -54,32 +60,37 @@ public class AttendanceServiceImpl implements AttendanceService {
         // Punch times are always server time — a client-supplied time would let anyone
         // back-date a check-in to dodge a late mark. Corrections go through regularization.
         LocalDateTime now = LocalDateTime.now();
-        LocalDate today   = now.toLocalDate();
+        WorkShift shift   = calculator.resolveShift(employee.getId());
+        // An overnight shift belongs to the day it started, so a punch after midnight is still that shift.
+        LocalDate day     = calculator.attendanceDateFor(now, shift);
 
-        logRepo.findByEmployeeIdAndAttendanceDateAndIsActive(employee.getId(), today, 1)
-                .ifPresent(existing -> {
-                    if (existing.getCheckInTime() != null) {
-                        throw new BusinessRuleException(
-                                "Employee " + employee.getEmployeeCode()
-                                        + " has already checked in today.");
-                    }
-                });
+        // Weekend / holiday: only with approved overtime. Full-day approved leave: not at all.
+        classifier.assertMayCheckIn(employee.getId(), shift, day);
 
-        WorkShift shift = calculator.resolveShift(employee.getId());
-
-        AttendanceLog attendanceLog = AttendanceLog.builder()
-                .logId(logRepo.findNextSequenceValue())
-                .employeeId(employee.getId())
-                .employeeCode(employee.getEmployeeCode())
-                .attendanceDate(today)
-                .punchSource(request.punchSource() != null ? request.punchSource() : PunchSource.WEB)
-                .locationId(request.locationId())
-                .notes(request.notes())
-                .build();
-        calculator.applyCheckIn(attendanceLog, now, shift);
-
-        attendanceLog.setCreatedBy(employee.getEmployeeCode());
-        attendanceLog.setCreatedAt(now);
+        // The nightly job writes a placeholder row (no check-in) for days nobody punched.
+        // Reuse it instead of inserting a second row for the same employee and date.
+        AttendanceLog attendanceLog = logRepo
+                .findByEmployeeIdAndAttendanceDateAndIsActive(employee.getId(), day, 1)
+                .orElse(null);
+        if (attendanceLog != null && attendanceLog.getCheckInTime() != null) {
+            throw new BusinessRuleException(
+                    "Employee " + employee.getEmployeeCode() + " has already checked in for " + day + ".");
+        }
+        boolean fresh = attendanceLog == null;
+        if (fresh) {
+            attendanceLog = AttendanceLog.builder()
+                    .logId(logRepo.findNextSequenceValue())
+                    .employeeId(employee.getId())
+                    .employeeCode(employee.getEmployeeCode())
+                    .attendanceDate(day)
+                    .build();
+            attendanceLog.setCreatedBy(employee.getEmployeeCode());
+            attendanceLog.setCreatedAt(now);
+        }
+        attendanceLog.setPunchSource(request.punchSource() != null ? request.punchSource() : PunchSource.WEB);
+        attendanceLog.setLocationId(request.locationId());
+        attendanceLog.setNotes(request.notes());
+        calculator.applyCheckIn(attendanceLog, now, shift, classifier.isNonWorkingDay(shift, day));
         attendanceLog.setUpdatedAt(now);
 
         return buildResponse(logRepo.save(attendanceLog), employee, shift);
@@ -95,9 +106,9 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         Employee employee = findEmployee(request.employeeId());
         LocalDateTime now = LocalDateTime.now();
+        WorkShift shift   = calculator.resolveShift(employee.getId());
 
-        AttendanceLog attendanceLog = logRepo
-                .findByEmployeeIdAndAttendanceDateAndIsActive(employee.getId(), now.toLocalDate(), 1)
+        AttendanceLog attendanceLog = findCurrentLog(employee.getId(), shift, now)
                 .orElseThrow(() -> new BusinessRuleException(
                         "No check-in found for today. Please check in first."));
 
@@ -106,11 +117,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         if (attendanceLog.getCheckOutTime() != null) {
             throw new BusinessRuleException(
-                    "Employee " + employee.getEmployeeCode() + " has already checked out today.");
+                    "Employee " + employee.getEmployeeCode() + " has already checked out for "
+                            + attendanceLog.getAttendanceDate() + ".");
         }
 
-        WorkShift shift = calculator.resolveShift(employee.getId());
-        calculator.applyCheckOut(attendanceLog, now, shift);
+        calculator.applyCheckOut(attendanceLog, now, shift,
+                classifier.isNonWorkingDay(shift, attendanceLog.getAttendanceDate()));
         if (request.notes() != null) attendanceLog.setNotes(request.notes());
         attendanceLog.setUpdatedAt(now);
 
@@ -125,8 +137,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         accessGuard.assertSelfOrPrivileged(employeeId);
         Employee employee = findEmployee(employeeId);
         WorkShift shift   = calculator.resolveShift(employee.getId());
-        return logRepo
-                .findByEmployeeIdAndAttendanceDateAndIsActive(employee.getId(), LocalDate.now(), 1)
+        return findCurrentLog(employee.getId(), shift, LocalDateTime.now())
                 .map(l -> buildResponse(l, employee, shift))
                 .orElse(null);
     }
@@ -193,6 +204,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public void calculateAndStoreDailySummary(LocalDate date) {
         log.info("Running nightly attendance aggregation for: {}", date);
+        // A finished day also gets a row for everyone who did not punch (absent / weekend /
+        // holiday / leave); today is still in progress, so it only aggregates what exists.
+        recorder.generateFor(date);
         Set<Long> employeeIds = logRepo.findByAttendanceDateAndIsActive(date, 1).stream()
                 .map(AttendanceLog::getEmployeeId).collect(Collectors.toSet());
 
@@ -205,7 +219,65 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
+    @Override
+    @Transactional
+    public DayRecordsResult regenerateDayRecords(LocalDate from, LocalDate to) {
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        if (from.isAfter(to)) {
+            throw new BusinessRuleException("INVALID_RANGE", "The start date must not be after the end date.");
+        }
+        if (to.isAfter(yesterday)) {
+            throw new BusinessRuleException("DAY_NOT_OVER", "Records can only be generated for days that are over.");
+        }
+        if (java.time.temporal.ChronoUnit.DAYS.between(from, to) >= MAX_REGENERATE_DAYS) {
+            throw new BusinessRuleException("RANGE_TOO_LONG",
+                    "Generate at most " + MAX_REGENERATE_DAYS + " days at a time.");
+        }
+
+        int created = 0;
+        int updated = 0;
+        // One summary refresh per employee and month, however many days changed.
+        Map<Long, Set<java.time.YearMonth>> affected = new HashMap<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            AttendanceDayRecorder.Result r = recorder.generateFor(d);
+            created += r.created();
+            updated += r.updated();
+            // Everyone with a row that day (punched, regularized or generated): the month total
+            // only picks a day up once it is over, so the day that just ended needs a refresh too.
+            for (AttendanceLog l : logRepo.findByAttendanceDateAndIsActive(d, 1)) {
+                affected.computeIfAbsent(l.getEmployeeId(), k -> new java.util.HashSet<>())
+                        .add(java.time.YearMonth.from(d));
+            }
+        }
+        affected.forEach((empId, months) -> months.forEach(ym -> {
+            try {
+                summaryService.recalculateSummary(empId, ym.getYear(), ym.getMonthValue());
+            } catch (Exception e) {
+                log.error("Summary failed for employee {} {}: {}", empId, ym, e.getMessage());
+            }
+        }));
+        log.info("Day records {}..{}: {} created, {} corrected, {} employees refreshed",
+                from, to, created, updated, affected.size());
+        return new DayRecordsResult(created, updated, affected.size());
+    }
+
     // ── Private helpers ───────────────────────────────────────
+
+    /**
+     * The log a punch at {@code now} belongs to: for an overnight shift the open log of the shift
+     * that started yesterday (so a check-out after midnight finds it), otherwise today's.
+     */
+    private java.util.Optional<AttendanceLog> findCurrentLog(Long employeeId, WorkShift shift, LocalDateTime now) {
+        LocalDate today = now.toLocalDate();
+        if (AttendanceCalculator.isOvernight(shift)) {
+            java.util.Optional<AttendanceLog> open = logRepo
+                    .findByEmployeeIdAndAttendanceDateAndIsActive(employeeId, today.minusDays(1), 1)
+                    .filter(l -> l.getCheckInTime() != null && l.getCheckOutTime() == null)
+                    .filter(l -> java.time.Duration.between(l.getCheckInTime(), now).toHours() < 24);
+            if (open.isPresent()) return open;
+        }
+        return logRepo.findByEmployeeIdAndAttendanceDateAndIsActive(employeeId, today, 1);
+    }
 
     private AttendanceLogResponse buildResponse(
             AttendanceLog l, Employee emp, WorkShift shift) {

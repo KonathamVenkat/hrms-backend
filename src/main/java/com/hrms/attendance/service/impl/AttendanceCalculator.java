@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -39,10 +40,18 @@ public class AttendanceCalculator {
 
     /** Sets check-in time, late minutes and PRESENT/LATE on the log. */
     public void applyCheckIn(AttendanceLog log, LocalDateTime checkIn, WorkShift shift) {
+        applyCheckIn(log, checkIn, shift, false);
+    }
+
+    /**
+     * As above. On a non-working day (weekly off or public holiday) there is no shift start to be
+     * late for, so the employee is simply PRESENT.
+     */
+    public void applyCheckIn(AttendanceLog log, LocalDateTime checkIn, WorkShift shift, boolean nonWorkingDay) {
         int lateMinutes = 0;
         AttendanceStatus status = AttendanceStatus.PRESENT;
 
-        if (shift != null) {
+        if (shift != null && !nonWorkingDay) {
             LocalDateTime shiftStart = log.getAttendanceDate().atTime(LocalTime.parse(shift.getStartTime(), HHMM));
             int grace = shift.getGracePeriod() != null ? shift.getGracePeriod() : 0;
             if (checkIn.isAfter(shiftStart.plusMinutes(grace))) {
@@ -62,11 +71,21 @@ public class AttendanceCalculator {
      * their sum, which would pay the same hours twice.
      */
     public void applyCheckOut(AttendanceLog log, LocalDateTime checkOut, WorkShift shift) {
+        applyCheckOut(log, checkOut, shift, false);
+    }
+
+    /**
+     * As above. On a non-working day (weekly off or public holiday) every minute worked is
+     * overtime, there is no early leave, and the day is never a half day.
+     */
+    public void applyCheckOut(AttendanceLog log, LocalDateTime checkOut, WorkShift shift, boolean nonWorkingDay) {
         int workingMins = (int) Duration.between(log.getCheckInTime(), checkOut).toMinutes();
         int overtimeMins = 0;
         int earlyLeaveMins = 0;
 
-        if (shift != null) {
+        if (nonWorkingDay) {
+            overtimeMins = workingMins;
+        } else if (shift != null) {
             int expectedMins = (int) (shift.getWorkingHours().doubleValue() * 60);
             if (workingMins > expectedMins) {
                 overtimeMins = workingMins - expectedMins;
@@ -83,7 +102,7 @@ public class AttendanceCalculator {
         log.setWorkingMinutes(workingMins);
         log.setOvertimeMinutes(overtimeMins);
         log.setEarlyLeaveMinutes(earlyLeaveMins);
-        log.setStatus(resolveStatus(log.getStatus(), workingMins, shift));
+        log.setStatus(nonWorkingDay ? log.getStatus() : resolveStatus(log.getStatus(), workingMins, shift));
     }
 
     private AttendanceStatus resolveStatus(AttendanceStatus current, int workingMins, WorkShift shift) {
@@ -91,6 +110,22 @@ public class AttendanceCalculator {
         if (shift == null) return AttendanceStatus.PRESENT;
         int halfThreshold = (int) (shift.getWorkingHours().doubleValue() * 60 / 2);
         return workingMins < halfThreshold ? AttendanceStatus.HALF_DAY : AttendanceStatus.PRESENT;
+    }
+
+    /**
+     * The attendance day a punch at {@code now} belongs to. A shift that runs past midnight belongs
+     * to the day it started: an overnight-shift employee punching before the shift end (say 02:00 on
+     * a 22:00-06:00 shift) is still on yesterday's shift.
+     */
+    public LocalDate attendanceDateFor(LocalDateTime now, WorkShift shift) {
+        if (isOvernight(shift) && now.toLocalTime().isBefore(LocalTime.parse(shift.getEndTime(), HHMM))) {
+            return now.toLocalDate().minusDays(1);
+        }
+        return now.toLocalDate();
+    }
+
+    public static boolean isOvernight(WorkShift shift) {
+        return shift != null && shift.getIsOvernight() != null && shift.getIsOvernight() == 1;
     }
 
     /** Rejects nonsense month/year path params with a 4xx instead of letting them surface as a 500. */

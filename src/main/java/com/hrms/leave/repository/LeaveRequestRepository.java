@@ -88,6 +88,32 @@ public interface LeaveRequestRepository
 
 
     
+    // ── Attendance: approved leave covering a day / a period ──
+
+    /** Every approved leave that covers {@code date}, for all employees. */
+    @Query("""
+        SELECT lr FROM LeaveRequest lr
+        WHERE lr.status    = com.hrms.leave.entity.LeaveStatus.APPROVED
+          AND lr.isActive  = true
+          AND lr.startDate <= :date
+          AND lr.endDate   >= :date
+        """)
+    List<LeaveRequest> findApprovedCovering(@Param("date") LocalDate date);
+
+    /** One employee's approved leaves that touch {@code from..to}. */
+    @Query("""
+        SELECT lr FROM LeaveRequest lr
+        WHERE lr.employeeId = :employeeId
+          AND lr.status     = com.hrms.leave.entity.LeaveStatus.APPROVED
+          AND lr.isActive   = true
+          AND lr.startDate  <= :to
+          AND lr.endDate    >= :from
+        """)
+    List<LeaveRequest> findApprovedForEmployeeBetween(
+            @Param("employeeId") Long      employeeId,
+            @Param("from")       LocalDate from,
+            @Param("to")         LocalDate to);
+
     // ── Count pending ─────────────────────────────────────────
 
     long countByEmployeeIdAndStatus(Long employeeId, LeaveStatus status);

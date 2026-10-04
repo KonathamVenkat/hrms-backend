@@ -80,6 +80,10 @@ configuration, build and the checks to run after the first start. It contains no
 - [ ] Sign out: the cookie is removed and a reload shows the sign-in page.
 - [ ] Create a test employee: the work email should end with the configured domain.
 - [ ] Sign in as an EMPLOYEE: Employee > Profile in the sidebar opens their own profile.
+- [ ] Attendance: the 00:05 nightly job writes the absent / weekend / holiday / leave rows for yesterday and re-checks
+      the last 7 days (no database change). For days that are already over when you go live, back-fill them once as
+      HR_ADMIN: `POST /api/v1/attendance/admin/day-records?from=YYYY-MM-DD&to=YYYY-MM-DD` (at most 62 days per call,
+      up to yesterday). Then open one month in the Attendance Summary: absent days are no longer always 0.
 - [ ] Open an employee, upload a profile photo (JPG, PNG or WebP, up to 2 MB), reload the page: the photo
       is still shown. Remove it again.
 - [ ] Read the first minutes of the log: no bound values (national IDs, password hashes) and no SQL.

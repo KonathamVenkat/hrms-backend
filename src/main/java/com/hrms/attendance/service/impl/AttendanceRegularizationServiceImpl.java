@@ -41,6 +41,7 @@ public class AttendanceRegularizationServiceImpl
     private final EmployeeRepository                 employeeRepo;
     private final EmployeeAccessGuard                accessGuard;
     private final AttendanceCalculator               calculator;
+    private final AttendanceDayClassifier            classifier;
     private final AttendanceSummaryService           summaryService;
 
     private static final DateTimeFormatter DATE_FMT =
@@ -360,9 +361,10 @@ public class AttendanceRegularizationServiceImpl
         }
 
         WorkShift shift = calculator.resolveShift(employee.getId());
-        calculator.applyCheckIn(attendanceLog, in, shift);
+        boolean nonWorkingDay = classifier.isNonWorkingDay(shift, reg.getAttendanceDate());
+        calculator.applyCheckIn(attendanceLog, in, shift, nonWorkingDay);
         if (out != null) {
-            calculator.applyCheckOut(attendanceLog, out, shift);
+            calculator.applyCheckOut(attendanceLog, out, shift, nonWorkingDay);
         }
         attendanceLog.setIsRegularized(1);
         attendanceLog.setUpdatedAt(LocalDateTime.now());

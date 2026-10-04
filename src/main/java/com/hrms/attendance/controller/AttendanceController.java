@@ -3,6 +3,7 @@ package com.hrms.attendance.controller;
 import com.hrms.attendance.dto.request.CheckInRequest;
 import com.hrms.attendance.dto.request.CheckOutRequest;
 import com.hrms.attendance.dto.response.AttendanceLogResponse;
+import com.hrms.attendance.dto.response.DayRecordsResult;
 import com.hrms.attendance.dto.response.AttendanceSummaryResponse;
 import com.hrms.attendance.service.AttendanceService;
 import com.hrms.common.dto.ApiResponse;
@@ -110,5 +111,17 @@ public class AttendanceController {
                 ApiResponse.success(
                         "Success",
                         attendanceService.getMonthlySummary(employeeId, year, month)));
+    }
+
+    // ── Back-fill / repair the absent, weekend, holiday and leave rows ──
+    @PostMapping("/admin/day-records")
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    public ResponseEntity<ApiResponse<DayRecordsResult>> regenerateDayRecords(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Day records generated",
+                        attendanceService.regenerateDayRecords(from, to)));
     }
 }

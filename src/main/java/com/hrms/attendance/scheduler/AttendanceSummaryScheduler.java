@@ -42,17 +42,23 @@ public class AttendanceSummaryScheduler {
     }
 
     /**
-     * Recovery job: runs at 00:05 to catch any missed previous-day entries
-     * (handles cases where employees are in different timezones or late punches).
+     * Recovery job, 00:05: writes the absent / weekend / holiday / leave rows for yesterday, and
+     * re-checks the previous week, so a leave approved or a holiday added a few days late corrects
+     * the rows written earlier. Real punches and regularized days are never touched.
      */
     @Scheduled(cron = "0 5 0 * * *")
     public void runRecoveryForYesterday() {
-        LocalDate yesterday = LocalDate.now().minusDays(1);
-        log.info("=== Recovery Summary for {} ===", yesterday);
+        LocalDate today = LocalDate.now();
+        LocalDate from  = today.minusDays(RECHECK_DAYS);
+        LocalDate to    = today.minusDays(1);
+        log.info("=== Day records and summaries {} .. {} ===", from, to);
         try {
-            attendanceService.calculateAndStoreDailySummary(yesterday);
+            attendanceService.regenerateDayRecords(from, to);
         } catch (Exception e) {
-            log.error("Recovery summary FAILED for {}: {}", yesterday, e.getMessage(), e);
+            log.error("Day records FAILED for {} .. {}: {}", from, to, e.getMessage(), e);
         }
     }
+
+    /** How many past days the recovery job re-checks. */
+    static final int RECHECK_DAYS = 7;
 }

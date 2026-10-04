@@ -126,6 +126,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
 
     Optional<Employee> findByIdAndIsActive(Long id, Boolean isActive);
 
+    /** Active employees who had already joined on {@code date}: who is expected at work that day. */
+    List<Employee> findByIsActiveAndHireDateLessThanEqual(Boolean isActive, LocalDate date);
+
     /**
      * Takes a row lock on the employee until the surrounding transaction ends. Used to serialise
      * changes to one employee's job history so two requests cannot both close and re-open it.

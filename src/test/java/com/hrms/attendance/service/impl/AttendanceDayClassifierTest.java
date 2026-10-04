@@ -146,6 +146,7 @@ class AttendanceDayClassifierTest {
         var ex = assertThrows(BusinessRuleException.class, () -> classifier.assertMayCheckIn(5L, sunThu, FRIDAY));
         assertEquals("NON_WORKING_DAY", ex.getRuleCode());
         assertTrue(ex.getMessage().contains("weekend"));
+        assertTrue(ex.getMessage().contains("Pre-Approved"), "must tell the employee which overtime type to file");
 
         when(ot.sumApprovedMinutes(5L, FRIDAY)).thenReturn(120L);
         assertDoesNotThrow(() -> classifier.assertMayCheckIn(5L, sunThu, FRIDAY));

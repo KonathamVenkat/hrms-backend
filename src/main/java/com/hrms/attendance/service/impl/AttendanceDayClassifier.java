@@ -153,7 +153,8 @@ public class AttendanceDayClassifier {
             if (approvedOt == null || approvedOt <= 0) {
                 throw new BusinessRuleException("NON_WORKING_DAY",
                         "Today is a " + (weeklyOff ? "weekend" : "public holiday")
-                                + ". Submit an overtime request and get it approved before checking in.");
+                                + ". Overtime must be approved before you check in: submit an overtime request of type "
+                                + "Pre-Approved for this date, and check in once it is approved.");
             }
         }
     }

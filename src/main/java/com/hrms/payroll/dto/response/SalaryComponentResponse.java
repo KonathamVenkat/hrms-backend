@@ -20,7 +20,7 @@ public record SalaryComponentResponse(
         String            calcTypeLabel,
         BigDecimal        defaultValue,
         Boolean           isTaxable,
-        Boolean           isPasiApplicable,
+        Boolean           isNssfApplicable,
         String            description,
         Integer           sortOrder,
         Boolean           isActive,

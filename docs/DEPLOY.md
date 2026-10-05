@@ -35,6 +35,7 @@ configuration, build and the checks to run after the first start. It contains no
   - `leave_request_attachment.sql`, then `store_documents_in_db.sql` (run in this order)
   - `auth_must_change_password.sql`
   - `optimistic_locking_and_audit.sql` (VERSION columns on `EMPLOYEES`, `EMPLOYEE_ADDRESSES`, `EMPLOYEE_IDENTITY_INFO`, `LEAVE_BALANCES`, and CREATED_BY / UPDATED_BY on the address and identity tables; a stale save now gets HTTP 409)
+  - `rename_pasi_to_nssf.sql` (renames `SALARY_COMPONENTS.IS_PASI_APPLICABLE` to `IS_NSSF_APPLICABLE`; no data changes)
   - `employee_photo.sql` (table `HRMS.EMPLOYEE_PHOTO`, employee profile photos)
   - `employee_menu_profile.sql` (data only: Employee > Profile in the sidebar opens `/app/profile`)
   - `work_shifts_sat_sun_weekend.sql` (data only: work shifts get Monday-Friday working days, so Saturday and Sunday are the weekend)

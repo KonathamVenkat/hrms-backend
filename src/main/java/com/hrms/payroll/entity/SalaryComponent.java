@@ -49,9 +49,9 @@ public class SalaryComponent extends Auditable {
     @Builder.Default
     private Integer isTaxable = 0;
 
-    @Column(name = "IS_PASI_APPLICABLE", nullable = false)
+    @Column(name = "IS_NSSF_APPLICABLE", nullable = false)
     @Builder.Default
-    private Integer isPasiApplicable = 0;
+    private Integer isNssfApplicable = 0;
 
     @Column(name = "DESCRIPTION", length = 500)
     private String description;

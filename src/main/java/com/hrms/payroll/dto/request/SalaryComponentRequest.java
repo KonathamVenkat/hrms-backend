@@ -31,7 +31,7 @@ public record SalaryComponentRequest(
         BigDecimal defaultValue,
 
         Boolean isTaxable,
-        Boolean isPasiApplicable,
+        Boolean isNssfApplicable,
         String  description,
         Integer sortOrder
 ) {}

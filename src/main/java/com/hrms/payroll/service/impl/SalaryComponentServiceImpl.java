@@ -75,7 +75,7 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
                 .defaultValue(request.defaultValue() != null
                         ? request.defaultValue() : BigDecimal.ZERO)
                 .isTaxable(Boolean.TRUE.equals(request.isTaxable()) ? 1 : 0)
-                .isPasiApplicable(Boolean.TRUE.equals(request.isPasiApplicable()) ? 1 : 0)
+                .isNssfApplicable(Boolean.TRUE.equals(request.isNssfApplicable()) ? 1 : 0)
                 .description(request.description())
                 .sortOrder(request.sortOrder() != null ? request.sortOrder() : 0)
                 .build();
@@ -116,7 +116,7 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
         comp.setDefaultValue(request.defaultValue() != null
                 ? request.defaultValue() : BigDecimal.ZERO);
         comp.setIsTaxable(Boolean.TRUE.equals(request.isTaxable()) ? 1 : 0);
-        comp.setIsPasiApplicable(Boolean.TRUE.equals(request.isPasiApplicable()) ? 1 : 0);
+        comp.setIsNssfApplicable(Boolean.TRUE.equals(request.isNssfApplicable()) ? 1 : 0);
         comp.setDescription(request.description());
         if (request.sortOrder() != null) comp.setSortOrder(request.sortOrder());
         comp.setUpdatedAt(LocalDateTime.now());
@@ -163,7 +163,7 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
                 c.getCalcType(), calcLabel,
                 c.getDefaultValue(),
                 c.getIsTaxable() == 1,
-                c.getIsPasiApplicable() == 1,
+                c.getIsNssfApplicable() == 1,
                 c.getDescription(),
                 c.getSortOrder(),
                 c.getIsActive() == 1,

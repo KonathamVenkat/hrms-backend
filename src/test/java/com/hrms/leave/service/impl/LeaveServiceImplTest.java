@@ -20,6 +20,7 @@ import com.hrms.leave.repository.HolidayCalendarRepository;
 import com.hrms.leave.repository.LeaveBalanceRepository;
 import com.hrms.leave.repository.LeaveRequestAttachmentContentRepository;
 import com.hrms.leave.repository.LeaveRequestRepository;
+import com.hrms.leave.dto.response.LeaveBalanceResponse;
 import com.hrms.leave.repository.LeaveTypeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -418,6 +419,27 @@ class LeaveServiceImplTest {
         pendingRequest(5.0);
 
         assertThrows(ResourceNotFoundException.class, () -> service.getAttachment(EMPLOYEE, 501L));
+    }
+
+    @Test
+    void theBalanceSummaryHidesTypesTheEmployeesGenderCannotTake() {
+        LeaveType maternity = LeaveType.builder().code("MATERNITY").nameEn("Maternity").applicableGender("FEMALE").build();
+        when(types.findByCodeIgnoreCase("MATERNITY")).thenReturn(Optional.of(maternity));
+        LeaveBalance maternityRow = LeaveBalance.builder().employeeId(EMPLOYEE).leaveTypeCode("MATERNITY").year(2027)
+                .totalDays(90.0).usedDays(0.0).pendingDays(0.0).build();
+        when(balances.findByEmployeeIdAndYear(EMPLOYEE, 2027)).thenReturn(List.of(balance, maternityRow));
+
+        // The employee in setUp is a woman: both are listed.
+        assertEquals(2, service.getBalances(EMPLOYEE, 2027).size());
+
+        when(employees.findById(EMPLOYEE)).thenReturn(Optional.of(
+                Employee.builder().id(EMPLOYEE).employeeCode("EMP-5").firstName("Omar").lastName("Test").gender(Gender.MALE).build()));
+        List<LeaveBalanceResponse> forAMan = service.getBalances(EMPLOYEE, 2027);
+
+        assertEquals(List.of("ANNUAL"), forAMan.stream().map(LeaveBalanceResponse::getLeaveType).toList());
+
+        maternityRow.setUsedDays(2.0);   // days already taken are never hidden
+        assertEquals(2, service.getBalances(EMPLOYEE, 2027).size());
     }
 
     @Test

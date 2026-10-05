@@ -1,6 +1,7 @@
 package com.hrms.leave.entity;
 
 
+import com.hrms.common.enums.Gender;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -117,4 +118,15 @@ public class LeaveType {
 
     @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
+
+    /**
+     * True when an employee of {@code gender} may take this leave type: a type for "ALL" (or with no
+     * restriction set) is open to everyone, a restricted type needs a known, matching gender.
+     */
+    public boolean isApplicableTo(Gender gender) {
+        if (applicableGender == null || "ALL".equalsIgnoreCase(applicableGender)) {
+            return true;
+        }
+        return gender != null && gender.name().equalsIgnoreCase(applicableGender);
+    }
 }

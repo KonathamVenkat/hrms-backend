@@ -1,6 +1,7 @@
 package com.hrms.leave.service.impl;
 
 import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.config.UploadLimits;
@@ -42,13 +43,14 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     public List<LeaveBalanceResponse> getEmployeeBalances(Long employeeId, Integer year) {
         employeeAccessGuard.assertSelfOrPrivileged(employeeId);
 
-        if (!employeeRepository.existsById(employeeId)) {
-            throw new ResourceNotFoundException("Employee", "id", employeeId);
-        }
+        Employee employee = employeeRepository.findById(employeeId)
+            .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+        Gender gender = employee.getGender();
         int targetYear = (year != null) ? year : LocalDateTime.now().getYear();
         return leaveBalanceRepository
             .findByEmployeeIdAndYear(employeeId, targetYear)
             .stream()
+            .filter(b -> isOfferedTo(gender, b))
             .map(this::toResponse)
             .sorted(Comparator.comparing(LeaveBalanceResponse::getLeaveType))
             .collect(Collectors.toList());
@@ -267,6 +269,16 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
             log.debug("Created balance — emp={} type={} year={} total={}",
                 employeeId, lt.getCode(), year, totalDays);
         }
+    }
+
+    /**
+     * A balance for a leave type the employee's gender cannot take (e.g. Maternity for a man) is not
+     * listed, unless days were already used or are pending on it, which must never be hidden.
+     */
+    private boolean isOfferedTo(Gender gender, LeaveBalance balance) {
+        if (balance.getUsedDays() > 0 || balance.getPendingDays() > 0) return true;
+        return leaveTypeRepository.findByCodeIgnoreCase(balance.getLeaveTypeCode())
+            .map(t -> t.isApplicableTo(gender)).orElse(true);
     }
 
     private LeaveBalanceResponse toResponse(LeaveBalance lb) {

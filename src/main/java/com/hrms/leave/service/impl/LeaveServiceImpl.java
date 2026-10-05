@@ -74,7 +74,7 @@ public class LeaveServiceImpl implements LeaveService {
                 "Leave type '" + leaveType.getNameEn() + "' is no longer active.");
         }
 
-        if (!isGenderEligible(employee.getGender(), leaveType.getApplicableGender())) {
+        if (!leaveType.isApplicableTo(employee.getGender())) {
             throw new BusinessRuleException("GENDER_NOT_ELIGIBLE",
                 leaveType.getNameEn() + " is only available to "
                 + leaveType.getApplicableGender().toLowerCase() + " employees.");
@@ -318,9 +318,11 @@ public class LeaveServiceImpl implements LeaveService {
         employeeAccessGuard.assertSelfOrPrivileged(employeeId);
 
         int targetYear = (year != null) ? year : LocalDate.now().getYear();
+        Gender gender = employeeRepository.findById(employeeId).map(Employee::getGender).orElse(null);
         return leaveBalanceRepository
             .findByEmployeeIdAndYear(employeeId, targetYear)
-            .stream().map(this::toBalanceResponse)
+            .stream().filter(b -> isOfferedTo(gender, b))
+            .map(this::toBalanceResponse)
             .collect(Collectors.toList());
     }
 
@@ -446,11 +448,14 @@ public class LeaveServiceImpl implements LeaveService {
         return days;
     }
 
-    private boolean isGenderEligible(Gender employeeGender, String applicableGender) {
-        if (applicableGender == null || "ALL".equalsIgnoreCase(applicableGender)) {
-            return true;
-        }
-        return employeeGender != null && employeeGender.name().equalsIgnoreCase(applicableGender);
+    /**
+     * A balance for a leave type the employee's gender cannot take (e.g. Maternity for a man) is not
+     * listed, unless days were already used or are pending on it, which must never be hidden.
+     */
+    private boolean isOfferedTo(Gender gender, LeaveBalance balance) {
+        if (balance.getUsedDays() > 0 || balance.getPendingDays() > 0) return true;
+        return leaveTypeRepository.findByCodeIgnoreCase(balance.getLeaveTypeCode())
+            .map(t -> t.isApplicableTo(gender)).orElse(true);
     }
 
     private Pageable buildPageable(LeaveFilterRequest filter) {

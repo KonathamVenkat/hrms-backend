@@ -1,6 +1,7 @@
 package com.hrms.leave.service.impl;
 
 import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.config.UploadLimits;
@@ -247,8 +248,9 @@ class LeaveBalanceServiceImplTest {
 
     @Test
     void anUnknownEmployeesBalancesAreNotFoundAndAKnownOnesAreSortedByType() {
-        when(employees.existsById(99L)).thenReturn(false);
+        when(employees.findById(99L)).thenReturn(Optional.empty());
         assertThrows(ResourceNotFoundException.class, () -> service.getEmployeeBalances(99L, 2027));
+        when(employees.findById(5L)).thenReturn(Optional.of(person(5, true)));
 
         when(balances.findByEmployeeIdAndYear(5L, 2027)).thenReturn(List.of(
                 LeaveBalance.builder().employeeId(5L).leaveTypeCode("SICK").year(2027).totalDays(15.0).usedDays(0.0).pendingDays(0.0).build(),
@@ -257,5 +259,45 @@ class LeaveBalanceServiceImplTest {
         List<LeaveBalanceResponse> r = service.getEmployeeBalances(5L, 2027);
 
         assertEquals(List.of("ANNUAL", "SICK"), r.stream().map(LeaveBalanceResponse::getLeaveType).toList());
+    }
+
+    // ── Leave types the employee's gender cannot take ──────────
+
+    private LeaveBalance row(String code, double used, double pending) {
+        return LeaveBalance.builder().employeeId(5L).leaveTypeCode(code).year(2027).totalDays(90.0)
+                .usedDays(used).pendingDays(pending).build();
+    }
+
+    private List<String> listedFor(Gender gender, LeaveBalance... rows) {
+        when(employees.findById(5L)).thenReturn(Optional.of(
+                Employee.builder().id(5L).employeeCode("EMP-5").gender(gender).build()));
+        when(balances.findByEmployeeIdAndYear(5L, 2027)).thenReturn(List.of(rows));
+        return service.getEmployeeBalances(5L, 2027).stream().map(LeaveBalanceResponse::getLeaveType).toList();
+    }
+
+    @Test
+    void aFemaleOnlyTypeIsNotListedForAManButIsForAWoman() {
+        LeaveType maternity = LeaveType.builder().code("MATERNITY").nameEn("Maternity").applicableGender("FEMALE").build();
+        when(types.findByCodeIgnoreCase("MATERNITY")).thenReturn(Optional.of(maternity));
+
+        assertEquals(List.of("ANNUAL"), listedFor(Gender.MALE, row("ANNUAL", 0, 0), row("MATERNITY", 0, 0)));
+        assertEquals(List.of("ANNUAL", "MATERNITY"), listedFor(Gender.FEMALE, row("ANNUAL", 0, 0), row("MATERNITY", 0, 0)));
+    }
+
+    @Test
+    void anEmployeeWithNoGenderDoesNotSeeRestrictedTypes() {
+        LeaveType maternity = LeaveType.builder().code("MATERNITY").nameEn("Maternity").applicableGender("FEMALE").build();
+        when(types.findByCodeIgnoreCase("MATERNITY")).thenReturn(Optional.of(maternity));
+
+        assertEquals(List.of(), listedFor(null, row("MATERNITY", 0, 0)));
+    }
+
+    @Test
+    void daysAlreadyUsedOrPendingOnARestrictedTypeAreNeverHidden() {
+        LeaveType maternity = LeaveType.builder().code("MATERNITY").nameEn("Maternity").applicableGender("FEMALE").build();
+        when(types.findByCodeIgnoreCase("MATERNITY")).thenReturn(Optional.of(maternity));
+
+        assertEquals(List.of("MATERNITY"), listedFor(Gender.MALE, row("MATERNITY", 3, 0)));
+        assertEquals(List.of("MATERNITY"), listedFor(Gender.MALE, row("MATERNITY", 0, 2)));
     }
 }

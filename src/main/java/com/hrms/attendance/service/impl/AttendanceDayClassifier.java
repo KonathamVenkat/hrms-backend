@@ -148,14 +148,29 @@ public class AttendanceDayClassifier {
                     "You are on approved leave on " + date + ", so you cannot check in. "
                             + "If you are working that day, ask HR to adjust the leave.");
         }
-        if (weeklyOff || holiday) {
-            Long approvedOt = otRepo.sumApprovedMinutes(employeeId, date);
-            if (approvedOt == null || approvedOt <= 0) {
-                throw new BusinessRuleException("NON_WORKING_DAY",
-                        "Today is a " + (weeklyOff ? "weekend" : "public holiday")
-                                + ". Overtime must be approved before you check in: submit an overtime request of type "
-                                + "Pre-Approved for this date, and check in once it is approved.");
-            }
+        if ((weeklyOff || holiday) && !hasApprovedOvertime(employeeId, date)) {
+            throw new BusinessRuleException("NON_WORKING_DAY",
+                    "Today is a " + (weeklyOff ? "weekend" : "public holiday")
+                            + ". Overtime must be approved before you check in: submit an overtime request of type "
+                            + "Pre-Approved for this date, and check in once it is approved.");
         }
+    }
+
+    /**
+     * Throws unless a missed punch on {@code date} may be corrected: on a weekend or holiday only
+     * when overtime was approved for that date (the same condition that lets the employee check in).
+     */
+    public void assertMayRegularize(Long employeeId, WorkShift shift, LocalDate date) {
+        boolean weeklyOff = isWeeklyOff(shift, date);
+        if ((weeklyOff || isPublicHoliday(date)) && !hasApprovedOvertime(employeeId, date)) {
+            throw new BusinessRuleException("NON_WORKING_DAY",
+                    "That day is a " + (weeklyOff ? "weekend" : "public holiday")
+                            + ", so a punch can only be corrected when overtime was approved for it.");
+        }
+    }
+
+    private boolean hasApprovedOvertime(Long employeeId, LocalDate date) {
+        Long approvedOt = otRepo.sumApprovedMinutes(employeeId, date);
+        return approvedOt != null && approvedOt > 0;
     }
 }

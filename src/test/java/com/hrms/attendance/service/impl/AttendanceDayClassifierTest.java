@@ -20,6 +20,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AttendanceDayClassifierTest {
@@ -188,5 +189,37 @@ class AttendanceDayClassifierTest {
 
         var ex = assertThrows(BusinessRuleException.class, () -> classifier.assertMayCheckIn(5L, sunThu, FRIDAY));
         assertEquals("NON_WORKING_DAY", ex.getRuleCode());
+    }
+
+    // ── Correcting a missed punch ────────────────────────────
+
+    @Test
+    void aWeekendPunchCanBeCorrectedOnlyWithApprovedOvertime() {
+        var ex = assertThrows(BusinessRuleException.class, () -> classifier.assertMayRegularize(5L, sunThu, FRIDAY));
+        assertEquals("NON_WORKING_DAY", ex.getRuleCode());
+        assertTrue(ex.getMessage().contains("weekend"));
+
+        when(ot.sumApprovedMinutes(5L, FRIDAY)).thenReturn(0L);
+        assertThrows(BusinessRuleException.class, () -> classifier.assertMayRegularize(5L, sunThu, FRIDAY));
+
+        when(ot.sumApprovedMinutes(5L, FRIDAY)).thenReturn(120L);
+        assertDoesNotThrow(() -> classifier.assertMayRegularize(5L, sunThu, FRIDAY));
+    }
+
+    @Test
+    void aHolidayPunchFollowsTheSameRule() {
+        holidayOn(MONDAY, "PUBLIC");
+
+        var ex = assertThrows(BusinessRuleException.class, () -> classifier.assertMayRegularize(5L, sunThu, MONDAY));
+        assertTrue(ex.getMessage().contains("public holiday"));
+
+        when(ot.sumApprovedMinutes(5L, MONDAY)).thenReturn(60L);
+        assertDoesNotThrow(() -> classifier.assertMayRegularize(5L, sunThu, MONDAY));
+    }
+
+    @Test
+    void anOrdinaryWorkingDayNeedsNoOvertimeToCorrectAPunch() {
+        assertDoesNotThrow(() -> classifier.assertMayRegularize(5L, sunThu, MONDAY));
+        verifyNoInteractions(ot);
     }
 }

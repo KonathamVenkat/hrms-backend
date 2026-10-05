@@ -158,16 +158,38 @@ class AttendanceRegularizationServiceImplTest {
     }
 
     @Test
-    void leaveHolidayAndWeekendDaysCannotBeRegularized() {
-        for (AttendanceStatus status : new AttendanceStatus[] {
-                AttendanceStatus.ON_LEAVE, AttendanceStatus.HOLIDAY, AttendanceStatus.WEEKEND}) {
+    void aLeaveDayCannotBeRegularized() {
+        logWithStatus(AttendanceStatus.ON_LEAVE, yesterday);
+
+        var ex = refused(() -> service.submit(normalDay(yesterday)));
+
+        assertTrue(ex.getMessage().contains("ON_LEAVE"), ex.getMessage());
+        verify(regRepo, never()).save(any());
+    }
+
+    @Test
+    void aWeekendOrHolidayDayCanBeRegularizedWhenTheClassifierAllowsIt() {
+        for (AttendanceStatus status : new AttendanceStatus[] {AttendanceStatus.WEEKEND, AttendanceStatus.HOLIDAY}) {
             logWithStatus(status, yesterday);
 
-            var ex = refused(() -> service.submit(normalDay(yesterday)));
-
-            assertTrue(ex.getMessage().contains(status.name()), ex.getMessage());
+            assertDoesNotThrow(() -> service.submit(normalDay(yesterday)), status.name());
         }
+        verify(classifier, atLeastOnce()).assertMayRegularize(EMPLOYEE, shift, yesterday);
+    }
+
+    @Test
+    void aWeekendOrHolidayWithoutApprovedOvertimeIsRefusedAtSubmitAndAtApproval() {
+        doThrow(new BusinessRuleException("NON_WORKING_DAY", "no approved overtime"))
+                .when(classifier).assertMayRegularize(EMPLOYEE, shift, yesterday);
+
+        var submit = refused(() -> service.submit(normalDay(yesterday)));
+        assertEquals("NON_WORKING_DAY", submit.getRuleCode());
         verify(regRepo, never()).save(any());
+
+        // A request filed earlier, before the rule or before the overtime was cancelled, is checked again.
+        pendingNormalDay();
+        refused(() -> service.approve(41L, APPROVE));
+        verify(logRepo, never()).save(any());
     }
 
     @Test

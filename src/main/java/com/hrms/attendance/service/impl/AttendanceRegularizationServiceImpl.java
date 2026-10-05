@@ -122,8 +122,10 @@ public class AttendanceRegularizationServiceImpl
             throw new BusinessRuleException("Requested times cannot be in the future.");
         }
 
-        // 6. A day already marked leave / holiday / weekend is not an attendance to correct
+        // 6. A day of approved leave is not an attendance to correct; a weekend or holiday only is
+        //    when overtime was approved for it (the same condition as checking in).
         existingLog.ifPresent(l -> assertRegularizable(l));
+        classifier.assertMayRegularize(employee.getId(), calculator.resolveShift(employee.getId()), attendanceDate);
 
         // ── Persist ───────────────────────────────────────────
         Long regId = regRepo.findNextSequenceValue();
@@ -361,6 +363,7 @@ public class AttendanceRegularizationServiceImpl
         }
 
         WorkShift shift = calculator.resolveShift(employee.getId());
+        classifier.assertMayRegularize(employee.getId(), shift, reg.getAttendanceDate());
         boolean nonWorkingDay = classifier.isNonWorkingDay(shift, reg.getAttendanceDate());
         calculator.applyCheckIn(attendanceLog, in, shift, nonWorkingDay);
         if (out != null) {
@@ -381,11 +384,9 @@ public class AttendanceRegularizationServiceImpl
         }
     }
 
-    /** Leave / holiday / weekend days are system-determined and can't be overridden by a punch correction. */
+    /** A leave day is system-determined and can't be overridden by a punch correction. */
     private void assertRegularizable(AttendanceLog l) {
-        if (l.getStatus() == AttendanceStatus.ON_LEAVE
-                || l.getStatus() == AttendanceStatus.HOLIDAY
-                || l.getStatus() == AttendanceStatus.WEEKEND) {
+        if (l.getStatus() == AttendanceStatus.ON_LEAVE) {
             throw new BusinessRuleException(
                     "This day is marked " + l.getStatus() + " and cannot be regularized.");
         }

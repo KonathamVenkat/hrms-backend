@@ -145,6 +145,15 @@ class LeaveServiceImplTest {
         assertEquals(4.0, r.getTotalDays());
     }
 
+    @Test
+    void anOptionalHolidayStillCostsALeaveDay() {
+        LocalDate wednesday = monday.plusDays(2);
+        when(holidays.findHolidaysBetween(monday, friday)).thenReturn(List.of(
+                HolidayCalendar.builder().holidayDate(wednesday).holidayType("OPTIONAL").build()));
+
+        assertEquals(5.0, applyNoFile(monday, friday).getTotalDays());
+    }
+
     // ── Applying: who and what ───────────────────────────────
 
     @Test
@@ -380,6 +389,31 @@ class LeaveServiceImplTest {
         assertEquals(0.0, balance.getPendingDays());
         assertEquals(0.0, balance.getUsedDays());
         assertEquals(21.0, balance.getAvailableDays());
+    }
+
+    @Test
+    void nobodyCanDecideTheirOwnRequest() {
+        balance.setPendingDays(5.0);
+        LeaveRequest r = pendingRequest(5.0);
+        when(guard.currentEmployeeId()).thenReturn(EMPLOYEE);
+
+        assertEquals("SELF_APPROVAL",
+                refused(() -> service.processLeave(501L, decision("APPROVED", null), "hr.admin")).getRuleCode());
+        assertEquals(LeaveStatus.PENDING, r.getStatus());
+        assertEquals(5.0, balance.getPendingDays());
+        verify(balances, never()).save(any());
+    }
+
+    @Test
+    void anHrAdminMayDecideTheirOwnRequest() {
+        balance.setPendingDays(5.0);
+        LeaveRequest r = pendingRequest(5.0);
+        when(guard.currentEmployeeId()).thenReturn(EMPLOYEE);
+        when(guard.isHrAdmin()).thenReturn(true);
+
+        service.processLeave(501L, decision("APPROVED", null), "hr.admin");
+
+        assertEquals(LeaveStatus.APPROVED, r.getStatus());
     }
 
     @Test

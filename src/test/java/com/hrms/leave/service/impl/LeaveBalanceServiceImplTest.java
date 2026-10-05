@@ -229,6 +229,20 @@ class LeaveBalanceServiceImplTest {
     }
 
     @Test
+    void youCannotDeductOrResetBelowDaysAlreadyUsedOrPending() {
+        current.setUsedDays(8.0);
+        current.setPendingDays(5.0);          // 13 committed, 8 available
+
+        assertEquals("INVALID_DEDUCTION", assertThrows(BusinessRuleException.class,
+                () -> adjust("DEDUCT", 9)).getRuleCode());
+        assertEquals("INVALID_DEDUCTION", assertThrows(BusinessRuleException.class,
+                () -> adjust("RESET", 12)).getRuleCode());
+        verify(balances, never()).save(any());
+
+        assertEquals(13.0, adjust("DEDUCT", 8).getTotalDays(), "down to exactly the committed days is fine");
+    }
+
+    @Test
     void deductingExactlyTheTotalIsAllowed() {
         assertEquals(0.0, adjust("DEDUCT", 21).getTotalDays());
     }

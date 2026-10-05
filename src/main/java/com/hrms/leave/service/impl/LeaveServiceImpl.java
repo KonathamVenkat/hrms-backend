@@ -381,6 +381,12 @@ public class LeaveServiceImpl implements LeaveService {
                 + "Status: " + lr.getStatus().name());
         }
 
+        if (!employeeAccessGuard.isHrAdmin()
+                && lr.getEmployeeId().equals(employeeAccessGuard.currentEmployeeId())) {
+            throw new BusinessRuleException("SELF_APPROVAL",
+                "You cannot approve or reject your own leave request. Ask an HR administrator.");
+        }
+
         int year = lr.getStartDate().getYear();
         LeaveBalance balance = leaveBalanceRepository
             .findByEmployeeIdAndLeaveTypeCodeAndYear(
@@ -432,6 +438,8 @@ public class LeaveServiceImpl implements LeaveService {
         Set<LocalDate> holidayDates = holidayCalendarRepository
             .findHolidaysBetween(start, end)
             .stream()
+            // OPTIONAL / RESTRICTED holidays are the employee's choice, so they still cost a leave day.
+            .filter(h -> "PUBLIC".equals(h.getHolidayType()) || "RELIGIOUS".equals(h.getHolidayType()))
             .map(HolidayCalendar::getHolidayDate)
             .collect(Collectors.toSet());
 

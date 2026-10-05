@@ -195,20 +195,20 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
 
         double oldTotal = balance.getTotalDays();
 
-        switch (request.getAdjustmentType()) {
-            case "GRANT"  -> balance.setTotalDays(balance.getTotalDays() + request.getDays());
-            case "DEDUCT" -> {
-                double newTotal = balance.getTotalDays() - request.getDays();
-                if (newTotal < 0) {
-                    throw new BusinessRuleException("INVALID_DEDUCTION",
-                        "Cannot deduct " + request.getDays() +
-                        " days. Current total is " + balance.getTotalDays() + " days.");
-                }
-                balance.setTotalDays(newTotal);
-            }
-            case "RESET"  -> balance.setTotalDays(request.getDays());
-        }
+        double newTotal = switch (request.getAdjustmentType()) {
+            case "GRANT"  -> oldTotal + request.getDays();
+            case "DEDUCT" -> oldTotal - request.getDays();
+            default       -> request.getDays();     // RESET
+        };
 
+        // The total can never drop below what is already taken or waiting for approval.
+        double committed = balance.getUsedDays() + balance.getPendingDays();
+        if (newTotal < committed) {
+            throw new BusinessRuleException("INVALID_DEDUCTION",
+                "Total cannot go below the " + committed + " days already used or pending "
+                + "(requested total: " + newTotal + ").");
+        }
+        balance.setTotalDays(newTotal);
         balance.setUpdatedAt(LocalDateTime.now());
         LeaveBalance saved = leaveBalanceRepository.save(balance);
 

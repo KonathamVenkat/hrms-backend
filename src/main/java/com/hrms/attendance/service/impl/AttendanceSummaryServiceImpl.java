@@ -267,7 +267,16 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
                                m.setLateDays(m.getLateDays() + 1); }
             case ABSENT   -> m.setAbsentDays(m.getAbsentDays().add(BigDecimal.ONE));
             case HALF_DAY -> m.setHalfDays(m.getHalfDays().add(new BigDecimal("0.5")));
-            case ON_LEAVE -> m.setLeaveDays(m.getLeaveDays().add(BigDecimal.ONE));
+            case ON_LEAVE -> {
+                // Same rule as the recalculation: a half-day leave with no punch is half leave, half absent.
+                LocalDate day = today.getAttendanceDate();
+                if (classifier.halfDayLeaveDates(base.getEmployeeId(), day, day).contains(day)) {
+                    m.setLeaveDays(m.getLeaveDays().add(new BigDecimal("0.5")));
+                    m.setAbsentDays(m.getAbsentDays().add(new BigDecimal("0.5")));
+                } else {
+                    m.setLeaveDays(m.getLeaveDays().add(BigDecimal.ONE));
+                }
+            }
             case HOLIDAY  -> m.setHolidayDays(m.getHolidayDays() + 1);
             case WEEKEND  -> m.setWeekendDays(m.getWeekendDays() + 1);
         }
@@ -300,11 +309,14 @@ public class AttendanceSummaryServiceImpl implements AttendanceSummaryService {
         // so the number of half-day occurrences is half * 2. Days the employee was expected to
         // work = full-present days + half-day occurrences + absent days (leave/holiday/weekend
         // are not expected-work days).
-        int totalWorkingDays = (int) Math.round(present + half * 2 + absent);
+        // The percentage uses the exact figure: absent can be a half day (half-day leave),
+        // and rounding the divisor would skew it. Only the displayed count is rounded.
+        double expectedDays = present + half * 2 + absent;
+        int totalWorkingDays = (int) Math.round(expectedDays);
 
         // Attendance % = days attended (a half day counts 0.5) / expected days * 100
-        double attendancePct = totalWorkingDays > 0
-                ? BigDecimal.valueOf(((present + half) / totalWorkingDays) * 100)
+        double attendancePct = expectedDays > 0
+                ? BigDecimal.valueOf(((present + half) / expectedDays) * 100)
                         .setScale(1, RoundingMode.HALF_UP).doubleValue()
                 : 0.0;
 

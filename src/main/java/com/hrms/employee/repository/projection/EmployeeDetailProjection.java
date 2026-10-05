@@ -33,6 +33,7 @@ public interface EmployeeDetailProjection {
     String getEmploymentStatus();
     String getEmploymentType();
     Integer getIsActive();
+    Long getVersion();
     String getCreatedBy();
     String getCreatedAt();
     String getUpdatedBy();

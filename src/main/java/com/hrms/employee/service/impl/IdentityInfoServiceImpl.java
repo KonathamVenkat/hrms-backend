@@ -70,6 +70,7 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
         if (existing.isPresent()) {
             // ── Update existing record ────────────────────────
             entity = existing.get();
+            Versions.requireCurrent(request.getVersion(), entity.getVersion());
             entity.setNationalId(Strings.trimToNull(request.getNationalId()));
             entity.setPassportNumber(Strings.trimToNull(request.getPassportNumber()));
             entity.setTaxId(Strings.trimToNull(request.getTaxId()));
@@ -100,7 +101,6 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
                 .workPermitNumber(Strings.trimToNull(request.getWorkPermitNumber()))
                 .workPermitExpiry(request.getWorkPermitExpiry())
                 .biometricId(Strings.trimToNull(request.getBiometricId()))
-                .createdAt(LocalDateTime.now())
                 .build();
             log.info("Created identity info for employee {}", employeeId);
         }
@@ -171,6 +171,9 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             .workPermitExpiringSoon(permitExpiringSoon)
             .biometricId(show(info.getBiometricId(), masked))
             .masked(masked)
+            .version(info.getVersion())
+            .createdBy(info.getCreatedBy())
+            .updatedBy(info.getUpdatedBy())
             .createdAt(info.getCreatedAt() != null
                 ? info.getCreatedAt().toString() : null)
             .updatedAt(info.getUpdatedAt() != null

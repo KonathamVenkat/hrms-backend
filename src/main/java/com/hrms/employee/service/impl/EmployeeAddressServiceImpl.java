@@ -74,11 +74,10 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
             .addressLine2(request.getAddressLine2())
             .city(request.getCity().trim())
             .stateProvince(request.getStateProvince())
-            .country(request.getCountry() != null ? request.getCountry().trim() : "Oman")
+            .country(request.getCountry() != null ? request.getCountry().trim() : "South Sudan")
             .postalCode(request.getPostalCode())
             .isPrimary(setPrimary ? 1 : 0)
             .isActive(1)
-            .createdAt(LocalDateTime.now())
             .build();
 
         EmployeeAddress saved = addressRepository.save(entity);
@@ -93,6 +92,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
                                                   EmployeeAddressRequest request) {
         log.info("Updating address {} for employee {}", addressId, employeeId);
         EmployeeAddress existing = findAddress(employeeId, addressId);
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
 
         // If type is changing, check no duplicate
         if (!existing.getAddressType().equals(request.getAddressType())) {
@@ -109,7 +109,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
         existing.setAddressLine2(request.getAddressLine2());
         existing.setCity(request.getCity().trim());
         existing.setStateProvince(request.getStateProvince());
-        existing.setCountry(request.getCountry() != null ? request.getCountry().trim() : "Oman");
+        existing.setCountry(request.getCountry() != null ? request.getCountry().trim() : "South Sudan");
         existing.setPostalCode(request.getPostalCode());
         existing.setUpdatedAt(LocalDateTime.now());
 
@@ -196,6 +196,9 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
             .isPrimary(a.getIsPrimary() == 1)
             .isActive(a.getIsActive() == 1)
             .createdAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : null)
+            .version(a.getVersion())
+            .createdBy(a.getCreatedBy())
+            .updatedBy(a.getUpdatedBy())
             .updatedAt(a.getUpdatedAt() != null ? a.getUpdatedAt().toString() : null)
             .build();
     }

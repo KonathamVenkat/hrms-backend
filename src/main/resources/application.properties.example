@@ -82,6 +82,14 @@ hrms.business-zone=${HRMS_BUSINESS_ZONE:Africa/Juba}
 
 # Document / attachment storage is in the database; this is the global upload size cap (MB).
 hrms.upload.max-file-size-mb=25
+
+# Malware scan of every uploaded file (document, photo, leave attachment) by a ClamAV daemon (clamd).
+# Off for development. In production set HRMS_UPLOAD_SCAN_ENABLED=true; if clamd cannot be reached the
+# upload is refused (fail-closed). clamd StreamMaxLength must be at least the upload cap above.
+hrms.upload.scan.enabled=false
+hrms.upload.scan.host=localhost
+hrms.upload.scan.port=3310
+hrms.upload.scan.timeout-ms=15000
 app.base-url=${APP_BASE_URL:http://localhost:8082}
 spring.servlet.multipart.max-file-size=50MB
 spring.servlet.multipart.max-request-size=55MB

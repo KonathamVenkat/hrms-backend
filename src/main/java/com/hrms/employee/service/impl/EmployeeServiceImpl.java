@@ -17,6 +17,7 @@ import com.hrms.employee.dto.response.EmployeeResponse;
 import com.hrms.employee.dto.response.EmployeeSummaryResponse;
 import com.hrms.employee.entity.Employee;
 import com.hrms.employee.mapper.EmployeeMapper;
+import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.repository.projection.EmployeeDetailProjection;
 import com.hrms.employee.repository.projection.EmployeeListProjection;
@@ -59,6 +60,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeAccessGuard accessGuard;
     private final WorkEmailGenerator  workEmails;
     private final EmployeeLoginAccounts accounts;
+    private final EmployeeJobDetailsRepository jobDetails;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -238,11 +240,21 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = employeeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", id));
 
+        // Only an HR_ADMIN may edit the record of someone who holds an HR role, so an HR_MANAGER
+        // cannot change an administrator's (or a peer manager's) details.
+        if (!isCurrentUserHrAdmin()
+                && accounts.roleOf(id).filter(r -> r != UserRole.EMPLOYEE).isPresent()) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                "Only HR_ADMIN can edit an HR_ADMIN or HR_MANAGER record");
+        }
+
         if (!Boolean.TRUE.equals(employee.getIsActive())) {
             throw new BusinessRuleException(
                 "EMP_INACTIVE",
                 "This employee is deactivated. Reactivate the employee before editing.");
         }
+
+        Versions.requireCurrent(request.getVersion(), employee.getVersion());
 
         // ── 2. Personal email uniqueness check (allow same) ────
         if (!employee.getPersonalEmail().equalsIgnoreCase(request.getPersonalEmail())
@@ -332,6 +344,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (id.equals(accessGuard.currentEmployeeId())) {
             throw new BusinessRuleException(
                 "CANNOT_DEACTIVATE_SELF", "You cannot deactivate your own account.");
+        }
+
+        // Leaving staff with a manager who no longer works here breaks approvals and reporting lines.
+        long reports = jobDetails.countActiveReportsOf(id);
+        if (reports > 0) {
+            throw new BusinessRuleException("HAS_ACTIVE_REPORTS",
+                "This employee is the manager of " + reports + " active employee(s). "
+                + "Assign them to another manager in Job Details first.");
         }
 
         if (exitStatus != null) {

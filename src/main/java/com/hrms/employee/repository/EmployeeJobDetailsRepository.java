@@ -16,6 +16,14 @@ import java.util.Optional;
 public interface EmployeeJobDetailsRepository
         extends JpaRepository<EmployeeJobDetails, Long> {
 
+    /** Active employees whose current job row names this person as reporting or functional manager. */
+    @Query("""
+        SELECT COUNT(j) FROM EmployeeJobDetails j, Employee e
+        WHERE e.id = j.employeeId AND e.isActive = true AND j.isCurrent = 1
+          AND (j.reportingManagerId = :managerId OR j.functionalManagerId = :managerId)
+        """)
+    long countActiveReportsOf(@Param("managerId") Long managerId);
+
     // ── Current job record for an employee ────────────────────
 
     Optional<EmployeeJobDetails> findByEmployeeIdAndIsCurrent(

@@ -270,6 +270,11 @@ public class Employee extends Auditable {
     @Builder.Default
     private Boolean isActive = true;
 
+    /** Optimistic lock: bumped on every update; a stale writer gets HTTP 409. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
+
 
     // ──────────────────────────────────────────────────────────────────────────
     // Derived / Transient helpers

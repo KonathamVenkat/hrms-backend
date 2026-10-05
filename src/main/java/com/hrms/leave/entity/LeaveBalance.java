@@ -16,6 +16,7 @@ import lombok.*;
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class LeaveBalance extends Auditable {
 
+
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "leave_bal_seq")
     @SequenceGenerator(name = "leave_bal_seq", sequenceName = "HRMS.LEAVE_BAL_SEQ", allocationSize = 1)
@@ -41,6 +42,11 @@ public class LeaveBalance extends Auditable {
     @Column(name = "PENDING_DAYS", nullable = false)
     @Builder.Default
     private Double pendingDays = 0.0;
+
+    /** Optimistic lock: two requests changing the same balance at once no longer lose an update. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 
     @Transient
     public Double getAvailableDays() {

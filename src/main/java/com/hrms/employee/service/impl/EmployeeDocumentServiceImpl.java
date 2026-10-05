@@ -11,6 +11,7 @@ import com.hrms.employee.entity.DocumentType;
 import com.hrms.employee.config.OfficePackage;
 import com.hrms.employee.config.UploadHeader;
 import com.hrms.employee.config.UploadLimits;
+import com.hrms.employee.config.UploadScanner;
 import com.hrms.employee.entity.EmployeeDocument;
 import com.hrms.employee.entity.EmployeeDocumentContent;
 import com.hrms.employee.repository.DocumentTypeRepository;
@@ -47,6 +48,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     private final EmployeeRepository         employeeRepository;
     private final EmployeeDocumentContentRepository contentRepository;
     private final UploadLimits               uploadLimits;
+    private final UploadScanner              uploadScanner;
 
     @Value("${app.base-url:http://localhost:8082}")
     private String baseUrl;
@@ -168,6 +170,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             throw new BusinessRuleException("FILE_TYPE_NOT_ALLOWED",
                 "The file is not a valid Word (.docx) document.");
         }
+        uploadScanner.assertClean(fileBytes);
 
         // ── Expiry date validation ────────────────────────────
         if (request.getIssueDate() != null && request.getExpiryDate() != null) {

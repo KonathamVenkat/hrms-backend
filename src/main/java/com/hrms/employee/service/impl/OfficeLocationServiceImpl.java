@@ -63,11 +63,11 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
             .addressLine2(request.getAddressLine2())
             .city(request.getCity().trim())
             .stateProvince(request.getStateProvince())
-            .country(request.getCountry() != null ? request.getCountry().trim() : "Oman")
+            .country(request.getCountry() != null ? request.getCountry().trim() : "South Sudan")
             .postalCode(request.getPostalCode())
             .phone(request.getPhone())
             .email(request.getEmail())
-            .timezone(request.getTimezone() != null ? request.getTimezone() : "Asia/Muscat")
+            .timezone(request.getTimezone() != null ? request.getTimezone() : "Africa/Juba")
             .latitude(request.getLatitude())
             .longitude(request.getLongitude())
             .isActive(request.getIsActive() != null ? boolToInt(request.getIsActive()) : 1)
@@ -104,11 +104,11 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
         existing.setAddressLine2(request.getAddressLine2());
         existing.setCity(request.getCity().trim());
         existing.setStateProvince(request.getStateProvince());
-        existing.setCountry(request.getCountry() != null ? request.getCountry().trim() : "Oman");
+        existing.setCountry(request.getCountry() != null ? request.getCountry().trim() : "South Sudan");
         existing.setPostalCode(request.getPostalCode());
         existing.setPhone(request.getPhone());
         existing.setEmail(request.getEmail());
-        existing.setTimezone(request.getTimezone() != null ? request.getTimezone() : "Asia/Muscat");
+        existing.setTimezone(request.getTimezone() != null ? request.getTimezone() : "Africa/Juba");
         existing.setLatitude(request.getLatitude());
         existing.setLongitude(request.getLongitude());
         existing.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);

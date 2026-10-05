@@ -33,4 +33,7 @@ public class EmployeeAddressRequest {
     private String postalCode;
 
     private Boolean isPrimary;
+
+    /** The version the screen was loaded with; omit to skip the stale-edit check. */
+    private Long version;
 }

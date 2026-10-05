@@ -68,6 +68,8 @@ public class EmployeeDetailResponse {
     private String role;
 
     // ── Audit ─────────────────────────────────────────────────
+    /** Send this back on update; a stale value is refused with HTTP 409. */
+    private Long version;
     private String createdBy;
     private String createdAt;
     private String updatedBy;

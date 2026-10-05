@@ -1,9 +1,9 @@
 package com.hrms.employee.entity;
 
+import com.hrms.common.audit.Auditable;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * JPA Entity for HRMS.EMPLOYEE_IDENTITY_INFO table.
@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
     )
 )
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class EmployeeIdentityInfo {
+public class EmployeeIdentityInfo extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE,
@@ -79,10 +79,8 @@ public class EmployeeIdentityInfo {
     private String biometricId;
 
     // ── Audit ─────────────────────────────────────────────────
-    @Column(name = "CREATED_AT", nullable = false)
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @Column(name = "UPDATED_AT")
-    private LocalDateTime updatedAt;
+    /** Optimistic lock: bumped on every update; a stale writer gets HTTP 409. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 }

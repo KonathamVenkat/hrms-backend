@@ -42,7 +42,7 @@ public class EmployeeSalary extends Auditable {
 
     @Column(name = "CURRENCY", nullable = false, length = 5)
     @Builder.Default
-    private String currency = "OMR";
+    private String currency = "SSP";
 
     @Column(name = "EFFECTIVE_FROM", nullable = false)
     private LocalDate effectiveFrom;

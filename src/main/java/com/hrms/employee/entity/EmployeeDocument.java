@@ -64,7 +64,7 @@ public class EmployeeDocument {
     @Column(name = "EXPIRY_DATE")
     private LocalDate expiryDate;
 
-    /** e.g. Royal Oman Police, Ministry of Manpower */
+    /** e.g. Ministry of Interior, Directorate of Immigration */
     @Column(name = "ISSUED_BY", length = 200)
     private String issuedBy;
 

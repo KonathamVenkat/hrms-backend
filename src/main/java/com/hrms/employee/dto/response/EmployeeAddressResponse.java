@@ -15,6 +15,9 @@ public class EmployeeAddressResponse {
     private String  postalCode;
     private Boolean isPrimary;
     private Boolean isActive;
+    private Long    version;
+    private String  createdBy;
     private String  createdAt;
     private String  updatedAt;
+    private String  updatedBy;
 }

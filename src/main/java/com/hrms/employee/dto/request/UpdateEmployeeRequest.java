@@ -94,4 +94,7 @@ public class UpdateEmployeeRequest {
     @Pattern(regexp = "^(HR_ADMIN|HR_MANAGER|EMPLOYEE)$",
              message = "Role must be HR_ADMIN, HR_MANAGER, or EMPLOYEE")
     private String role;
+
+    /** The version the screen was loaded with; omit to skip the stale-edit check. */
+    private Long version;
 }

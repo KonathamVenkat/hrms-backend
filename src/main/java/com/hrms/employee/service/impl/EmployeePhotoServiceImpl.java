@@ -5,6 +5,7 @@ import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.config.UploadHeader;
 import com.hrms.employee.dto.response.EmployeeResponse;
 import com.hrms.employee.entity.Employee;
+import com.hrms.employee.config.UploadScanner;
 import com.hrms.employee.entity.EmployeePhoto;
 import com.hrms.employee.mapper.EmployeeMapper;
 import com.hrms.employee.repository.EmployeePhotoRepository;
@@ -34,6 +35,7 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
     private final EmployeeRepository      employeeRepository;
     private final EmployeePhotoRepository photoRepository;
     private final EmployeeMapper          employeeMapper;
+    private final UploadScanner           uploadScanner;
 
     @Override
     @Transactional
@@ -59,6 +61,7 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
             log.error("Failed to read uploaded photo: {}", e.getMessage());
             throw new BusinessRuleException("FILE_SAVE_ERROR", "Failed to save the photo. Please try again.");
         }
+        uploadScanner.assertClean(bytes);
 
         EmployeePhoto photo = photoRepository.findById(employeeId).orElseGet(EmployeePhoto::new);
         photo.setEmployeeId(employeeId);

@@ -11,7 +11,7 @@ import java.math.BigDecimal;
  * A single component row within a salary structure.
  * Holds the amount or percentage override for that structure.
  *
- * Example: In "Grade A Package", TRANSPORT = 100 OMR (FIXED),
+ * Example: In "Grade A Package", TRANSPORT = 100 SSP (FIXED),
  *          HRA = 25% of BASIC (PERCENTAGE_OF_BASIC).
  */
 @Entity

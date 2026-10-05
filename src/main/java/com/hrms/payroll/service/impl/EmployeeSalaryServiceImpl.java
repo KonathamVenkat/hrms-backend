@@ -120,7 +120,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 .basicSalary(request.basicSalary())
                 .grossSalary(calc.grossSalary())
                 .netSalary(calc.netSalary())
-                .currency("OMR")
+                .currency("SSP")
                 .effectiveFrom(effectiveFrom)
                 .isCurrent(1)
                 .remarks(request.remarks())

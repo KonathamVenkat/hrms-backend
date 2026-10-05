@@ -56,7 +56,7 @@ public class OfficeLocation {
 
     @Column(name = "COUNTRY", nullable = false, length = 100)
     @Builder.Default
-    private String country = "Oman";
+    private String country = "South Sudan";
 
     @Column(name = "POSTAL_CODE", length = 20)
     private String postalCode;
@@ -69,7 +69,7 @@ public class OfficeLocation {
 
     @Column(name = "TIMEZONE", length = 50)
     @Builder.Default
-    private String timezone = "Asia/Muscat";
+    private String timezone = "Africa/Juba";
 
     @Column(name = "LATITUDE", precision = 10, scale = 6)
     private BigDecimal latitude;

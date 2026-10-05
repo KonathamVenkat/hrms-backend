@@ -3,6 +3,7 @@ package com.hrms.leave.service.impl;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.employee.config.UploadHeader;
 import com.hrms.employee.config.UploadLimits;
+import com.hrms.employee.config.UploadScanner;
 import com.hrms.leave.entity.LeaveType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class LeaveAttachmentStorage {
     public record Prepared(byte[] bytes, String originalName, long sizeBytes) {}
 
     private final UploadLimits uploadLimits;
+    private final UploadScanner uploadScanner;
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
 
@@ -95,6 +97,7 @@ public class LeaveAttachmentStorage {
             throw new BusinessRuleException("FILE_SAVE_ERROR",
                 "Failed to save attachment. Please try again.");
         }
+        uploadScanner.assertClean(bytes);
 
         return new Prepared(bytes, sanitizeName(originalName), file.getSize());
     }

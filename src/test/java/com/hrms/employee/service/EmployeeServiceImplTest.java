@@ -51,6 +51,7 @@ class EmployeeServiceImplTest {
     @Mock AuthUserRepository authUserRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock EmployeeAccessGuard accessGuard;
+    @Mock com.hrms.employee.repository.EmployeeJobDetailsRepository jobDetails;
 
     EmployeeServiceImpl service;
 
@@ -59,7 +60,8 @@ class EmployeeServiceImplTest {
         service = new EmployeeServiceImpl(
             employeeRepository, employeeMapper, accessGuard,
             new WorkEmailGenerator(employeeRepository, authUserRepository, "nilepet.com"),
-            new EmployeeLoginAccounts(authUserRepository, passwordEncoder));
+            new EmployeeLoginAccounts(authUserRepository, passwordEncoder),
+            jobDetails);
     }
 
     @Test
@@ -206,6 +208,32 @@ class EmployeeServiceImplTest {
         assertEquals("INVALID_STATUS_TRANSITION", ex.getRuleCode());
     }
 
+
+    @Test
+    void anEditFromAStaleScreenIsRefused() {
+        loginAs("admin", "HR_ADMIN");
+        Employee e = employee(5, EmploymentStatus.ACTIVE, true);
+        e.setVersion(3L);
+        when(employeeRepository.findById(5L)).thenReturn(Optional.of(e));
+        UpdateEmployeeRequest req = updateRequest();
+        req.setVersion(2L);              // the screen was loaded before someone else saved
+
+        assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,
+            () -> service.updateEmployee(5L, req));
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void anHrManagerCannotEditAnAdministratorsRecord() {
+        loginAs("manager", "HR_MANAGER");
+        when(employeeRepository.findById(5L))
+            .thenReturn(Optional.of(employee(5, EmploymentStatus.ACTIVE, true)));
+        when(authUserRepository.findByEmployeeId(5L)).thenReturn(Optional.of(
+            AuthUser.builder().employeeId(5L).role(UserRole.HR_ADMIN).build()));
+
+        assertThrows(AccessDeniedException.class, () -> service.updateEmployee(5L, updateRequest()));
+        verify(employeeRepository, never()).save(any());
+    }
     @Test
     void hrManagerCannotChangeARole() {
         loginAs("manager", "HR_MANAGER");
@@ -238,6 +266,20 @@ class EmployeeServiceImplTest {
 
     // ── Deactivate ──────────────────────────────────────────
 
+
+    @Test
+    void cannotDeactivateAManagerWhoStillHasActiveReports() {
+        loginAs("admin", "HR_ADMIN");
+        when(employeeRepository.findByIdAndIsActive(5L, true))
+            .thenReturn(Optional.of(employee(5, EmploymentStatus.ACTIVE, true)));
+        when(accessGuard.currentEmployeeId()).thenReturn(1L);
+        when(jobDetails.countActiveReportsOf(5L)).thenReturn(3L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+            () -> service.deactivateEmployee(5L, EmploymentStatus.RESIGNED));
+        assertEquals("HAS_ACTIVE_REPORTS", ex.getRuleCode());
+        verify(employeeRepository, never()).softDeleteById(anyLong(), anyString());
+    }
     @Test
     void cannotDeactivateYourOwnAccount() {
         loginAs("admin", "HR_ADMIN");

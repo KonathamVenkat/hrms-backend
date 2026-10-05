@@ -33,7 +33,8 @@ class EmployeePhotoServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new EmployeePhotoServiceImpl(employees, photos, mapper);
+        service = new EmployeePhotoServiceImpl(employees, photos, mapper,
+                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000));
         employee = new Employee();
         when(employees.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(employee));
         when(employees.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -60,6 +61,19 @@ class EmployeePhotoServiceImplTest {
         assertTrue(employee.getProfilePhotoUrl().matches("/api/v1/employees/5/photo\\?v=\\d+"));
     }
 
+
+    @Test
+    void aPhotoTheScannerRejectsIsNeverStored() {
+        var scanner = mock(com.hrms.employee.config.UploadScanner.class);
+        doThrow(new BusinessRuleException("MALWARE_DETECTED", "infected")).when(scanner).assertClean(any());
+        var scanning = new EmployeePhotoServiceImpl(employees, photos, mapper, scanner);
+
+        var ex = assertThrows(BusinessRuleException.class,
+            () -> scanning.upload(5L, new MockMultipartFile("file", "me.png", "image/png", PNG)));
+
+        assertEquals("MALWARE_DETECTED", ex.getRuleCode());
+        verify(photos, never()).save(any());
+    }
     @Test
     void rejectsAFileThatIsNotAnAllowedImage() {
         var svg = new MockMultipartFile("file", "x.png", "image/png", "<svg></svg>".getBytes());

@@ -34,6 +34,7 @@ configuration, build and the checks to run after the first start. It contains no
       application from starting):
   - `leave_request_attachment.sql`, then `store_documents_in_db.sql` (run in this order)
   - `auth_must_change_password.sql`
+  - `optimistic_locking_and_audit.sql` (VERSION columns on `EMPLOYEES`, `EMPLOYEE_ADDRESSES`, `EMPLOYEE_IDENTITY_INFO`, `LEAVE_BALANCES`, and CREATED_BY / UPDATED_BY on the address and identity tables; a stale save now gets HTTP 409)
   - `employee_photo.sql` (table `HRMS.EMPLOYEE_PHOTO`, employee profile photos)
   - `employee_menu_profile.sql` (data only: Employee > Profile in the sidebar opens `/app/profile`)
   - `work_shifts_sat_sun_weekend.sql` (data only: work shifts get Monday-Friday working days, so Saturday and Sunday are the weekend)
@@ -63,6 +64,7 @@ configuration, build and the checks to run after the first start. It contains no
 | `HRMS_REFRESH_COOKIE_SECURE` | optional, default `true`. Leave it `true` in production: the refresh cookie is then only sent over HTTPS. Set `false` only for local development over plain http |
 | `HRMS_REFRESH_COOKIE_SAME_SITE` | optional, default `Strict` |
 | `HRMS_UPLOAD_MAX_FILE_SIZE_MB` | optional, default 25 |
+| `HRMS_UPLOAD_SCAN_ENABLED` | set `true` in production: every uploaded file is scanned by ClamAV. Optional `HRMS_UPLOAD_SCAN_HOST` (default `localhost`), `HRMS_UPLOAD_SCAN_PORT` (default `3310`), `HRMS_UPLOAD_SCAN_TIMEOUT_MS` (default `15000`) |
 
 - [ ] Set them in the service manager, container or secret store, not in a file in the repository.
 
@@ -99,6 +101,8 @@ configuration, build and the checks to run after the first start. It contains no
 - [ ] Sign in as an EMPLOYEE: Employee > Profile in the sidebar opens their own profile.
 - [ ] The start-up log says `Business time zone set to Africa/Juba` (or your zone). The example config defaults to `Africa/Juba`;
       if the property is blank the server's own zone is used (with a warning), and "today" and the nightly jobs follow that.
+- [ ] Malware scanning: ClamAV (`clamd`) is installed and running on the server, with `StreamMaxLength` at least as large as the upload cap and signatures up to date (`freshclam`). Upload the harmless EICAR test file as an employee document: it must be refused with "contains malware". Stop `clamd` and upload again: it must be refused with "could not be scanned" (the service never lets a file through unscanned).- [ ] Open the same employee in two browser tabs, save a change in the first, then save in the second: the second shows "changed by someone else" (HTTP 409) instead of overwriting.
+- [ ] Open the same employee in two browser tabs, save a change in the first, then save in the second: the second shows "changed by someone else" (HTTP 409) instead of overwriting.
 - [ ] Attendance: the 00:05 nightly job writes the absent / weekend / holiday / leave rows for yesterday and re-checks
       the last 7 days (no database change). For days that are already over when you go live, back-fill them once as
       HR_ADMIN: `POST /api/v1/attendance/admin/day-records?from=YYYY-MM-DD&to=YYYY-MM-DD` (at most 62 days per call,

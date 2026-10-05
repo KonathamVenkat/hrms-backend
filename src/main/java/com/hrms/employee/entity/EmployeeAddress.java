@@ -1,8 +1,8 @@
 package com.hrms.employee.entity;
 
 import jakarta.persistence.*;
+import com.hrms.common.audit.Auditable;
 import lombok.*;
-import java.time.LocalDateTime;
 
 /**
  * JPA Entity for HRMS.EMPLOYEE_ADDRESSES table.
@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "EMPLOYEE_ADDRESSES", schema = "HRMS")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class EmployeeAddress {
+public class EmployeeAddress extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "emp_addr_seq")
@@ -51,7 +51,7 @@ public class EmployeeAddress {
 
     @Column(name = "COUNTRY", nullable = false, length = 100)
     @Builder.Default
-    private String country = "Oman";
+    private String country = "South Sudan";
 
     @Column(name = "POSTAL_CODE", length = 20)
     private String postalCode;
@@ -65,10 +65,8 @@ public class EmployeeAddress {
     @Builder.Default
     private Integer isActive = 1;
 
-    @Column(name = "CREATED_AT", nullable = false)
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @Column(name = "UPDATED_AT")
-    private LocalDateTime updatedAt;
+    /** Optimistic lock: bumped on every update; a stale writer gets HTTP 409. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 }

@@ -42,6 +42,9 @@ public class IdentityInfoResponse {
     private Boolean   masked;
 
     // Audit
+    private Long      version;
+    private String    createdBy;
     private String    createdAt;
     private String    updatedAt;
+    private String    updatedBy;
 }

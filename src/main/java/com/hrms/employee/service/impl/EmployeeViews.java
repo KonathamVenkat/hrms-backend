@@ -73,6 +73,7 @@ public final class EmployeeViews {
             .designationTitleAr(p.getDesignationTitleAr())
             .designationCode(p.getDesignationCode())
             .gradeLevel(p.getGradeLevel())
+            .version(p.getVersion())
             .createdBy(p.getCreatedBy())
             .createdAt(p.getCreatedAt())
             .updatedBy(p.getUpdatedBy())

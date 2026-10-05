@@ -39,7 +39,8 @@ class EmployeeDocumentServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new EmployeeDocumentServiceImpl(documents, docTypes, employees, contents, new UploadLimits(25));
+        service = new EmployeeDocumentServiceImpl(documents, docTypes, employees, contents, new UploadLimits(25),
+                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000));
         when(employees.existsById(5L)).thenReturn(true);
 
         passportType = DocumentType.builder()

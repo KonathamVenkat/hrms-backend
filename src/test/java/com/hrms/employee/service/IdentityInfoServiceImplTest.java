@@ -124,6 +124,21 @@ class IdentityInfoServiceImplTest {
 
     // ── Save ────────────────────────────────────────────────
 
+
+    @Test
+    void savingFromAStaleScreenIsRefused() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        EmployeeIdentityInfo current = record();
+        current.setVersion(4L);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.of(current));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setNationalId("123456789");
+        req.setVersion(3L);
+
+        assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,
+            () -> service.saveIdentityInfo(5L, req));
+        verify(identityRepository, never()).save(any());
+    }
     @Test
     void saveReturnsRealValuesNotMaskedOnes() {
         when(employeeRepository.existsById(5L)).thenReturn(true);

@@ -39,5 +39,7 @@ public class IdentityInfoRequest {
 
     @Size(max = 100, message = "Biometric ID max 100 characters")
     private String biometricId;
-}
 
+    /** The version the screen was loaded with; omit to skip the stale-edit check. */
+    private Long version;
+}

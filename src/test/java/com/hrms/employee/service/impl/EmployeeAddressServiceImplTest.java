@@ -43,6 +43,19 @@ class EmployeeAddressServiceImplTest {
             .addressLine1("x").city("y").country("Oman").isPrimary(primary).isActive(1).build();
     }
 
+
+    @Test
+    void editingFromAStaleScreenIsRefused() {
+        EmployeeAddress current = address(7, 5, "CURRENT", 0);
+        current.setVersion(2L);
+        when(addresses.findById(7L)).thenReturn(Optional.of(current));
+        EmployeeAddressRequest req = request("CURRENT", false);
+        req.setVersion(1L);
+
+        assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,
+            () -> service.updateAddress(5L, 7L, req));
+        verify(addresses, never()).save(any());
+    }
     @Test
     void anUnknownEmployeeIsNotFound() {
         assertThrows(ResourceNotFoundException.class, () -> service.getAddresses(9L));

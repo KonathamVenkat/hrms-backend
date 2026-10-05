@@ -23,6 +23,10 @@ configuration, build and the checks to run after the first start. It contains no
   - `auth_must_change_password.sql`
   - `employee_photo.sql` (table `HRMS.EMPLOYEE_PHOTO`, employee profile photos)
   - `employee_menu_profile.sql` (data only: Employee > Profile in the sidebar opens `/app/profile`)
+  - `work_shifts_sat_sun_weekend.sql` (data only: work shifts get Monday-Friday working days, so Saturday and Sunday are the weekend)
+  - `hide_unbuilt_menu_items.sql` (data only: hides sidebar entries for screens that are not built yet; keeps Employee, Attendance, Leave, Payroll and Admin Config). Users keep their cached menu until they sign out and in.
+- [ ] Do **not** run the one-off scripts that fix development test data: `fix_pending_leave_venkat_oct_2026.sql`,
+      `cleanup_test_data_oct_2026.sql`, `cleanup_test_checkin_venkat_oct_4.sql`.
 
 ## 2. JWT secret
 
@@ -80,10 +84,13 @@ configuration, build and the checks to run after the first start. It contains no
 - [ ] Sign out: the cookie is removed and a reload shows the sign-in page.
 - [ ] Create a test employee: the work email should end with the configured domain.
 - [ ] Sign in as an EMPLOYEE: Employee > Profile in the sidebar opens their own profile.
+- [ ] The start-up log says `Business time zone set to Africa/Juba` (or your zone). The example config defaults to `Africa/Juba`;
+      if the property is blank the server's own zone is used (with a warning), and "today" and the nightly jobs follow that.
 - [ ] Attendance: the 00:05 nightly job writes the absent / weekend / holiday / leave rows for yesterday and re-checks
       the last 7 days (no database change). For days that are already over when you go live, back-fill them once as
       HR_ADMIN: `POST /api/v1/attendance/admin/day-records?from=YYYY-MM-DD&to=YYYY-MM-DD` (at most 62 days per call,
-      up to yesterday). Then open one month in the Attendance Summary: absent days are no longer always 0.
+      up to yesterday). Then open one month in the Attendance Summary: absent days are no longer always 0. HR_ADMIN can also do this from the
+      "Regenerate day records" card at the bottom of that page (selected month, up to yesterday).
 - [ ] Open an employee, upload a profile photo (JPG, PNG or WebP, up to 2 MB), reload the page: the photo
       is still shown. Remove it again.
 - [ ] Read the first minutes of the log: no bound values (national IDs, password hashes) and no SQL.

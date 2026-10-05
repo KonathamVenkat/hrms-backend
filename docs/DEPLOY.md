@@ -3,6 +3,19 @@
 Server setup checklist for the Spring Boot backend (`com.hrms`, port 8082). It covers secrets,
 configuration, build and the checks to run after the first start. It contains no secret values.
 
+## 0. Before you start: backup
+
+- [ ] Take a full export of the `HRMS` schema (Oracle Data Pump `expdp`, or the DBA's standard backup) **before**
+      running any script in step 1. Note the file name and time. Do not skip this for "data only" scripts:
+      they change the menu for every user.
+- [ ] Check the backup is readable: ask the DBA to confirm the export finished without errors and the file is
+      not empty. A backup nobody has opened is not yet a backup.
+- [ ] Keep the **previous** backend jar (and the previous frontend `dist/` folder) next to the new one. Do not
+      overwrite them.
+- [ ] Back up `uploads/` too if the server still holds files there (`uploads/employee-documents`,
+      `uploads/leave-attachments`).
+- [ ] Write down which build is running now (jar name and date) so you know what to go back to.
+
 ## 1. Production database user (once, by the DBA)
 
 - [ ] Create a dedicated user for the application, separate from any development user.
@@ -102,3 +115,16 @@ configuration, build and the checks to run after the first start. It contains no
 - [ ] Change the development database password if it was ever reused elsewhere.
 - [ ] Record the date the JWT secret was set and plan to rotate it on a schedule. Rotating it signs
       every user out.
+
+## 8. Rolling back
+
+Decide quickly: if sign-in or the section 6 checks fail and the cause is not obvious within about 30 minutes, go back.
+
+- [ ] Stop the new backend and start the previous jar with the same environment variables. Put the previous
+      frontend `dist/` back behind the reverse proxy.
+- [ ] Database: the scripts in step 1 only add tables, columns and menu rows, and Hibernate only validates, so the
+      previous jar normally runs on the new schema. Try that first. Restore the step 0 export only if the old
+      jar fails to start or data was written wrongly, and tell users that anything entered since the export is lost.
+- [ ] Menu changes (`hide_unbuilt_menu_items.sql`, `employee_menu_profile.sql`) are data: restoring the export
+      reverts them. Users keep their cached menu until they sign out and in.
+- [ ] After rolling back, repeat the sign-in and reload checks from step 6 before telling users it is fixed.

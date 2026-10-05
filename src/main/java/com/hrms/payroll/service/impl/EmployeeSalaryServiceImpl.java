@@ -196,11 +196,11 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
 
     /**
      * Computes gross and net salary given a basic amount and structure items.
-     * Oman payroll rules:
+     * Rules (rates come from the salary structure, not from code):
      *  - Earnings (FIXED/PERCENTAGE_OF_BASIC) → add to gross
-     *  - PASI Employee (7% + 1% ILC) → deducted from net
+     *  - Statutory contributions such as NSSF → deducted from net
      *  - Absence/Advance deductions → zero at assignment time (applied during payroll run)
-     *  - No income tax in Oman
+     *  - Income tax is not calculated here
      */
     private SalaryCalculation calculateSalary(
             BigDecimal basicSalary,
@@ -235,7 +235,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             }
         }
 
-        // Now compute PERCENTAGE_OF_GROSS items (like PASI if based on gross).
+        // Now compute PERCENTAGE_OF_GROSS items (like NSSF if based on gross).
         // Gross-based EARNINGs are computed against this same baseline gross (not
         // fed back into it) to avoid a circular gross-depends-on-gross calculation.
         BigDecimal grossSalary = totalEarnings;

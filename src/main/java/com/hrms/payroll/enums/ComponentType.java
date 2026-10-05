@@ -5,7 +5,7 @@ package com.hrms.payroll.enums;
  *
  * EARNING   → adds to gross pay  (Basic, HRA, Allowances, OT Pay)
  * DEDUCTION → subtracts from net (Absence, Advance)
- * STATUTORY → government-mandated (PASI contributions - Oman)
+ * STATUTORY → government-mandated (NSSF contributions)
  */
 public enum ComponentType {
     EARNING,

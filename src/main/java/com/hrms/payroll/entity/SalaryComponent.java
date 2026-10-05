@@ -10,8 +10,8 @@ import java.math.BigDecimal;
 
 /**
  * Master list of salary components used across all structures.
- * Examples: Basic Salary, HRA, Transport, PASI Employee 7%, Absence Deduction.
- * Seeded with standard Oman components in V5_1 DDL.
+ * Examples: Basic Salary, HRA, Transport, NSSF Employee, Absence Deduction.
+ * Seeded components come from the schema DDL (V5_1).
  */
 @Entity
 @Table(name = "SALARY_COMPONENTS", schema = "HRMS")

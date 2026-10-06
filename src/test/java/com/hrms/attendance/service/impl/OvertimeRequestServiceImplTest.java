@@ -1,5 +1,6 @@
 package com.hrms.attendance.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.attendance.dto.request.OvertimeActionRequest;
 import com.hrms.attendance.dto.request.OvertimeSubmitRequest;
 import com.hrms.attendance.dto.response.OvertimeResponse;
@@ -15,13 +16,16 @@ import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.employee.entity.Employee;
 import com.hrms.employee.entity.WorkShift;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.leave.entity.HolidayCalendar;
 import com.hrms.leave.repository.HolidayCalendarRepository;
+import com.hrms.leave.service.WorkCalendar;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -48,7 +52,7 @@ class OvertimeRequestServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new OvertimeRequestServiceImpl(otRepo, logRepo, employeeRepo, guard, calculator, summary, holidays);
+        service = new OvertimeRequestServiceImpl(otRepo, logRepo, employeeRepo, guard, calculator, summary, new WorkCalendar(holidays), mock(AuditTrail.class));
         when(employeeRepo.findById(EMPLOYEE)).thenReturn(Optional.of(person(EMPLOYEE, "Sara")));
         when(employeeRepo.findById(REVIEWER)).thenReturn(Optional.of(person(REVIEWER, "Omar")));
         when(calculator.resolveShift(EMPLOYEE)).thenReturn(shift);
@@ -212,7 +216,8 @@ class OvertimeRequestServiceImplTest {
                 saturday.atTime(9, 0), saturday.atTime(15, 0))));
 
         LocalDate holiday = lastWeekday();
-        when(holidays.countHolidaysBetween(holiday, holiday)).thenReturn(1L);
+        when(holidays.findHolidaysBetween(holiday, holiday)).thenReturn(List.of(
+                HolidayCalendar.builder().holidayDate(holiday).holidayType("PUBLIC").build()));
         assertDoesNotThrow(() -> service.submit(submitting(holiday, OvertimeType.HOLIDAY,
                 holiday.atTime(9, 0), holiday.atTime(15, 0))));
     }

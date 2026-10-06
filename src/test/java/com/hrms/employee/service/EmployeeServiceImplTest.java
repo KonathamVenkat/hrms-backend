@@ -1,5 +1,6 @@
 package com.hrms.employee.service;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.entity.AuthUser;
 import com.hrms.auth.repository.AuthUserRepository;
 import com.hrms.auth.security.EmployeeAccessGuard;
@@ -61,7 +62,7 @@ class EmployeeServiceImplTest {
             employeeRepository, employeeMapper, accessGuard,
             new WorkEmailGenerator(employeeRepository, authUserRepository, "nilepet.com"),
             new EmployeeLoginAccounts(authUserRepository, passwordEncoder),
-            jobDetails);
+            jobDetails, mock(AuditTrail.class));
     }
 
     @Test

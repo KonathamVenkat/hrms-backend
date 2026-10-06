@@ -65,6 +65,7 @@ configuration, build and the checks to run after the first start. It contains no
 | `HRMS_REFRESH_COOKIE_SECURE` | optional, default `true`. Leave it `true` in production: the refresh cookie is then only sent over HTTPS. Set `false` only for local development over plain http |
 | `HRMS_REFRESH_COOKIE_SAME_SITE` | optional, default `Strict` |
 | `HRMS_UPLOAD_MAX_FILE_SIZE_MB` | optional, default 25 |
+| `LOGGING_STRUCTURED_FORMAT_CONSOLE` | set `ecs` in production for one JSON object per log line (the request id is a field). Unset = readable text |
 | `HRMS_UPLOAD_SCAN_ENABLED` | set `true` in production: every uploaded file is scanned by ClamAV. Optional `HRMS_UPLOAD_SCAN_HOST` (default `localhost`), `HRMS_UPLOAD_SCAN_PORT` (default `3310`), `HRMS_UPLOAD_SCAN_TIMEOUT_MS` (default `15000`) |
 
 - [ ] Set them in the service manager, container or secret store, not in a file in the repository.
@@ -90,6 +91,8 @@ configuration, build and the checks to run after the first start. It contains no
 
 ## 6. Checks after the first start
 
+- [ ] Alert on log lines starting `JOB_FAILED` (or on the `hrms.job.failures` counter at `/actuator/metrics`): the nightly attendance jobs report there. Each failure is also an audit row (`ACTION = 'JOB_FAILED'`).
+- [ ] A failing request can be traced: its `X-Request-Id` response header is on every log line it caused.
 - [ ] The application starts. A missing variable fails at startup with a clear message.
 - [ ] `GET /actuator/health` returns UP, with no database details for an anonymous caller.
 - [ ] `/swagger-ui.html` and `/v3/api-docs` are not reachable without signing in as HR_ADMIN.

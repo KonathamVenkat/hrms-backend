@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
@@ -17,6 +18,7 @@ import com.hrms.leave.entity.LeaveRequestAttachmentContent;
 import com.hrms.leave.entity.LeaveStatus;
 import com.hrms.leave.entity.LeaveType;
 import com.hrms.leave.repository.HolidayCalendarRepository;
+import com.hrms.leave.service.WorkCalendar;
 import com.hrms.leave.repository.LeaveBalanceRepository;
 import com.hrms.leave.repository.LeaveRequestAttachmentContentRepository;
 import com.hrms.leave.repository.LeaveRequestRepository;
@@ -68,7 +70,7 @@ class LeaveServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new LeaveServiceImpl(requests, balances, types, employees, holidays, guard, storage, contents);
+        service = new LeaveServiceImpl(requests, balances, types, employees, new WorkCalendar(holidays), guard, storage, contents, mock(AuditTrail.class));
         when(employees.findById(EMPLOYEE)).thenReturn(Optional.of(
                 Employee.builder().id(EMPLOYEE).employeeCode("EMP-5").firstName("Sara").lastName("Test")
                         .gender(Gender.FEMALE).build()));

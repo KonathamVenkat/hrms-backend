@@ -1,5 +1,6 @@
 package com.hrms.attendance.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.attendance.dto.request.RegularizationActionRequest;
 import com.hrms.attendance.dto.request.RegularizationRequest;
 import com.hrms.attendance.dto.response.RegularizationResponse;
@@ -43,6 +44,7 @@ public class AttendanceRegularizationServiceImpl
     private final AttendanceCalculator               calculator;
     private final AttendanceDayClassifier            classifier;
     private final AttendanceSummaryService           summaryService;
+    private final AuditTrail audit;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("EEE, MMM d yyyy");
@@ -213,6 +215,8 @@ public class AttendanceRegularizationServiceImpl
         correctAttendanceLog(reg, employee);
 
         AttendanceRegularization saved = regRepo.save(reg);
+        audit.record("REGULARIZATION_APPROVED", "REGULARIZATION", regId,
+            "employee " + employee.getId() + ", date " + reg.getAttendanceDate());
         log.info("Regularization approved — regId={}, employeeId={}, date={}",
                 regId, employee.getId(), reg.getAttendanceDate());
 
@@ -245,6 +249,8 @@ public class AttendanceRegularizationServiceImpl
         reg.setUpdatedAt(LocalDateTime.now());
 
         AttendanceRegularization saved = regRepo.save(reg);
+        audit.record("REGULARIZATION_REJECTED", "REGULARIZATION", regId,
+            "employee " + reg.getEmployeeId() + ", reason: " + request.rejectionReason());
         log.info("Regularization rejected — regId={}, reason={}",
                 regId, request.rejectionReason());
 

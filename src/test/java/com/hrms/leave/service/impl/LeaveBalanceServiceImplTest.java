@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
@@ -44,7 +45,7 @@ class LeaveBalanceServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new LeaveBalanceServiceImpl(balances, types, employees, guard, limits);
+        service = new LeaveBalanceServiceImpl(balances, types, employees, guard, limits, mock(AuditTrail.class));
         when(types.findByIsActiveOrderBySortOrderAsc(1)).thenReturn(List.of(annual, sick));
         when(employees.existsById(5L)).thenReturn(true);
         when(balances.save(any(LeaveBalance.class))).thenAnswer(i -> i.getArgument(0));

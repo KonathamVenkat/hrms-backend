@@ -9,6 +9,7 @@ import com.hrms.employee.repository.EmployeeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -47,7 +48,9 @@ public class AttendanceDayRecorder {
     /**
      * Writes or corrects the rows for {@code date}, which must be a finished day (before today):
      * today is still in progress and its absentees may yet arrive.
+     * One transaction per day: the day's rows are all written or none.
      */
+    @Transactional
     public Result generateFor(LocalDate date) {
         if (!date.isBefore(LocalDate.now())) {
             log.debug("Skipping day records for {}: the day is not over", date);

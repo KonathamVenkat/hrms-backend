@@ -1,6 +1,7 @@
 package com.hrms.attendance.scheduler;
 
 import com.hrms.attendance.service.AttendanceService;
+import com.hrms.auth.service.JobAlert;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,6 +24,7 @@ import java.time.LocalDate;
 public class AttendanceSummaryScheduler {
 
     private final AttendanceService attendanceService;
+    private final JobAlert jobAlert;
 
     /**
      * Cron: 55 23 * * * = 23:55 every night
@@ -37,7 +39,7 @@ public class AttendanceSummaryScheduler {
             attendanceService.calculateAndStoreDailySummary(today);
             log.info("=== Nightly Attendance Summary COMPLETE — {} ===", today);
         } catch (Exception e) {
-            log.error("Nightly summary FAILED for {}: {}", today, e.getMessage(), e);
+            jobAlert.failed("attendance-nightly-summary", "date " + today, e);
         }
     }
 
@@ -55,7 +57,7 @@ public class AttendanceSummaryScheduler {
         try {
             attendanceService.regenerateDayRecords(from, to);
         } catch (Exception e) {
-            log.error("Day records FAILED for {} .. {}: {}", from, to, e.getMessage(), e);
+            jobAlert.failed("attendance-day-records", from + " .. " + to, e);
         }
     }
 

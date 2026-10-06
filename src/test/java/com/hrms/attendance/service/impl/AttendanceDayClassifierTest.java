@@ -8,6 +8,7 @@ import com.hrms.employee.entity.WorkShift;
 import com.hrms.leave.entity.HolidayCalendar;
 import com.hrms.leave.entity.LeaveRequest;
 import com.hrms.leave.repository.HolidayCalendarRepository;
+import com.hrms.leave.service.WorkCalendar;
 import com.hrms.leave.repository.LeaveRequestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class AttendanceDayClassifierTest {
 
     @BeforeEach
     void setUp() {
-        classifier = new AttendanceDayClassifier(holidays, leaves, ot);
+        classifier = new AttendanceDayClassifier(new WorkCalendar(holidays), leaves, ot);
     }
 
     private static LeaveRequest leave(long employeeId, LocalDate from, LocalDate to, double days) {

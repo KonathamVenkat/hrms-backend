@@ -1,5 +1,6 @@
 package com.hrms.attendance.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.attendance.dto.request.RegularizationActionRequest;
 import com.hrms.attendance.dto.request.RegularizationRequest;
 import com.hrms.attendance.dto.response.RegularizationResponse;
@@ -48,7 +49,7 @@ class AttendanceRegularizationServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new AttendanceRegularizationServiceImpl(
-                regRepo, logRepo, employeeRepo, guard, calculator, classifier, summary);
+                regRepo, logRepo, employeeRepo, guard, calculator, classifier, summary, mock(AuditTrail.class));
         when(employeeRepo.findById(EMPLOYEE)).thenReturn(Optional.of(person(EMPLOYEE, "Sara")));
         when(employeeRepo.findById(REVIEWER)).thenReturn(Optional.of(person(REVIEWER, "Omar")));
         when(calculator.resolveShift(EMPLOYEE)).thenReturn(shift);

@@ -72,6 +72,10 @@ logging.level.com.hrms=INFO
 logging.level.org.springframework.security=WARN
 logging.level.org.hibernate.SQL=WARN
 logging.level.org.hibernate.type.descriptor.sql.BasicBinder=WARN
+# Every log line carries the request id (also returned in the X-Request-Id response header).
+logging.pattern.level=%5p [%X{requestId:-}]
+# One JSON object per line for a log collector: set LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs (or logstash).
+# Left unset the console stays human-readable. The request id is included automatically.
 
 # Company email domain for generated work emails (first.last@<domain>). MUST be the real domain.
 hrms.work-email-domain=${HRMS_WORK_EMAIL_DOMAIN}

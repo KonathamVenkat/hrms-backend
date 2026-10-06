@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.PagedResponse;
@@ -13,6 +14,7 @@ import com.hrms.leave.dto.response.*;
 import com.hrms.leave.entity.*;
 import com.hrms.leave.repository.*;
 import com.hrms.leave.service.LeaveService;
+import com.hrms.leave.service.WorkCalendar;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -39,10 +41,11 @@ public class LeaveServiceImpl implements LeaveService {
     private final LeaveBalanceRepository    leaveBalanceRepository;
     private final LeaveTypeRepository       leaveTypeRepository;
     private final EmployeeRepository        employeeRepository;
-    private final HolidayCalendarRepository holidayCalendarRepository;
+    private final WorkCalendar              workCalendar;
     private final EmployeeAccessGuard       employeeAccessGuard;
     private final LeaveAttachmentStorage    attachmentStorage;
     private final LeaveRequestAttachmentContentRepository attachmentContentRepository;
+    private final AuditTrail audit;
 
     // ══════════════════════════════════════════════════════════
     // APPLY LEAVE
@@ -414,7 +417,10 @@ public class LeaveServiceImpl implements LeaveService {
         lr.setUpdatedBy(approver);
         lr.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(leaveRequestRepository.save(lr), null, null, balance);
+        LeaveRequest saved = leaveRequestRepository.save(lr);
+        audit.record("LEAVE_" + saved.getStatus().name(), "LEAVE_REQUEST", leaveReqId,
+            "employee " + saved.getEmployeeId() + ", " + saved.getLeaveTypeCode() + ", " + saved.getTotalDays() + " days");
+        return toResponse(saved, null, null, balance);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -435,20 +441,13 @@ public class LeaveServiceImpl implements LeaveService {
      * public holiday falling on what would otherwise be a working day.
      */
     private double calculateWorkingDays(LocalDate start, LocalDate end) {
-        Set<LocalDate> holidayDates = holidayCalendarRepository
-            .findHolidaysBetween(start, end)
-            .stream()
-            // OPTIONAL / RESTRICTED holidays are the employee's choice, so they still cost a leave day.
-            .filter(h -> "PUBLIC".equals(h.getHolidayType()) || "RELIGIOUS".equals(h.getHolidayType()))
-            .map(HolidayCalendar::getHolidayDate)
-            .collect(Collectors.toSet());
+        // OPTIONAL / RESTRICTED holidays are the employee's choice, so they still cost a leave day.
+        Set<LocalDate> holidayDates = workCalendar.dayOffHolidays(start, end);
 
         double days = 0;
         LocalDate current = start;
         while (!current.isAfter(end)) {
-            DayOfWeek dow = current.getDayOfWeek();
-            boolean isWeekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
-            if (!isWeekend && !holidayDates.contains(current)) {
+            if (!WorkCalendar.isDefaultWeekend(current) && !holidayDates.contains(current)) {
                 days++;
             }
             current = current.plusDays(1);

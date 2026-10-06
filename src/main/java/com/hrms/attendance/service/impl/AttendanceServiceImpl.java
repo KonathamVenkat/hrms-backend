@@ -200,8 +200,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     // ────────────────────────────────────────────────────────
     // NIGHTLY SCHEDULER
     // ────────────────────────────────────────────────────────
+    // Deliberately not @Transactional: the day's rows commit in recorder.generateFor, and each
+    // employee's summary in its own transaction, so one failing summary cannot roll back the rest.
     @Override
-    @Transactional
     public void calculateAndStoreDailySummary(LocalDate date) {
         log.info("Running nightly attendance aggregation for: {}", date);
         // A finished day also gets a row for everyone who did not punch (absent / weekend /
@@ -219,8 +220,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
+    // Not @Transactional, same reason as calculateAndStoreDailySummary.
     @Override
-    @Transactional
     public DayRecordsResult regenerateDayRecords(LocalDate from, LocalDate to) {
         LocalDate yesterday = LocalDate.now().minusDays(1);
         if (from.isAfter(to)) {

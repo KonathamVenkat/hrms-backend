@@ -1,5 +1,6 @@
 package com.hrms.auth.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.dto.request.ChangePasswordRequest;
 import com.hrms.auth.dto.request.ResetPasswordRequest;
 import com.hrms.auth.security.PasswordPolicy;
@@ -47,6 +48,7 @@ public class AuthServiceImpl implements AuthService {
   //  private final UserDetailsServiceImpl userDetailsService;
     private final AuthenticationManager  authenticationManager;
     private final PasswordEncoder        passwordEncoder;
+    private final AuditTrail audit;
 
     // Property names match common-lib JwtTokenProvider and application.properties exactly
     @Value("${hrms.jwt.expiration-ms:86400000}")
@@ -70,7 +72,10 @@ public class AuthServiceImpl implements AuthService {
         String identifier = request.username().trim();
         log.info("Login attempt — user={}", identifier);
         AuthUser user = authUserRepository.findByUsernameOrEmail(identifier)
-            .orElseThrow(() -> new BadCredentialsException("Invalid username or password."));
+            .orElseThrow(() -> {
+                audit.recordAs(identifier, "LOGIN_FAILED", "USER", identifier, "unknown user");
+                return new BadCredentialsException("Invalid username or password.");
+            });
 
         validateAccountState(user);
 
@@ -81,8 +86,11 @@ public class AuthServiceImpl implements AuthService {
         } catch (BadCredentialsException ex) {
             authUserRepository.incrementFailedAttempts(user.getUserId(), LocalDateTime.now());
             int attempts = (user.getFailedAttempts() == null ? 0 : user.getFailedAttempts()) + 1;
-            if (attempts >= 5)
+            audit.recordAs(user.getUsername(), "LOGIN_FAILED", "USER", user.getUserId(), "wrong password, attempt " + attempts);
+            if (attempts >= 5) {
+                audit.recordAs(user.getUsername(), "ACCOUNT_LOCKED", "USER", user.getUserId(), "5 failed attempts");
                 throw new AccountLockedException("Account locked after 5 failed attempts. Try again in 30 minutes.");
+            }
             throw new BadCredentialsException("Invalid username or password.");
         } catch (LockedException ex) {
             throw new AccountLockedException("Account is locked. Please try again later.");
@@ -95,6 +103,7 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = generateToken(user);
         RefreshToken rt    = createRefreshToken(user, httpRequest);
 
+        audit.recordAs(user.getUsername(), "LOGIN_SUCCESS", "USER", user.getUserId(), null);
         log.info("Login OK — user={} role={}", user.getUsername(), user.getRole());
         return buildResponse(user, accessToken, rt.getToken());
     }
@@ -166,6 +175,7 @@ public class AuthServiceImpl implements AuthService {
             // A stolen session must not be able to brute-force the current password for free
             authUserRepository.incrementFailedAttempts(user.getUserId(), LocalDateTime.now());
             log.warn("Change-password rejected (wrong current password) — user={}", user.getUsername());
+            audit.recordAs(user.getUsername(), "PASSWORD_CHANGE_FAILED", "USER", user.getUserId(), "wrong current password");
             throw new BusinessRuleException("INVALID_CURRENT_PASSWORD", "Current password is incorrect.");
         }
         if (request.currentPassword().equals(request.newPassword())) {
@@ -182,6 +192,7 @@ public class AuthServiceImpl implements AuthService {
 
         // Ends every other session; the caller signs in again with the new password
         refreshTokenRepository.revokeAllByUserId(user.getUserId());
+        audit.recordAs(user.getUsername(), "PASSWORD_CHANGED", "USER", user.getUserId(), null);
         log.info("Password changed — user={}", user.getUsername());
     }
 
@@ -206,6 +217,7 @@ public class AuthServiceImpl implements AuthService {
         authUserRepository.save(user);
 
         refreshTokenRepository.revokeAllByUserId(user.getUserId());
+        audit.recordAs(adminUsername, "PASSWORD_RESET", "USER", user.getUserId(), "target " + user.getUsername());
         log.warn("Password reset by admin — admin={} target={}", adminUsername, user.getUsername());
     }
 

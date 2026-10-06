@@ -4,9 +4,8 @@ import com.hrms.attendance.enums.AttendanceStatus;
 import com.hrms.attendance.repository.OvertimeRequestRepository;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.employee.entity.WorkShift;
-import com.hrms.leave.entity.HolidayCalendar;
 import com.hrms.leave.entity.LeaveRequest;
-import com.hrms.leave.repository.HolidayCalendarRepository;
+import com.hrms.leave.service.WorkCalendar;
 import com.hrms.leave.repository.LeaveRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -42,10 +41,7 @@ public class AttendanceDayClassifier {
     /** How much of a day an approved leave covers. */
     public enum LeaveCover { NONE, HALF, FULL }
 
-    private static final Set<String> DAY_OFF_HOLIDAYS = Set.of("PUBLIC", "RELIGIOUS");
-    private static final Set<DayOfWeek> DEFAULT_WEEKEND = Set.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
-
-    private final HolidayCalendarRepository holidayRepo;
+    private final WorkCalendar              calendar;
     private final LeaveRequestRepository    leaveRepo;
     private final OvertimeRequestRepository otRepo;
 
@@ -53,27 +49,17 @@ public class AttendanceDayClassifier {
 
     /** True when {@code date} is the employee's weekly off. */
     public boolean isWeeklyOff(WorkShift shift, LocalDate date) {
-        if (shift == null || shift.getWorkingDays() == null || shift.getWorkingDays().isBlank()) {
-            return DEFAULT_WEEKEND.contains(date.getDayOfWeek());
-        }
-        String today = date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH).toUpperCase(Locale.ROOT);
-        Set<String> working = Arrays.stream(shift.getWorkingDays().split(","))
-                .map(d -> d.trim().toUpperCase(Locale.ROOT))
-                .filter(d -> !d.isEmpty())
-                .collect(Collectors.toSet());
-        return !working.contains(today);
+        return calendar.isWeeklyOff(shift, date);
     }
 
     /** True when {@code date} is a public or religious holiday. */
     public boolean isPublicHoliday(LocalDate date) {
-        return holidayRepo.findHolidaysBetween(date, date).stream()
-                .map(HolidayCalendar::getHolidayType)
-                .anyMatch(DAY_OFF_HOLIDAYS::contains);
+        return calendar.isDayOffHoliday(date);
     }
 
     /** Weekly off or public holiday: a day nobody is expected to work. */
     public boolean isNonWorkingDay(WorkShift shift, LocalDate date) {
-        return isWeeklyOff(shift, date) || isPublicHoliday(date);
+        return calendar.isNonWorkingDay(shift, date);
     }
 
     // ── Leave ─────────────────────────────────────────────────

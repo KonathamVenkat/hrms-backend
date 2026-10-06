@@ -128,4 +128,9 @@ public class LeaveRequest {
     @Column(name = "UPDATED_AT")
     @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    /** Optimistic lock: two decisions on the same request at once no longer both win; the second gets HTTP 409. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 }

@@ -1,5 +1,6 @@
 package com.hrms.payroll.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
@@ -56,6 +57,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final DepartmentRepository          departmentRepo;
     private final DesignationRepository         designationRepo;
     private final EmployeeAccessGuard           employeeAccessGuard;
+    private final AuditTrail audit;
 
     // ────────────────────────────────────────────────────
     // ASSIGN SALARY STRUCTURE TO EMPLOYEE
@@ -112,6 +114,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         log.info("Calculated salary — basic={}, gross={}, net={}",
                 request.basicSalary(), calc.grossSalary(), calc.netSalary());
 
+        audit.record("SALARY_ASSIGNED", "EMPLOYEE", employee.getId(),
+            "structure " + structure.getStructureId() + ", effective " + effectiveFrom);
         Long newId = salaryRepo.findNextSequenceValue();
         EmployeeSalary empSalary = EmployeeSalary.builder()
                 .empSalaryId(newId)

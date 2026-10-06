@@ -68,4 +68,9 @@ public class AttendanceRegularization extends Auditable {
     @Column(name = "IS_ACTIVE", nullable = false)
     @Builder.Default
     private Integer isActive = 1;
+
+    /** Optimistic lock: two decisions on the same request at once no longer both win; the second gets HTTP 409. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 }

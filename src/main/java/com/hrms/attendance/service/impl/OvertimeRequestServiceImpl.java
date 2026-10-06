@@ -1,5 +1,6 @@
 package com.hrms.attendance.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.attendance.dto.request.OvertimeActionRequest;
 import com.hrms.attendance.dto.request.OvertimeSubmitRequest;
 import com.hrms.attendance.dto.response.OvertimeResponse;
@@ -13,7 +14,7 @@ import com.hrms.attendance.service.OvertimeRequestService;
 import com.hrms.attendance.service.AttendanceSummaryService;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.employee.entity.WorkShift;
-import com.hrms.leave.repository.HolidayCalendarRepository;
+import com.hrms.leave.service.WorkCalendar;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -42,7 +43,8 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
     private final EmployeeAccessGuard        accessGuard;
     private final AttendanceCalculator       calculator;
     private final AttendanceSummaryService   summaryService;
-    private final HolidayCalendarRepository  holidayRepo;
+    private final WorkCalendar               workCalendar;
+    private final AuditTrail audit;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("EEE, MMM d yyyy");
@@ -228,6 +230,7 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
         updateAttendanceLogOvertime(otRequest, employee);
 
         OvertimeRequest saved = otRepo.save(otRequest);
+        audit.record("OVERTIME_APPROVED", "OVERTIME_REQUEST", otId, "employee " + employee.getId());
         log.info("Overtime approved — otId={}, employee={}, duration={}m",
                 otId, employee.getId(), otRequest.getDurationMinutes());
 
@@ -260,6 +263,8 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
         otRequest.setUpdatedAt(LocalDateTime.now());
 
         OvertimeRequest saved = otRepo.save(otRequest);
+        audit.record("OVERTIME_REJECTED", "OVERTIME_REQUEST", otId,
+            "employee " + otRequest.getEmployeeId() + ", reason: " + request.rejectionReason());
         log.info("Overtime rejected — otId={}", otId);
 
         Employee employee = findEmployee(otRequest.getEmployeeId());
@@ -377,11 +382,8 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
     private void assertOutsideShiftHours(
             Employee employee, LocalDate otDate, LocalDateTime start, LocalDateTime end) {
 
-        java.time.DayOfWeek dow = otDate.getDayOfWeek();
-        boolean weekend = dow == java.time.DayOfWeek.SATURDAY || dow == java.time.DayOfWeek.SUNDAY;
-        if (weekend || holidayRepo.countHolidaysBetween(otDate, otDate) > 0) return;
-
         WorkShift shift = calculator.resolveShift(employee.getId());
+        if (workCalendar.isNonWorkingDay(shift, otDate)) return;
         if (shift == null || shift.getStartTime() == null || shift.getEndTime() == null) return;
 
         LocalDateTime shiftStart = otDate.atTime(java.time.LocalTime.parse(shift.getStartTime(), HHMM));

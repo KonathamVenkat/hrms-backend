@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
@@ -36,6 +37,7 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     private final EmployeeRepository     employeeRepository;
     private final EmployeeAccessGuard    employeeAccessGuard;
     private final UploadLimits           uploadLimits;
+    private final AuditTrail audit;
 
     // ── Get balances ──────────────────────────────────────────
 
@@ -212,6 +214,9 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         balance.setUpdatedAt(LocalDateTime.now());
         LeaveBalance saved = leaveBalanceRepository.save(balance);
 
+        audit.record("LEAVE_BALANCE_ADJUSTED", "EMPLOYEE", employeeId,
+            request.getAdjustmentType() + " " + request.getLeaveTypeCode() + " " + request.getYear()
+            + ": " + oldTotal + " -> " + saved.getTotalDays() + ", reason: " + request.getReason());
         log.info("Balance adjusted — employee={} type={} year={} {} → {}",
             employeeId, request.getLeaveTypeCode(), request.getYear(),
             oldTotal, saved.getTotalDays());

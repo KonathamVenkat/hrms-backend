@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.auth.security.PasswordPolicy;
 import com.hrms.common.audit.CurrentAuditor;
@@ -61,6 +62,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final WorkEmailGenerator  workEmails;
     private final EmployeeLoginAccounts accounts;
     private final EmployeeJobDetailsRepository jobDetails;
+    private final AuditTrail audit;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -379,6 +381,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         // employee must not retain a working login.
         accounts.setActive(id, false, currentUser);
 
+        audit.record("EMPLOYEE_DEACTIVATED", "EMPLOYEE", id, exitStatus == null ? null : "exit status " + exitStatus);
         log.info("Employee ID: {} deactivated by: {}", id, currentUser);
     }
 
@@ -408,6 +411,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         // Restore system access that was revoked on deactivation.
         accounts.setActive(id, true, CurrentAuditor.name());
 
+        audit.record("EMPLOYEE_REACTIVATED", "EMPLOYEE", id, null);
         log.info("Employee ID: {} reactivated", id);
 
         return employeeMapper.toResponse(reactivated);

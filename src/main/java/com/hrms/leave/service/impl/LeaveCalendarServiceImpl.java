@@ -7,6 +7,7 @@ import com.hrms.leave.entity.HolidayCalendar;
 import com.hrms.leave.entity.LeaveRequest;
 import com.hrms.leave.entity.LeaveStatus;
 import com.hrms.leave.repository.HolidayCalendarRepository;
+import com.hrms.leave.service.WorkCalendar;
 import com.hrms.leave.repository.LeaveRequestRepository;
 import com.hrms.leave.repository.LeaveTypeRepository;
 import com.hrms.leave.service.LeaveCalendarService;
@@ -103,8 +104,7 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
             boolean isCurrentMonth = d.getMonthValue() == month;
 
             // Weekend: Saturday + Sunday
-            boolean isWeekend = d.getDayOfWeek() == DayOfWeek.SATURDAY
-                             || d.getDayOfWeek() == DayOfWeek.SUNDAY;
+            boolean isWeekend = WorkCalendar.isDefaultWeekend(d);
 
             List<HolidayCalendar> dayHols   = holidayMap.getOrDefault(d, List.of());
             List<LeaveRequest>    dayLeaves = leavesByDate.getOrDefault(d, List.of());

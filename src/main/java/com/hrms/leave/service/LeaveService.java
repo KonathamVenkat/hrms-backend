@@ -15,6 +15,7 @@ public interface LeaveService {
     LeaveRequestResponse                getLeaveById(Long employeeId, Long leaveReqId);
     void                                cancelLeave(Long leaveReqId, Long employeeId);
     List<LeaveBalanceResponse>          getBalances(Long employeeId, Integer year);
+    WorkingDaysResponse                 countWorkingDays(Long employeeId, java.time.LocalDate startDate, java.time.LocalDate endDate);
 
     // HR/Manager actions
     PagedResponse<LeaveRequestResponse> getAllLeaves(LeaveFilterRequest filter);

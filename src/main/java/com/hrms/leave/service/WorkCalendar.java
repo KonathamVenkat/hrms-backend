@@ -64,6 +64,16 @@ public class WorkCalendar {
         return dayOffHolidays(date, date).contains(date);
     }
 
+    /** Working days in {@code [from, to]}: neither the shift's weekly off nor a day-off holiday. */
+    public double countWorkingDays(WorkShift shift, LocalDate from, LocalDate to) {
+        Set<LocalDate> holidays = dayOffHolidays(from, to);
+        double days = 0;
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (!isWeeklyOff(shift, d) && !holidays.contains(d)) days++;
+        }
+        return days;
+    }
+
     /** Weekly off or day-off holiday: a day nobody is expected to work. */
     public boolean isNonWorkingDay(WorkShift shift, LocalDate date) {
         return isWeeklyOff(shift, date) || isDayOffHoliday(date);

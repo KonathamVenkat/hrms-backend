@@ -8,11 +8,13 @@ import com.hrms.leave.dto.request.LeaveFilterRequest;
 import com.hrms.leave.dto.response.LeaveAttachmentDownload;
 import com.hrms.leave.dto.response.LeaveBalanceResponse;
 import com.hrms.leave.dto.response.LeaveRequestResponse;
+import com.hrms.leave.dto.response.WorkingDaysResponse;
 import com.hrms.leave.service.LeaveService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,6 +23,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -57,6 +60,25 @@ public class LeaveController {
                 .data(leaveService.applyLeave(employeeId, request, file))
                 .statusCode(201)
                 .build());
+    }
+
+    /**
+     * GET /api/v1/employees/{employeeId}/leave-requests/working-days?startDate=&endDate=
+     * The leave days this range would cost, by the employee's shift; the apply screen's preview.
+     */
+    @GetMapping("/employees/{employeeId}/leave-requests/working-days")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','EMPLOYEE')")
+    public ResponseEntity<ApiResponse<WorkingDaysResponse>> countWorkingDays(
+            @PathVariable Long employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        return ResponseEntity.ok(ApiResponse.<WorkingDaysResponse>builder()
+            .success(true)
+            .message("Working days calculated")
+            .data(leaveService.countWorkingDays(employeeId, startDate, endDate))
+            .statusCode(200)
+            .build());
     }
 
     /**

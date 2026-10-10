@@ -6,7 +6,11 @@ import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.entity.Employee;
+import com.hrms.employee.entity.EmployeeJobDetails;
+import com.hrms.employee.entity.WorkShift;
+import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.leave.dto.request.ApproveLeaveRequest;
 import com.hrms.leave.dto.request.CreateLeaveRequest;
 import com.hrms.leave.dto.request.LeaveFilterRequest;
@@ -48,6 +52,8 @@ class LeaveServiceImplTest {
     LeaveTypeRepository     types      = mock(LeaveTypeRepository.class);
     EmployeeRepository      employees  = mock(EmployeeRepository.class);
     HolidayCalendarRepository holidays = mock(HolidayCalendarRepository.class);
+    EmployeeJobDetailsRepository jobDetails = mock(EmployeeJobDetailsRepository.class);
+    WorkShiftRepository     shifts     = mock(WorkShiftRepository.class);
     EmployeeAccessGuard     guard      = mock(EmployeeAccessGuard.class);
     LeaveAttachmentStorage  storage    = mock(LeaveAttachmentStorage.class);
     LeaveRequestAttachmentContentRepository contents = mock(LeaveRequestAttachmentContentRepository.class);
@@ -70,11 +76,12 @@ class LeaveServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new LeaveServiceImpl(requests, balances, types, employees, new WorkCalendar(holidays), guard, storage, contents, mock(AuditTrail.class));
+        service = new LeaveServiceImpl(requests, balances, types, employees, new WorkCalendar(holidays), jobDetails, shifts, guard, storage, contents, mock(AuditTrail.class));
         when(employees.findById(EMPLOYEE)).thenReturn(Optional.of(
                 Employee.builder().id(EMPLOYEE).employeeCode("EMP-5").firstName("Sara").lastName("Test")
                         .gender(Gender.FEMALE).build()));
         when(types.findByCodeIgnoreCase("ANNUAL")).thenReturn(Optional.of(annual));
+        when(employees.existsById(EMPLOYEE)).thenReturn(true);
         givenBalanceFor(monday);
         when(requests.saveAndFlush(any(LeaveRequest.class))).thenAnswer(i -> {
             LeaveRequest r = i.getArgument(0);
@@ -134,6 +141,39 @@ class LeaveServiceImplTest {
 
         assertEquals("NO_WORKING_DAYS", ex.getRuleCode());
         assertNothingSaved();
+    }
+
+    private void givenShiftWorking(String workingDays) {
+        when(jobDetails.findByEmployeeIdAndIsCurrent(EMPLOYEE, 1)).thenReturn(Optional.of(
+                EmployeeJobDetails.builder().employeeId(EMPLOYEE).shiftId(9L).build()));
+        when(shifts.findById(9L)).thenReturn(Optional.of(WorkShift.builder().workingDays(workingDays).build()));
+    }
+
+    @Test
+    void theEmployeesShiftDecidesWhichDaysAreFree() {
+        givenShiftWorking("SUN,MON,TUE,WED,THU");   // Friday and Saturday off
+
+        // Fri, Sat, Sun, Mon: only Sunday and Monday cost a day
+        assertEquals(2.0, applyNoFile(friday, friday.plusDays(3)).getTotalDays());
+        assertEquals(0.0, service.countWorkingDays(EMPLOYEE, friday, friday.plusDays(1)).workingDays());
+    }
+
+    @Test
+    void aShiftThatWorksSaturdayChargesSaturday() {
+        givenShiftWorking("MON,TUE,WED,THU,FRI,SAT");
+
+        assertEquals(1.0, service.countWorkingDays(EMPLOYEE, friday.plusDays(1), friday.plusDays(2)).workingDays());
+    }
+
+    @Test
+    void theWorkingDaysPreviewUsesTheSameRule() {
+        assertEquals(5.0, service.countWorkingDays(EMPLOYEE, monday, friday).workingDays());
+        assertEquals(2.0, service.countWorkingDays(EMPLOYEE, friday, friday.plusDays(3)).workingDays());
+    }
+
+    @Test
+    void theWorkingDaysPreviewRejectsAReversedRange() {
+        assertEquals("INVALID_DATES", refused(() -> service.countWorkingDays(EMPLOYEE, friday, monday)).getRuleCode());
     }
 
     @Test

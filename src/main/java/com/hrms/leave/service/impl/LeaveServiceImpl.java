@@ -8,7 +8,11 @@ import com.hrms.common.enums.Gender;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.entity.Employee;
+import com.hrms.employee.entity.EmployeeJobDetails;
+import com.hrms.employee.entity.WorkShift;
+import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.leave.dto.request.*;
 import com.hrms.leave.dto.response.*;
 import com.hrms.leave.entity.*;
@@ -42,6 +46,8 @@ public class LeaveServiceImpl implements LeaveService {
     private final LeaveTypeRepository       leaveTypeRepository;
     private final EmployeeRepository        employeeRepository;
     private final WorkCalendar              workCalendar;
+    private final EmployeeJobDetailsRepository jobDetailsRepository;
+    private final WorkShiftRepository       workShiftRepository;
     private final EmployeeAccessGuard       employeeAccessGuard;
     private final LeaveAttachmentStorage    attachmentStorage;
     private final LeaveRequestAttachmentContentRepository attachmentContentRepository;
@@ -99,8 +105,8 @@ public class LeaveServiceImpl implements LeaveService {
                 + " day(s) notice before the start date.");
         }
 
-        double leaveDays = calculateWorkingDays(
-            request.getStartDate(), request.getEndDate());
+        double leaveDays = workCalendar.countWorkingDays(
+            resolveShift(employeeId), request.getStartDate(), request.getEndDate());
         if (leaveDays <= 0) {
             throw new BusinessRuleException("NO_WORKING_DAYS",
                 "Selected date range contains no working days.");
@@ -423,6 +429,19 @@ public class LeaveServiceImpl implements LeaveService {
         return toResponse(saved, null, null, balance);
     }
 
+    @Override
+    public WorkingDaysResponse countWorkingDays(Long employeeId, LocalDate startDate, LocalDate endDate) {
+        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+        if (!employeeRepository.existsById(employeeId)) {
+            throw new ResourceNotFoundException("Employee", "id", employeeId);
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new BusinessRuleException("INVALID_DATES", "End date cannot be before start date.");
+        }
+        return new WorkingDaysResponse(
+            workCalendar.countWorkingDays(resolveShift(employeeId), startDate, endDate));
+    }
+
     // ══════════════════════════════════════════════════════════
     // PENDING COUNT
     // ══════════════════════════════════════════════════════════
@@ -434,25 +453,11 @@ public class LeaveServiceImpl implements LeaveService {
 
     // ── Private helpers ───────────────────────────────────────
 
-    /**
-     * Counts working days between two dates (inclusive), excluding the
-     * Saturday/Sunday weekend (see the matching definition in
-     * LeaveCalendarServiceImpl) and any active
-     * public holiday falling on what would otherwise be a working day.
-     */
-    private double calculateWorkingDays(LocalDate start, LocalDate end) {
-        // OPTIONAL / RESTRICTED holidays are the employee's choice, so they still cost a leave day.
-        Set<LocalDate> holidayDates = workCalendar.dayOffHolidays(start, end);
-
-        double days = 0;
-        LocalDate current = start;
-        while (!current.isAfter(end)) {
-            if (!WorkCalendar.isDefaultWeekend(current) && !holidayDates.contains(current)) {
-                days++;
-            }
-            current = current.plusDays(1);
-        }
-        return days;
+    /** The employee's current shift, or null (then the company Sat/Sun weekend applies). */
+    private WorkShift resolveShift(Long employeeId) {
+        EmployeeJobDetails jd = jobDetailsRepository.findByEmployeeIdAndIsCurrent(employeeId, 1).orElse(null);
+        if (jd == null || jd.getShiftId() == null) return null;
+        return workShiftRepository.findById(jd.getShiftId()).orElse(null);
     }
 
     /**

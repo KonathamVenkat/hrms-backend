@@ -155,10 +155,11 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>,
 
     // ── Soft delete / status transition ───────────────────────────────────────
 
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
         UPDATE Employee e
         SET e.isActive = false,
+            e.version = e.version + 1,
             e.updatedBy = :updatedBy
         WHERE e.id = :id
         """)

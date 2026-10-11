@@ -4,6 +4,7 @@ import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
+import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.common.enums.EmploymentStatus;
 import com.hrms.common.enums.EmploymentType;
 import com.hrms.common.enums.Gender;
@@ -146,7 +147,14 @@ public class EmployeeController {
             @Parameter(description = "Unique employee code", example = "EMP-2024-001")
             @PathVariable @NotBlank String employeeCode) {
 
-        EmployeeResponse employee = employeeService.getEmployeeByCode(employeeCode);
+        EmployeeResponse employee;
+        try {
+            employee = employeeService.getEmployeeByCode(employeeCode);
+        } catch (ResourceNotFoundException e) {
+            // Non-HR callers get 403 for an unknown code too, so 404 vs 403 can't reveal which codes exist.
+            accessGuard.assertSelfOrPrivileged(null);
+            throw e;
+        }
         // Same ownership rule as GET /{id}, checked against the record that was actually found.
         accessGuard.assertSelfOrPrivileged(employee.getId());
         return ResponseEntity.ok(ApiResponse.success(employee));

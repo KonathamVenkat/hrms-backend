@@ -45,6 +45,7 @@ class AttendanceServiceImplTest {
     EmployeeAccessGuard           guard     = mock(EmployeeAccessGuard.class);
     AttendanceDayClassifier       classifier = mock(AttendanceDayClassifier.class);
     AttendanceDayRecorder         recorder  = mock(AttendanceDayRecorder.class);
+    com.hrms.auth.service.JobAlert jobAlert = mock(com.hrms.auth.service.JobAlert.class);
     AttendanceServiceImpl         service;
 
     LocalDate today = LocalDate.now();
@@ -52,7 +53,7 @@ class AttendanceServiceImplTest {
     @BeforeEach
     void setUp() {
         AttendanceCalculator calculator = new AttendanceCalculator(jobs, shifts, ot);
-        service = new AttendanceServiceImpl(logs, employees, calculator, summaries, guard, classifier, recorder);
+        service = new AttendanceServiceImpl(logs, employees, calculator, summaries, guard, classifier, recorder, jobAlert);
 
         Employee e = new Employee();
         e.setId(5L);
@@ -268,6 +269,18 @@ class AttendanceServiceImplTest {
         assertEquals(1, result.employeesRefreshed());
         int distinctMonths = d2.getMonth() == d1.getMonth() ? 1 : 2;
         verify(summaries, times(distinctMonths)).recalculateSummary(eq(5L), anyInt(), anyInt());
+    }
+
+    @Test
+    void failedSummaryRaisesAnAlertAndTheLoopContinues() {
+        LocalDate d = today.minusDays(1);
+        when(recorder.generateFor(d)).thenReturn(AttendanceDayRecorder.Result.empty());
+        when(logs.findByAttendanceDateAndIsActive(d, 1)).thenReturn(List.of(log(d, null, null, AttendanceStatus.ABSENT)));
+        when(summaries.recalculateSummary(eq(5L), anyInt(), anyInt())).thenThrow(new RuntimeException("boom"));
+
+        service.calculateAndStoreDailySummary(d);
+
+        verify(jobAlert).failed(eq("attendance-summary"), any(), any());
     }
 
     private static Long eq5() { return org.mockito.ArgumentMatchers.eq(5L); }

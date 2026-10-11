@@ -11,6 +11,7 @@ import com.hrms.attendance.repository.AttendanceLogRepository;
 import com.hrms.attendance.service.AttendanceService;
 import com.hrms.attendance.service.AttendanceSummaryService;
 import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.auth.service.JobAlert;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -47,6 +48,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final EmployeeAccessGuard     accessGuard;
     private final AttendanceDayClassifier classifier;
     private final AttendanceDayRecorder   recorder;
+    private final JobAlert                jobAlert;
 
     // ────────────────────────────────────────────────────────
     // CHECK-IN
@@ -215,7 +217,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             try {
                 summaryService.recalculateSummary(empId, date.getYear(), date.getMonthValue());
             } catch (Exception e) {
-                log.error("Summary failed for employee {}: {}", empId, e.getMessage());
+                jobAlert.failed("attendance-summary", "employee " + empId, e);
             }
         }
     }
@@ -254,7 +256,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             try {
                 summaryService.recalculateSummary(empId, ym.getYear(), ym.getMonthValue());
             } catch (Exception e) {
-                log.error("Summary failed for employee {} {}: {}", empId, ym, e.getMessage());
+                jobAlert.failed("attendance-summary", "employee " + empId + " " + ym, e);
             }
         }));
         log.info("Day records {}..{}: {} created, {} corrected, {} employees refreshed",

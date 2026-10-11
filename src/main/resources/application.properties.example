@@ -97,3 +97,7 @@ hrms.upload.scan.timeout-ms=15000
 app.base-url=${APP_BASE_URL:http://localhost:8082}
 spring.servlet.multipart.max-file-size=50MB
 spring.servlet.multipart.max-request-size=55MB
+
+# Flyway: the app only VALIDATES (see FlywayValidateOnly). Scripts in db/migration are run by hand;
+# each existing database is marked once as already at version 1 with db/flyway_history_baseline.sql.
+spring.flyway.baseline-version=1

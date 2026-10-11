@@ -40,6 +40,14 @@ configuration, build and the checks to run after the first start. It contains no
   - `employee_menu_profile.sql` (data only: Employee > Profile in the sidebar opens `/app/profile`)
   - `work_shifts_sat_sun_weekend.sql` (data only: work shifts get Monday-Friday working days, so Saturday and Sunday are the weekend)
   - `hide_unbuilt_menu_items.sql` (data only: hides sidebar entries for screens that are not built yet; keeps Employee, Attendance, Leave, Payroll and Admin Config). Users keep their cached menu until they sign out and in.
+- [ ] **Shortcut for an existing database:** instead of the individual scripts above, run
+      `db/prod_catchup_2026_10.sql` (dry run first, then `v_apply` TRUE, then a dry run that must say
+      "0 change(s) missing"). It was tested against an older copy of the schema.
+- [ ] **Once per database, after the schema is up to date:** run `db/flyway_history_baseline.sql`. The
+      application checks at startup that every script in `src/main/resources/db/migration` is recorded
+      in Flyway's history table, and refuses to start if one is missing (it never changes the schema
+      itself). Without this script the first start of this build fails. The file explains how to
+      record later scripts (`V2__...`).
 - [ ] Do **not** run the one-off scripts that fix development test data: `fix_pending_leave_venkat_oct_2026.sql`,
       `cleanup_test_data_oct_2026.sql`, `cleanup_test_checkin_venkat_oct_4.sql`.
 

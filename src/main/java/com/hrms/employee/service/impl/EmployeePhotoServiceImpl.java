@@ -1,5 +1,7 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.common.enums.UserRole;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.config.UploadHeader;
@@ -36,11 +38,14 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
     private final EmployeePhotoRepository photoRepository;
     private final EmployeeMapper          employeeMapper;
     private final UploadScanner           uploadScanner;
+    private final EmployeeLoginAccounts   accounts;
+    private final EmployeeAccessGuard     accessGuard;
 
     @Override
     @Transactional
     public EmployeeResponse upload(Long employeeId, MultipartFile file) {
         Employee employee = findActiveEmployee(employeeId);
+        requireMayChange(employeeId);
 
         if (file == null || file.isEmpty()) {
             throw new BusinessRuleException("PHOTO_REQUIRED", "Choose a photo to upload.");
@@ -85,9 +90,19 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
     @Transactional
     public EmployeeResponse remove(Long employeeId) {
         Employee employee = findActiveEmployee(employeeId);
+        requireMayChange(employeeId);
         photoRepository.deleteById(employeeId);
         employee.setProfilePhotoUrl(null);
         return employeeMapper.toResponse(employeeRepository.save(employee));
+    }
+
+    /** Same rule as editing the record: only an HR_ADMIN changes the photo of an HR_ADMIN/HR_MANAGER (own photo is always fine). */
+    private void requireMayChange(Long employeeId) {
+        if (accessGuard.isHrAdmin() || employeeId.equals(accessGuard.currentEmployeeId())) return;
+        if (accounts.roleOf(employeeId).filter(r -> r != UserRole.EMPLOYEE).isPresent()) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                "Only HR_ADMIN can change the photo of an HR_ADMIN or HR_MANAGER");
+        }
     }
 
     /**

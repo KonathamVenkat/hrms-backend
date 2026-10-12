@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.employee.config.PageLimits;
 import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.auth.security.EmployeeAccessGuard;
@@ -204,7 +205,7 @@ public class LeaveServiceImpl implements LeaveService {
         Page<LeaveRequest> page;
 
         if (filter.getYear() != null) {
-            Pageable nativePageable = PageRequest.of(
+            Pageable nativePageable = PageLimits.of(
                 filter.getPage(), filter.getSize());
             page = leaveRequestRepository
                 .findByEmployeeIdAndYear(
@@ -346,7 +347,7 @@ public class LeaveServiceImpl implements LeaveService {
 
         // Filter by specific employee
         if (filter.getEmployeeId() != null) {
-            Pageable nativePaging = PageRequest.of(filter.getPage(), filter.getSize());
+            Pageable nativePaging = PageLimits.of(filter.getPage(), filter.getSize());
             if (filter.getStatus() != null && !filter.getStatus().isBlank()) {
                 page = leaveRequestRepository
                     .findByEmployeeIdAndStatusOrderByCreatedAtDesc(
@@ -470,11 +471,16 @@ public class LeaveServiceImpl implements LeaveService {
             .map(t -> t.isApplicableTo(gender)).orElse(true);
     }
 
+    /** Fields a client may sort by; anything else falls back to createdAt instead of failing the query. */
+    private static final java.util.Set<String> SORTABLE = java.util.Set.of(
+        "createdAt", "startDate", "endDate", "status", "totalDays", "leaveTypeCode", "employeeCode");
+
     private Pageable buildPageable(LeaveFilterRequest filter) {
+        String sortBy = SORTABLE.contains(filter.getSortBy()) ? filter.getSortBy() : "createdAt";
         Sort sort = "asc".equalsIgnoreCase(filter.getSortDir())
-            ? Sort.by(filter.getSortBy()).ascending()
-            : Sort.by(filter.getSortBy()).descending();
-        return PageRequest.of(filter.getPage(), filter.getSize(), sort);
+            ? Sort.by(sortBy).ascending()
+            : Sort.by(sortBy).descending();
+        return PageLimits.of(filter.getPage(), filter.getSize(), sort);
     }
 
     private PagedResponse<LeaveRequestResponse> toPagedResponse(Page<LeaveRequest> page) {

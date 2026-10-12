@@ -1,5 +1,6 @@
 package com.hrms.attendance.controller;
 
+import com.hrms.employee.config.PageLimits;
 import com.hrms.attendance.dto.request.RegularizationActionRequest;
 import com.hrms.attendance.dto.request.RegularizationRequest;
 import com.hrms.attendance.dto.response.RegularizationResponse;
@@ -64,7 +65,7 @@ public class AttendanceRegularizationController {
                 ApiResponse.success(
                         "Requests fetched successfully",
                         regService.getMyRequests(employeeId,
-                                PageRequest.of(page, size,
+                                PageLimits.of(page, size,
                                         Sort.by(Sort.Direction.DESC, "createdAt")))));
     }
 
@@ -121,7 +122,7 @@ public class AttendanceRegularizationController {
                 ApiResponse.success(
                         "All requests fetched successfully",
                         regService.getAllRequests(status, employeeId, from, to,
-                                PageRequest.of(page, size))));
+                                PageLimits.of(page, size))));
     }
 
     // ── Badge count: pending requests ─────────────────────────

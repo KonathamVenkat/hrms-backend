@@ -74,7 +74,7 @@ configuration, build and the checks to run after the first start. It contains no
 | `HRMS_REFRESH_COOKIE_SAME_SITE` | optional, default `Strict` |
 | `HRMS_UPLOAD_MAX_FILE_SIZE_MB` | optional, default 25 |
 | `LOGGING_STRUCTURED_FORMAT_CONSOLE` | set `ecs` in production for one JSON object per log line (the request id is a field). Unset = readable text |
-| `HRMS_UPLOAD_SCAN_ENABLED` | set `true` in production: every uploaded file is scanned by ClamAV. Optional `HRMS_UPLOAD_SCAN_HOST` (default `localhost`), `HRMS_UPLOAD_SCAN_PORT` (default `3310`), `HRMS_UPLOAD_SCAN_TIMEOUT_MS` (default `15000`) |
+| `HRMS_UPLOAD_SCAN_ENABLED` | on by default (keep it `true` in production): every uploaded file is scanned by ClamAV. Optional `HRMS_UPLOAD_SCAN_HOST` (default `localhost`), `HRMS_UPLOAD_SCAN_PORT` (default `3310`), `HRMS_UPLOAD_SCAN_TIMEOUT_MS` (default `15000`) |
 
 - [ ] Set them in the service manager, container or secret store, not in a file in the repository.
 

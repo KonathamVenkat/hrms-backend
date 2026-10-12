@@ -1,5 +1,6 @@
 package com.hrms.attendance.controller;
 
+import com.hrms.employee.config.PageLimits;
 import com.hrms.attendance.dto.response.AttendanceSummaryResponse;
 import com.hrms.attendance.service.AttendanceSummaryService;
 import com.hrms.common.dto.ApiResponse;
@@ -49,7 +50,7 @@ public class AttendanceSummaryController {
                 year, month, page, size);
         PagedResponse<AttendanceSummaryResponse> response =
                 summaryService.getAllEmployeesSummary(year, month,
-                        PageRequest.of(page, size, Sort.by("employeeCode")));
+                        PageLimits.of(page, size, Sort.by("employeeCode")));
         return ResponseEntity.ok(ApiResponse.success("All summaries fetched successfully", response));
     }
 

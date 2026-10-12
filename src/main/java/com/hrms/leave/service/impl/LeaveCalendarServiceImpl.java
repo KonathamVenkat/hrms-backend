@@ -43,6 +43,9 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
 
     @Override
     public CalendarMonthResponse getMonthCalendar(int year, int month) {
+        if (month < 1 || month > 12 || year < 2000 || year > 2100) {
+            throw new com.hrms.common.exception.BusinessRuleException("INVALID_PERIOD", "Choose a month between 2000 and 2100.");
+        }
         log.info("Building calendar for {}/{}", year, month);
 
         LocalDate firstDay = LocalDate.of(year, month, 1);

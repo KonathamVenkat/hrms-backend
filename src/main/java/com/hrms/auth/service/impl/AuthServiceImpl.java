@@ -70,12 +70,17 @@ public class AuthServiceImpl implements AuthService {
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         // LoginRequest is a record — use record accessor methods
         String identifier = request.username().trim();
-        log.info("Login attempt — user={}", identifier);
         AuthUser user = authUserRepository.findByUsernameOrEmail(identifier)
             .orElseThrow(() -> {
-                audit.recordAs(identifier, "LOGIN_FAILED", "USER", identifier, "unknown user");
+                // Same work as a real attempt, so response time does not reveal whether the user exists
+                passwordEncoder.matches(request.password(), dummyHash());
+                // Free text typed by an anonymous caller: strip control characters and cap the length
+                String shown = identifier.replaceAll("\\p{Cntrl}", "?");
+                shown = shown.length() > 100 ? shown.substring(0, 100) : shown;
+                audit.recordAs(shown, "LOGIN_FAILED", "USER", shown, "unknown user");
                 return new BadCredentialsException("Invalid username or password.");
             });
+        log.info("Login attempt — user={}", user.getUsername());
 
         validateAccountState(user);
 
@@ -279,9 +284,23 @@ public class AuthServiceImpl implements AuthService {
             throw new AccountLockedException("Account is locked. Try again in 30 minutes.");
     }
 
+    /**
+     * The connection's address. Behind the reverse proxy this is the real client only when
+     * server.forward-headers-strategy=native is set, which honours X-Forwarded-For from the proxy
+     * alone; reading the header here would let any caller write whatever IP they like.
+     */
     private String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        return StringUtils.hasText(xff) ? xff.split(",")[0].trim() : req.getRemoteAddr();
+        return req.getRemoteAddr();
+    }
+
+    private volatile String dummyHash;
+
+    private String dummyHash() {
+        String h = dummyHash;
+        if (h == null) {
+            h = dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
+        }
+        return h;
     }
 
     private String truncate(String s, int max) {

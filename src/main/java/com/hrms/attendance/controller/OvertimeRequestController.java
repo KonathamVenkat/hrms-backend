@@ -1,5 +1,6 @@
 package com.hrms.attendance.controller;
 
+import com.hrms.employee.config.PageLimits;
 import com.hrms.attendance.dto.request.OvertimeActionRequest;
 import com.hrms.attendance.dto.request.OvertimeSubmitRequest;
 import com.hrms.attendance.dto.response.OvertimeResponse;
@@ -64,7 +65,7 @@ public class OvertimeRequestController {
                 ApiResponse.success(
                         "Overtime requests fetched successfully",
                         otService.getMyRequests(employeeId,
-                                PageRequest.of(page, size,
+                                PageLimits.of(page, size,
                                         Sort.by(Sort.Direction.DESC, "createdAt")))));
     }
 
@@ -121,7 +122,7 @@ public class OvertimeRequestController {
                 ApiResponse.success(
                         "All overtime requests fetched successfully",
                         otService.getAllRequests(status, employeeId, from, to,
-                                PageRequest.of(page, size))));
+                                PageLimits.of(page, size))));
     }
 
     // ── Pending count for badge ────────────────────────────

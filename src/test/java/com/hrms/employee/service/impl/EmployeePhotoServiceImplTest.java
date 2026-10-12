@@ -1,12 +1,16 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.common.enums.UserRole;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.entity.Employee;
+import com.hrms.employee.service.impl.EmployeeLoginAccounts;
 import com.hrms.employee.entity.EmployeePhoto;
 import com.hrms.employee.mapper.EmployeeMapper;
 import com.hrms.employee.repository.EmployeePhotoRepository;
 import com.hrms.employee.repository.EmployeeRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,17 +32,33 @@ class EmployeePhotoServiceImplTest {
     EmployeeRepository      employees = mock(EmployeeRepository.class);
     EmployeePhotoRepository photos    = mock(EmployeePhotoRepository.class);
     EmployeeMapper          mapper    = mock(EmployeeMapper.class);
+    EmployeeLoginAccounts   accounts  = mock(EmployeeLoginAccounts.class);
+    EmployeeAccessGuard     guard     = mock(EmployeeAccessGuard.class);
     EmployeePhotoServiceImpl service;
     Employee employee;
 
     @BeforeEach
     void setUp() {
         service = new EmployeePhotoServiceImpl(employees, photos, mapper,
-                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000));
+                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000), accounts, guard);
         employee = new Employee();
         when(employees.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(employee));
         when(employees.save(any())).thenAnswer(i -> i.getArgument(0));
         when(photos.findById(5L)).thenReturn(Optional.empty());
+    }
+
+    @Test
+    void hrManagerCannotChangeAnHrAdminsPhotoButAdminAndOwnerCan() {
+        when(accounts.roleOf(5L)).thenReturn(Optional.of(UserRole.HR_ADMIN));
+        var file = new MockMultipartFile("file", "me.png", "image/png", PNG);
+        assertThrows(AccessDeniedException.class, () -> service.upload(5L, file));
+        assertThrows(AccessDeniedException.class, () -> service.remove(5L));
+
+        when(guard.isHrAdmin()).thenReturn(true);
+        assertDoesNotThrow(() -> service.upload(5L, file));
+        when(guard.isHrAdmin()).thenReturn(false);
+        when(guard.currentEmployeeId()).thenReturn(5L);
+        assertDoesNotThrow(() -> service.remove(5L));
     }
 
     @Test
@@ -66,7 +86,7 @@ class EmployeePhotoServiceImplTest {
     void aPhotoTheScannerRejectsIsNeverStored() {
         var scanner = mock(com.hrms.employee.config.UploadScanner.class);
         doThrow(new BusinessRuleException("MALWARE_DETECTED", "infected")).when(scanner).assertClean(any());
-        var scanning = new EmployeePhotoServiceImpl(employees, photos, mapper, scanner);
+        var scanning = new EmployeePhotoServiceImpl(employees, photos, mapper, scanner, accounts, guard);
 
         var ex = assertThrows(BusinessRuleException.class,
             () -> scanning.upload(5L, new MockMultipartFile("file", "me.png", "image/png", PNG)));

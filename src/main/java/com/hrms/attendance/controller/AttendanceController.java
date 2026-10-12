@@ -1,5 +1,6 @@
 package com.hrms.attendance.controller;
 
+import com.hrms.employee.config.PageLimits;
 import com.hrms.attendance.dto.request.CheckInRequest;
 import com.hrms.attendance.dto.request.CheckOutRequest;
 import com.hrms.attendance.dto.response.AttendanceLogResponse;
@@ -97,7 +98,7 @@ public class AttendanceController {
                 ApiResponse.success(
                         "Success",
                         attendanceService.getAllLogs(employeeId, from, to,
-                                PageRequest.of(page, size))));
+                                PageLimits.of(page, size))));
     }
 
     // ── Monthly summary (hybrid) ──────────────────────────────

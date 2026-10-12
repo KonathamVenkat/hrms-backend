@@ -16,9 +16,9 @@ import java.nio.charset.StandardCharsets;
  * ClamAV daemon ({@code clamd}) over its INSTREAM protocol: nothing is written to disk, and the
  * file is only stored if the scanner says it is clean.
  *
- * <p>Off by default so a development machine needs no ClamAV. In production set
- * {@code hrms.upload.scan.enabled=true} (env {@code HRMS_UPLOAD_SCAN_ENABLED}); the service is then
- * <b>fail-closed</b>: if the scanner cannot be reached, the upload is refused rather than let through
+ * <p>On by default, so a server where the setting was forgotten still scans. A development machine
+ * without ClamAV sets {@code hrms.upload.scan.enabled=false} (env {@code HRMS_UPLOAD_SCAN_ENABLED}). While
+ * on, the service is <b>fail-closed</b>: if the scanner cannot be reached, the upload is refused rather than let through
  * unscanned.</p>
  */
 @Slf4j
@@ -32,7 +32,7 @@ public class UploadScanner {
     private final int port;
     private final int timeoutMs;
 
-    public UploadScanner(@Value("${hrms.upload.scan.enabled:false}") boolean enabled,
+    public UploadScanner(@Value("${hrms.upload.scan.enabled:true}") boolean enabled,
                          @Value("${hrms.upload.scan.host:localhost}") String host,
                          @Value("${hrms.upload.scan.port:3310}") int port,
                          @Value("${hrms.upload.scan.timeout-ms:15000}") int timeoutMs) {
@@ -41,7 +41,7 @@ public class UploadScanner {
         this.port = port;
         this.timeoutMs = timeoutMs;
         if (!enabled) {
-            log.warn("Upload malware scanning is OFF (hrms.upload.scan.enabled=false). Turn it on in production.");
+            log.warn("Upload malware scanning is OFF (hrms.upload.scan.enabled=false). Never run production like this.");
         }
     }
 

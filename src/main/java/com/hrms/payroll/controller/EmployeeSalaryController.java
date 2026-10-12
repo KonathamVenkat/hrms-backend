@@ -1,5 +1,6 @@
 package com.hrms.payroll.controller;
 
+import com.hrms.employee.config.PageLimits;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.payroll.dto.request.EmployeeSalaryRequest;
@@ -65,7 +66,7 @@ public class EmployeeSalaryController {
         return ResponseEntity.ok(
                 ApiResponse.success("Success",
                         service.getAllCurrent(structureId,
-                                PageRequest.of(page, size,
+                                PageLimits.of(page, size,
                                         Sort.by("employeeId")))));
     }
 }

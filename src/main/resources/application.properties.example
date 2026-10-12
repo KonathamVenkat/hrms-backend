@@ -53,6 +53,9 @@ hrms.jwt.refresh-expiration-ms=604800000
 hrms.auth.refresh-cookie.secure=${HRMS_REFRESH_COOKIE_SECURE:true}
 hrms.auth.refresh-cookie.same-site=${HRMS_REFRESH_COOKIE_SAME_SITE:Strict}
 
+# Behind the reverse proxy: trust X-Forwarded-* from the proxy only, so request.getRemoteAddr() is the real client.
+server.forward-headers-strategy=native
+
 # CORS
 hrms.cors.allowed-origins=${HRMS_CORS_ALLOWED_ORIGINS:http://localhost:4200}
 
@@ -88,9 +91,9 @@ hrms.business-zone=${HRMS_BUSINESS_ZONE:Africa/Juba}
 hrms.upload.max-file-size-mb=25
 
 # Malware scan of every uploaded file (document, photo, leave attachment) by a ClamAV daemon (clamd).
-# Off for development. In production set HRMS_UPLOAD_SCAN_ENABLED=true; if clamd cannot be reached the
-# upload is refused (fail-closed). clamd StreamMaxLength must be at least the upload cap above.
-hrms.upload.scan.enabled=false
+# ON by default; only a development machine without ClamAV sets HRMS_UPLOAD_SCAN_ENABLED=false. While on, if
+# clamd cannot be reached the upload is refused (fail-closed). clamd StreamMaxLength must be at least the upload cap above.
+hrms.upload.scan.enabled=${HRMS_UPLOAD_SCAN_ENABLED:true}
 hrms.upload.scan.host=localhost
 hrms.upload.scan.port=3310
 hrms.upload.scan.timeout-ms=15000

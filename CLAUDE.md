@@ -61,7 +61,7 @@ When adding a new feature module, mirror the package shape of `employee`/`auth`/
 - Server port: **8082**; app name `employee-service`
 - DB: schema `HRMS` on `localhost:1521/ORCLPDB1`. Credentials are in plaintext in `application.properties` for local dev — **never** print, log, or echo the DB password or the `hrms.jwt.secret` value in generated code, scripts, commit messages, or examples, and don't commit real production credentials the same way.
 - HikariCP: pool name `HrmsOraclePool`, max 20 / min idle 5, 30s connection timeout, 10min idle timeout, 30min max lifetime, test query `SELECT 1 FROM DUAL`
-- JWT: config under `hrms.jwt.*` — access token expires in 24h (`86400000` ms), refresh token in 7 days (`604800000` ms)
+- JWT: config under `hrms.jwt.*` — access token expires in 30 min (`1800000` ms; the Angular interceptor silently refreshes on 401), refresh token in 7 days (`604800000` ms)
 - File uploads: `app.upload.dir=uploads/employee-documents`, `app.base-url=http://localhost:8082`, max file size 50MB / max request 55MB — relevant to any employee-document-upload endpoints
 - CORS: `hrms.cors.allowed-origins` is present but **commented out**. If frontend (`http://localhost:4200`) calls start failing on CORS, this is the first thing to check/uncomment.
 - Actuator: `health`, `info`, `metrics` exposed, health details always shown

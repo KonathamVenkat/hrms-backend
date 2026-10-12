@@ -51,7 +51,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuditTrail audit;
 
     // Property names match common-lib JwtTokenProvider and application.properties exactly
-    @Value("${hrms.jwt.expiration-ms:86400000}")
+    @Value("${hrms.jwt.expiration-ms:1800000}")
     private long accessTokenExpiryMs;
 
     @Value("${hrms.jwt.refresh-expiration-ms:604800000}")

@@ -48,7 +48,7 @@ public class JwtTokenProvider {
     @Value("${hrms.jwt.secret}")
     private String jwtSecret;
 
-    @Value("${hrms.jwt.expiration-ms:86400000}")   // default: 24 hours
+    @Value("${hrms.jwt.expiration-ms:1800000}")   // default: 30 minutes
     private long jwtExpirationMs;
 
     @Value("${hrms.jwt.refresh-expiration-ms:604800000}")  // default: 7 days

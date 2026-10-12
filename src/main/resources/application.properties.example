@@ -46,7 +46,7 @@ spring.jackson.default-property-inclusion=NON_NULL
 
 # JWT
 hrms.jwt.secret=${HRMS_JWT_SECRET}
-hrms.jwt.expiration-ms=86400000
+hrms.jwt.expiration-ms=1800000
 hrms.jwt.refresh-expiration-ms=604800000
 
 # Refresh-token cookie. Secure must stay true outside local development (HTTPS only).

@@ -81,6 +81,12 @@ public class EmployeeAccessGuard {
             && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_HR_ADMIN"));
     }
 
+    /** True when the caller is HR_ADMIN or HR_MANAGER. */
+    public boolean isHrStaff() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.isAuthenticated() && isPrivileged(auth);
+    }
+
     private boolean isPrivileged(Authentication auth) {
         return auth.getAuthorities().stream().anyMatch(a ->
             a.getAuthority().equals("ROLE_HR_ADMIN") || a.getAuthority().equals("ROLE_HR_MANAGER"));

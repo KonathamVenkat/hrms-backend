@@ -1,5 +1,6 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.employee.entity.Employee;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.leave.dto.response.*;
@@ -32,6 +33,7 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
     private final HolidayCalendarRepository holidayRepository;
     private final LeaveTypeRepository       leaveTypeRepository;
     private final EmployeeRepository        employeeRepository;
+    private final EmployeeAccessGuard       accessGuard;
 
     @Override
     public CalendarMonthResponse getCurrentMonthCalendar() {
@@ -48,8 +50,15 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
         LocalDate today    = LocalDate.now();
 
         // ── Fetch approved + pending leaves overlapping this month ──
+        // Colleagues' leave is shared with everyone only as "on leave": an employee sees approved
+        // leave of others without its type (sick/maternity/... is private) and never others' pending
+        // requests. HR staff see everything; everyone sees their own requests in full.
+        boolean hr = accessGuard.isHrStaff();
+        Long selfId = hr ? null : accessGuard.currentEmployeeId();
         List<LeaveRequest> monthLeaves = leaveRequestRepository
-            .findLeavesOverlappingMonth(firstDay, lastDay);
+            .findLeavesOverlappingMonth(firstDay, lastDay).stream()
+            .filter(lr -> hr || lr.getEmployeeId().equals(selfId) || LeaveStatus.APPROVED == lr.getStatus())
+            .collect(Collectors.toList());
 
         // ── Fetch active holidays for this year ───────────────────
         List<HolidayCalendar> holidays = holidayRepository
@@ -111,7 +120,7 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
 
             // Build leave entries for this day
             List<CalendarLeaveEntry> leaveEntries = dayLeaves.stream()
-                .map(lr -> buildLeaveEntry(lr, empMap, typeNameMap))
+                .map(lr -> buildLeaveEntry(lr, empMap, typeNameMap, hr, selfId))
                 .collect(Collectors.toList());
 
             // Build holiday entries for this day
@@ -155,7 +164,7 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
         List<CalendarLeaveEntry> todaysLeaves = leavesByDate
             .getOrDefault(today, List.of()).stream()
             .filter(lr -> LeaveStatus.APPROVED == lr.getStatus())
-            .map(lr -> buildLeaveEntry(lr, empMap, typeNameMap))
+            .map(lr -> buildLeaveEntry(lr, empMap, typeNameMap, hr, selfId))
             .collect(Collectors.toList());
 
         // ── Holidays count for this month ────────────────────────
@@ -185,20 +194,24 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
     private CalendarLeaveEntry buildLeaveEntry(
             LeaveRequest lr,
             Map<Long, Employee> empMap,
-            Map<String, String> typeNameMap) {
+            Map<String, String> typeNameMap,
+            boolean hr, Long selfId) {
 
         Employee emp  = empMap.get(lr.getEmployeeId());
         String   name = emp != null
             ? emp.getFirstName() + " " + emp.getLastName()
             : lr.getEmployeeCode();
 
+        boolean showType = hr || lr.getEmployeeId().equals(selfId);
+
         return CalendarLeaveEntry.builder()
             .employeeId(lr.getEmployeeId())
             .employeeCode(lr.getEmployeeCode())
             .employeeName(name)
-            .leaveTypeCode(lr.getLeaveTypeCode())
-            .leaveTypeName(typeNameMap.getOrDefault(
-                lr.getLeaveTypeCode(), lr.getLeaveTypeCode()))
+            .leaveTypeCode(showType ? lr.getLeaveTypeCode() : "LEAVE")
+            .leaveTypeName(showType
+                ? typeNameMap.getOrDefault(lr.getLeaveTypeCode(), lr.getLeaveTypeCode())
+                : "On leave")
             .status(lr.getStatus() != null ? lr.getStatus().name() : "PENDING")
             .startDate(lr.getStartDate().toString())
             .endDate(lr.getEndDate().toString())

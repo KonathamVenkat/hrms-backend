@@ -191,6 +191,7 @@ public class AuthServiceImpl implements AuthService {
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.setMustChangePassword(0);
+        user.setPasswordChangedAt(LocalDateTime.now());
         user.setFailedAttempts(0);
         user.setUpdatedBy(user.getUsername());
         authUserRepository.save(user);
@@ -215,6 +216,7 @@ public class AuthServiceImpl implements AuthService {
 
         user.setPasswordHash(passwordEncoder.encode(request.temporaryPassword()));
         user.setMustChangePassword(1);
+        user.setPasswordChangedAt(LocalDateTime.now());
         user.setIsLocked(false);
         user.setFailedAttempts(0);
         user.setLockTime(null);

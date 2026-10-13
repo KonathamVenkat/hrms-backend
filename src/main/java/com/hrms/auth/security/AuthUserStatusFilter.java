@@ -13,6 +13,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -77,6 +79,12 @@ public class AuthUserStatusFilter extends OncePerRequestFilter {
             return;
         }
 
+        if (issuedBeforePasswordChange(request, user)) {
+            reject(response, HttpServletResponse.SC_UNAUTHORIZED, null,
+                    "Your password was changed. Please sign in again.");
+            return;
+        }
+
         if (user.getMustChangePassword() != null && user.getMustChangePassword() == 1
                 && !ALLOWED_WHILE_PASSWORD_CHANGE_REQUIRED.contains(request.getServletPath())) {
             reject(response, HttpServletResponse.SC_FORBIDDEN, "PASSWORD_CHANGE_REQUIRED",
@@ -85,6 +93,23 @@ public class AuthUserStatusFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    /**
+     * True when the bearer token's {@code iat} is older than the last password change.
+     * The signature was already verified by the JWT filter, so the payload is only decoded here
+     * (common-lib has no issued-at accessor). An unreadable token is treated as stale.
+     */
+    private boolean issuedBeforePasswordChange(HttpServletRequest request, AuthUser user) {
+        if (user.getPasswordChangedAt() == null) return false;
+        try {
+            String header = request.getHeader("Authorization");
+            String payload = header.substring("Bearer ".length()).split("\\.")[1];
+            long iat = objectMapper.readTree(Base64.getUrlDecoder().decode(payload)).get("iat").asLong();
+            return iat < user.getPasswordChangedAt().atZone(ZoneId.systemDefault()).toEpochSecond();
+        } catch (RuntimeException | IOException e) {
+            return true;
+        }
     }
 
     private void reject(HttpServletResponse response, int status, String code, String message)

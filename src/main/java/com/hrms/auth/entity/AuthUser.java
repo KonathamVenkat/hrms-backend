@@ -98,6 +98,10 @@ public class AuthUser {
     @Column(name = "LAST_LOGIN")
     private LocalDateTime lastLogin;
 
+    /** Set on password change/reset; access tokens issued before it are rejected. */
+    @Column(name = "PASSWORD_CHANGED_AT")
+    private LocalDateTime passwordChangedAt;
+
     // ── Audit ─────────────────────────────────────────────────────────────────
     @CreationTimestamp
     @Column(name = "CREATED_AT", updatable = false)

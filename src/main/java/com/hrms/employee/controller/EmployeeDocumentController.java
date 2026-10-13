@@ -1,5 +1,6 @@
 package com.hrms.employee.controller;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.employee.dto.request.EmployeeDocumentRequest;
 import com.hrms.employee.dto.response.EmployeeDocumentResponse;
@@ -24,6 +25,7 @@ import java.util.List;
 public class EmployeeDocumentController {
 
     private final EmployeeDocumentService documentService;
+    private final AuditTrail audit;
 
     /**
      * GET /api/v1/employees/{employeeId}/documents
@@ -32,10 +34,12 @@ public class EmployeeDocumentController {
     @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
     public ResponseEntity<ApiResponse<List<EmployeeDocumentResponse>>> getDocuments(
             @PathVariable Long employeeId) {
+        List<EmployeeDocumentResponse> docs = documentService.getDocuments(employeeId);
+        audit.record("DOCUMENT_LIST_VIEWED", "EMPLOYEE", employeeId, null);
         return ResponseEntity.ok(
             ApiResponse.<List<EmployeeDocumentResponse>>builder()
                 .success(true).message("Documents fetched successfully")
-                .data(documentService.getDocuments(employeeId))
+                .data(docs)
                 .statusCode(200).build());
     }
 
@@ -47,10 +51,12 @@ public class EmployeeDocumentController {
     public ResponseEntity<ApiResponse<EmployeeDocumentResponse>> getDocumentById(
             @PathVariable Long employeeId,
             @PathVariable Long documentId) {
+        EmployeeDocumentResponse doc = documentService.getDocumentById(employeeId, documentId);
+        audit.record("DOCUMENT_VIEWED", "EMPLOYEE", employeeId, "document " + documentId);
         return ResponseEntity.ok(
             ApiResponse.<EmployeeDocumentResponse>builder()
                 .success(true).message("Document fetched")
-                .data(documentService.getDocumentById(employeeId, documentId))
+                .data(doc)
                 .statusCode(200).build());
     }
 
@@ -134,6 +140,7 @@ public class EmployeeDocumentController {
             @PathVariable Long documentId) {
 
         Resource resource = documentService.downloadDocument(employeeId, documentId);
+        audit.record("DOCUMENT_DOWNLOADED", "EMPLOYEE", employeeId, "document " + documentId);
         return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
             .header(HttpHeaders.CONTENT_DISPOSITION,

@@ -1,5 +1,6 @@
 package com.hrms.payroll.controller;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.employee.config.PageLimits;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.PagedResponse;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +26,7 @@ import java.util.List;
 public class EmployeeSalaryController {
 
     private final EmployeeSalaryService service;
+    private final AuditTrail audit;
 
     // ── Assign / Revise salary ────────────────────────────
     @PostMapping("/assign")
@@ -40,10 +43,14 @@ public class EmployeeSalaryController {
     @GetMapping("/{employeeId}/current")
     @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','EMPLOYEE')")
     public ResponseEntity<ApiResponse<EmployeeSalaryResponse>> getCurrent(
-            @PathVariable Long employeeId) {
+            @PathVariable Long employeeId, Authentication auth) {
         log.info("GET /employee-salary/{}/current", employeeId);
-        return ResponseEntity.ok(
-                ApiResponse.success("Success", service.getCurrentSalary(employeeId)));
+        EmployeeSalaryResponse salary = service.getCurrentSalary(employeeId);
+        // An employee reading their own salary is not an HR access worth recording
+        if (auth.getAuthorities().stream().noneMatch(a -> "ROLE_EMPLOYEE".equals(a.getAuthority()))) {
+            audit.record("SALARY_VIEWED", "EMPLOYEE", employeeId, null);
+        }
+        return ResponseEntity.ok(ApiResponse.success("Success", salary));
     }
 
     // ── Salary history for one employee ──────────────────
@@ -51,8 +58,9 @@ public class EmployeeSalaryController {
     @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
     public ResponseEntity<ApiResponse<List<EmployeeSalaryResponse>>> getHistory(
             @PathVariable Long employeeId) {
-        return ResponseEntity.ok(
-                ApiResponse.success("Success", service.getSalaryHistory(employeeId)));
+        List<EmployeeSalaryResponse> history = service.getSalaryHistory(employeeId);
+        audit.record("SALARY_HISTORY_VIEWED", "EMPLOYEE", employeeId, null);
+        return ResponseEntity.ok(ApiResponse.success("Success", history));
     }
 
     // ── Paginated list of all current salaries ────────────
@@ -63,10 +71,9 @@ public class EmployeeSalaryController {
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
         log.info("GET /employee-salary — structureId={}, page={}", structureId, page);
-        return ResponseEntity.ok(
-                ApiResponse.success("Success",
-                        service.getAllCurrent(structureId,
-                                PageLimits.of(page, size,
-                                        Sort.by("employeeId")))));
+        PagedResponse<EmployeeSalaryResponse> result = service.getAllCurrent(structureId,
+                PageLimits.of(page, size, Sort.by("employeeId")));
+        audit.record("SALARY_LIST_VIEWED", "SALARY", structureId, "page " + page);
+        return ResponseEntity.ok(ApiResponse.success("Success", result));
     }
 }

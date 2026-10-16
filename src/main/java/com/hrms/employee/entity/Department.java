@@ -3,12 +3,17 @@ package com.hrms.employee.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "DEPARTMENTS", schema = "HRMS")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Department {
 
+    // The BEFORE INSERT trigger only fills DEPT_ID when it is null, so supplying it here is safe.
     @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "departments_seq")
+    @SequenceGenerator(name = "departments_seq", sequenceName = "HRMS.SEQ_DEPARTMENTS", allocationSize = 1)
     @Column(name = "DEPT_ID", nullable = false)
     private Long deptId;
 
@@ -24,9 +29,19 @@ public class Department {
     @Column(name = "DESCRIPTION", length = 500)
     private String description;
 
+    @Column(name = "HEAD_EMPLOYEE_ID")
+    private Long headEmployeeId;
+
     @Column(name = "COST_CENTER_CODE", length = 50)
     private String costCenterCode;
 
     @Column(name = "IS_ACTIVE")
     private Integer isActive;
+
+    // CREATED_AT is stamped by the insert trigger, so it is never written from here.
+    @Column(name = "CREATED_AT", insertable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "UPDATED_AT", insertable = false)
+    private LocalDateTime updatedAt;
 }

@@ -27,7 +27,7 @@ public class WorkShiftController {
      * All shifts — admin list view.
      */
     @GetMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<List<WorkShiftResponse>>> getAllShifts() {
         log.info("GET /api/v1/admin/work-shifts");
         return ResponseEntity.ok(
@@ -45,7 +45,7 @@ public class WorkShiftController {
      * Active shifts only — for employee job details dropdown.
      */
     @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN','HR_MANAGER')")
     public ResponseEntity<ApiResponse<List<WorkShiftResponse>>> getActiveShifts() {
         return ResponseEntity.ok(
             ApiResponse.<List<WorkShiftResponse>>builder()
@@ -61,7 +61,7 @@ public class WorkShiftController {
      * GET /api/v1/admin/work-shifts/{id}
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<WorkShiftResponse>> getShiftById(
             @PathVariable Long id) {
         return ResponseEntity.ok(
@@ -78,7 +78,7 @@ public class WorkShiftController {
      * POST /api/v1/admin/work-shifts
      */
     @PostMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<WorkShiftResponse>> createShift(
             @Valid @RequestBody WorkShiftRequest request) {
         log.info("POST /api/v1/admin/work-shifts - {}", request.getShiftCode());
@@ -98,7 +98,7 @@ public class WorkShiftController {
      * PUT /api/v1/admin/work-shifts/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<WorkShiftResponse>> updateShift(
             @PathVariable Long id,
             @Valid @RequestBody WorkShiftRequest request) {
@@ -117,7 +117,7 @@ public class WorkShiftController {
      * PATCH /api/v1/admin/work-shifts/{id}/deactivate
      */
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deactivateShift(@PathVariable Long id) {
         workShiftService.deactivateShift(id);
         return ResponseEntity.ok(
@@ -130,7 +130,7 @@ public class WorkShiftController {
      * PATCH /api/v1/admin/work-shifts/{id}/activate
      */
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> activateShift(@PathVariable Long id) {
         workShiftService.activateShift(id);
         return ResponseEntity.ok(

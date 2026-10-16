@@ -27,7 +27,7 @@ public class AuditEventController {
      * HR_ADMIN reads the audit trail, newest first. Every filter is optional.
      */
     @GetMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<PagedResponse<AuditEventResponse>>> search(
             @RequestParam(required = false) String actor,
             @RequestParam(required = false) String action,

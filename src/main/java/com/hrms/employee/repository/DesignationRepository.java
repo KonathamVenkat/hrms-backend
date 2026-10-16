@@ -9,4 +9,5 @@ import java.util.List;
 public interface DesignationRepository extends JpaRepository<Designation, Long> {
     List<Designation> findByIsActiveOrderByTitleAsc(Integer isActive);
     List<Designation> findByDepartmentIdAndIsActiveOrderByTitleAsc(Long departmentId, Integer isActive);
+    boolean existsByDepartmentId(Long departmentId);
 }

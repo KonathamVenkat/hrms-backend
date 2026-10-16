@@ -22,7 +22,7 @@ public class OfficeLocationController {
     private final OfficeLocationService locationService;
 
     @GetMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<List<OfficeLocationResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.<List<OfficeLocationResponse>>builder()
             .success(true).message("Locations fetched")
@@ -30,7 +30,7 @@ public class OfficeLocationController {
     }
 
     @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN','HR_MANAGER')")
     public ResponseEntity<ApiResponse<List<OfficeLocationResponse>>> getActive() {
         return ResponseEntity.ok(ApiResponse.<List<OfficeLocationResponse>>builder()
             .success(true).message("Active locations fetched")
@@ -38,7 +38,7 @@ public class OfficeLocationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<OfficeLocationResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.<OfficeLocationResponse>builder()
             .success(true).message("Location fetched")
@@ -46,7 +46,7 @@ public class OfficeLocationController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<OfficeLocationResponse>> create(
             @Valid @RequestBody OfficeLocationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -56,7 +56,7 @@ public class OfficeLocationController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<OfficeLocationResponse>> update(
             @PathVariable Long id, @Valid @RequestBody OfficeLocationRequest request) {
         return ResponseEntity.ok(ApiResponse.<OfficeLocationResponse>builder()
@@ -65,7 +65,7 @@ public class OfficeLocationController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
         locationService.deactivateLocation(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -73,7 +73,7 @@ public class OfficeLocationController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> activate(@PathVariable Long id) {
         locationService.activateLocation(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()

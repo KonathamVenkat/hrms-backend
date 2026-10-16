@@ -16,6 +16,8 @@ import java.util.Optional;
 public interface EmployeeJobDetailsRepository
         extends JpaRepository<EmployeeJobDetails, Long> {
 
+    boolean existsByDepartmentId(Long departmentId);
+
     /** Active employees whose current job row names this person as reporting or functional manager. */
     @Query("""
         SELECT COUNT(j) FROM EmployeeJobDetails j, Employee e

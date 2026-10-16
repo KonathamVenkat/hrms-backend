@@ -29,7 +29,7 @@ public class LeaveTypeController {
      * Returns ALL leave types (active + inactive) for admin table.
      */
     @GetMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<List<LeaveTypeResponse>>> getAllLeaveTypes() {
         log.info("GET /api/v1/admin/leave-types");
         return ResponseEntity.ok(
@@ -47,7 +47,7 @@ public class LeaveTypeController {
      * Returns only active leave types — used by leave request dropdowns.
      */
     @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
     public ResponseEntity<ApiResponse<List<LeaveTypeResponse>>> getActiveLeaveTypes() {
         return ResponseEntity.ok(
             ApiResponse.<List<LeaveTypeResponse>>builder()
@@ -63,7 +63,7 @@ public class LeaveTypeController {
      * GET /api/v1/admin/leave-types/{id}
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<LeaveTypeResponse>> getLeaveTypeById(
             @PathVariable Long id) {
         return ResponseEntity.ok(
@@ -80,7 +80,7 @@ public class LeaveTypeController {
      * POST /api/v1/admin/leave-types
      */
     @PostMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<LeaveTypeResponse>> createLeaveType(
             @Valid @RequestBody LeaveTypeRequest request) {
         log.info("POST /api/v1/admin/leave-types - code: {}", request.getCode());
@@ -100,7 +100,7 @@ public class LeaveTypeController {
      * PUT /api/v1/admin/leave-types/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<LeaveTypeResponse>> updateLeaveType(
             @PathVariable Long id,
             @Valid @RequestBody LeaveTypeRequest request) {
@@ -119,7 +119,7 @@ public class LeaveTypeController {
      * PATCH /api/v1/admin/leave-types/{id}/deactivate
      */
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deactivateLeaveType(@PathVariable Long id) {
         log.info("PATCH /api/v1/admin/leave-types/{}/deactivate", id);
         leaveTypeService.deactivateLeaveType(id);
@@ -136,7 +136,7 @@ public class LeaveTypeController {
      * PATCH /api/v1/admin/leave-types/{id}/activate
      */
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> activateLeaveType(@PathVariable Long id) {
         log.info("PATCH /api/v1/admin/leave-types/{}/activate", id);
         leaveTypeService.activateLeaveType(id);

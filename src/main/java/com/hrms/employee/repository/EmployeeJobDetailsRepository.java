@@ -17,6 +17,7 @@ public interface EmployeeJobDetailsRepository
         extends JpaRepository<EmployeeJobDetails, Long> {
 
     boolean existsByDepartmentId(Long departmentId);
+    boolean existsByDesignationId(Long designationId);
 
     /** Active employees whose current job row names this person as reporting or functional manager. */
     @Query("""

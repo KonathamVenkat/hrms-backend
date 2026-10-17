@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -30,6 +31,9 @@ public class DepartmentServiceImpl implements DepartmentService {
     private final DesignationRepository designationRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final EmployeeRepository employeeRepository;
+    private final AuditTrail audit;
+
+    private static final String TARGET = "DEPARTMENT";
 
     @Override
     public List<DepartmentResponse> getAllDepartments() {
@@ -56,6 +60,7 @@ public class DepartmentServiceImpl implements DepartmentService {
 
         Department saved = departmentRepository.save(entity);
         log.info("Department created. ID: {}, code: {}", saved.getDeptId(), saved.getCode());
+        audit.record("DEPARTMENT_CREATED", TARGET, saved.getDeptId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -69,10 +74,13 @@ public class DepartmentServiceImpl implements DepartmentService {
         }
         checkHeadEmployee(request.getHeadEmployeeId());
 
+        String before = summary(existing);
         apply(existing, request, code);
         if (request.getIsActive() != null) existing.setIsActive(request.getIsActive() ? 1 : 0);
         existing.setUpdatedAt(LocalDateTime.now());
-        return toResponse(departmentRepository.save(existing));
+        Department saved = departmentRepository.save(existing);
+        audit.record("DEPARTMENT_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
 
     @Override
@@ -102,6 +110,7 @@ public class DepartmentServiceImpl implements DepartmentService {
             throw inUse(dept);
         }
         log.info("Department deleted. ID: {}, code: {}", id, dept.getCode());
+        audit.record("DEPARTMENT_DELETED", TARGET, id, summary(dept));
     }
 
     private BusinessRuleException inUse(Department dept) {
@@ -115,6 +124,13 @@ public class DepartmentServiceImpl implements DepartmentService {
         dept.setIsActive(value);
         dept.setUpdatedAt(LocalDateTime.now());
         departmentRepository.save(dept);
+        audit.record(value == 1 ? "DEPARTMENT_ACTIVATED" : "DEPARTMENT_DEACTIVATED", TARGET, id, dept.getCode());
+    }
+
+    private static String summary(Department d) {
+        return "code=" + d.getCode() + ", name=" + d.getName() + ", nameAr=" + d.getNameAr()
+            + ", head=" + d.getHeadEmployeeId() + ", costCenter=" + d.getCostCenterCode()
+            + ", active=" + d.getIsActive();
     }
 
     private void checkHeadEmployee(Long headEmployeeId) {

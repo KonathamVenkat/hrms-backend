@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -31,6 +32,9 @@ public class DesignationServiceImpl implements DesignationService {
     private final DesignationRepository designationRepository;
     private final DepartmentRepository departmentRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
+    private final AuditTrail audit;
+
+    private static final String TARGET = "DESIGNATION";
 
     @Override
     public List<DesignationResponse> getAllDesignations() {
@@ -61,6 +65,7 @@ public class DesignationServiceImpl implements DesignationService {
 
         Designation saved = designationRepository.save(entity);
         log.info("Designation created. ID: {}, code: {}", saved.getDesigId(), saved.getCode());
+        audit.record("DESIGNATION_CREATED", TARGET, saved.getDesigId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -74,10 +79,13 @@ public class DesignationServiceImpl implements DesignationService {
         }
         checkDepartment(request.getDepartmentId());
 
+        String before = summary(existing);
         apply(existing, request, code);
         if (request.getIsActive() != null) existing.setIsActive(request.getIsActive() ? 1 : 0);
         existing.setUpdatedAt(LocalDateTime.now());
-        return toResponse(designationRepository.save(existing));
+        Designation saved = designationRepository.save(existing);
+        audit.record("DESIGNATION_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
 
     @Override
@@ -103,6 +111,7 @@ public class DesignationServiceImpl implements DesignationService {
         }
         designationRepository.delete(desig);
         log.info("Designation deleted. ID: {}, code: {}", id, desig.getCode());
+        audit.record("DESIGNATION_DELETED", TARGET, id, summary(desig));
     }
 
     private void setActive(Long id, int value) {
@@ -110,6 +119,13 @@ public class DesignationServiceImpl implements DesignationService {
         desig.setIsActive(value);
         desig.setUpdatedAt(LocalDateTime.now());
         designationRepository.save(desig);
+        audit.record(value == 1 ? "DESIGNATION_ACTIVATED" : "DESIGNATION_DEACTIVATED", TARGET, id, desig.getCode());
+    }
+
+    private static String summary(Designation d) {
+        return "code=" + d.getCode() + ", title=" + d.getTitle() + ", titleAr=" + d.getTitleAr()
+            + ", grade=" + d.getGradeLevel() + ", department=" + d.getDepartmentId()
+            + ", active=" + d.getIsActive();
     }
 
     private void checkDepartment(Long departmentId) {

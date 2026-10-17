@@ -1,5 +1,6 @@
 package com.hrms.employee.service;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -30,12 +31,13 @@ class DesignationServiceImplTest {
     @Mock DesignationRepository designationRepository;
     @Mock DepartmentRepository departmentRepository;
     @Mock EmployeeJobDetailsRepository jobDetailsRepository;
+    @Mock AuditTrail audit;
 
     DesignationServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new DesignationServiceImpl(designationRepository, departmentRepository, jobDetailsRepository);
+        service = new DesignationServiceImpl(designationRepository, departmentRepository, jobDetailsRepository, audit);
     }
 
     private DesignationRequest request() {
@@ -129,6 +131,7 @@ class DesignationServiceImplTest {
         assertEquals(0, d.getIsActive());
         assertNotNull(d.getUpdatedAt());
         verify(designationRepository).save(d);
+        verify(audit).record("DESIGNATION_DEACTIVATED", "DESIGNATION", 8L, d.getCode());
     }
 
     @Test
@@ -138,6 +141,7 @@ class DesignationServiceImplTest {
 
         assertThrows(BusinessRuleException.class, () -> service.deleteDesignation(8L));
         verify(designationRepository, never()).delete(any());
+        verifyNoInteractions(audit);
     }
 
     @Test
@@ -149,5 +153,6 @@ class DesignationServiceImplTest {
         service.deleteDesignation(8L);
 
         verify(designationRepository).delete(d);
+        verify(audit).record(eq("DESIGNATION_DELETED"), eq("DESIGNATION"), eq(8L), anyString());
     }
 }

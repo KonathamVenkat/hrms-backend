@@ -1,5 +1,6 @@
 package com.hrms.employee.service;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -32,13 +33,14 @@ class DepartmentServiceImplTest {
     @Mock DesignationRepository designationRepository;
     @Mock EmployeeJobDetailsRepository jobDetailsRepository;
     @Mock EmployeeRepository employeeRepository;
+    @Mock AuditTrail audit;
 
     DepartmentServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new DepartmentServiceImpl(departmentRepository, designationRepository,
-            jobDetailsRepository, employeeRepository);
+            jobDetailsRepository, employeeRepository, audit);
     }
 
     private DepartmentRequest request() {
@@ -59,6 +61,7 @@ class DepartmentServiceImplTest {
         DepartmentResponse out = service.createDepartment(request());
 
         assertEquals("IT", out.getCode());
+        verify(audit).record(eq("DEPARTMENT_CREATED"), eq("DEPARTMENT"), any(), anyString());
         assertEquals("Information Technology", out.getName());
         assertTrue(out.getIsActive());
     }
@@ -109,6 +112,7 @@ class DepartmentServiceImplTest {
 
         assertThrows(BusinessRuleException.class, () -> service.deleteDepartment(100L));
         verify(departmentRepository, never()).delete(any());
+        verifyNoInteractions(audit);
     }
 
     @Test
@@ -119,6 +123,7 @@ class DepartmentServiceImplTest {
 
         assertThrows(BusinessRuleException.class, () -> service.deleteDepartment(100L));
         verify(departmentRepository, never()).delete(any());
+        verifyNoInteractions(audit);
     }
 
     @Test
@@ -131,6 +136,7 @@ class DepartmentServiceImplTest {
         service.deleteDepartment(100L);
 
         verify(departmentRepository).delete(d);
+        verify(audit).record(eq("DEPARTMENT_DELETED"), eq("DEPARTMENT"), eq(100L), anyString());
     }
 
     @Test

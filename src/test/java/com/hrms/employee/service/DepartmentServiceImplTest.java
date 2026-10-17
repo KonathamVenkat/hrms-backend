@@ -17,6 +17,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.dao.DataIntegrityViolationException;
+
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -129,5 +131,17 @@ class DepartmentServiceImplTest {
         service.deleteDepartment(100L);
 
         verify(departmentRepository).delete(d);
+    }
+
+    @Test
+    void delete_reportsInUseWhenForeignKeyFiresAtFlush() {
+        Department d = existing();
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(d));
+        when(designationRepository.existsByDepartmentId(100L)).thenReturn(false);
+        when(jobDetailsRepository.existsByDepartmentId(100L)).thenReturn(false);
+        doThrow(new DataIntegrityViolationException("FK")).when(departmentRepository).flush();
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.deleteDepartment(100L));
+        assertEquals("DEPARTMENT_IN_USE", ex.getRuleCode());
     }
 }

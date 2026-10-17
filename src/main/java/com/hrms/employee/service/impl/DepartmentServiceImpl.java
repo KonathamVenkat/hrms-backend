@@ -13,6 +13,7 @@ import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -91,12 +92,22 @@ public class DepartmentServiceImpl implements DepartmentService {
     public void deleteDepartment(Long id) {
         Department dept = findById(id);
         if (designationRepository.existsByDepartmentId(id) || jobDetailsRepository.existsByDepartmentId(id)) {
-            throw new BusinessRuleException("DEPARTMENT_IN_USE",
-                "Department " + dept.getCode() + " is used by designations or employee job records. "
-                    + "Deactivate it instead of deleting it.");
+            throw inUse(dept);
         }
         departmentRepository.delete(dept);
+        try {
+            // Flush now so a row added after the check above (foreign key) is reported here, not at commit.
+            departmentRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw inUse(dept);
+        }
         log.info("Department deleted. ID: {}, code: {}", id, dept.getCode());
+    }
+
+    private BusinessRuleException inUse(Department dept) {
+        return new BusinessRuleException("DEPARTMENT_IN_USE",
+            "Department " + dept.getCode() + " is used by designations or employee job records. "
+                + "Deactivate it instead of deleting it.");
     }
 
     private void setActive(Long id, int value) {

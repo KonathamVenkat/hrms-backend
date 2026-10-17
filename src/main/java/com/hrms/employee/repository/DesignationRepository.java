@@ -7,9 +7,10 @@ import java.util.List;
  
 @Repository
 public interface DesignationRepository extends JpaRepository<Designation, Long> {
-    List<Designation> findByIsActiveOrderByTitleAsc(Integer isActive);
-    List<Designation> findByDepartmentIdAndIsActiveOrderByTitleAsc(Long departmentId, Integer isActive);
+    List<Designation> findByIsActiveOrderByTitleAsc(Boolean isActive);
+    List<Designation> findByDepartmentIdAndIsActiveOrderByTitleAsc(Long departmentId, Boolean isActive);
     boolean existsByDepartmentId(Long departmentId);
+    boolean existsByDepartmentIdAndIsActive(Long departmentId, Boolean isActive);
     List<Designation> findAllByOrderByTitleAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndDesigIdNot(String code, Long desigId);

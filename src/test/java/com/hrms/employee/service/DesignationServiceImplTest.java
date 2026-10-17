@@ -12,6 +12,8 @@ import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.service.impl.DesignationServiceImpl;
+import jakarta.persistence.EntityManager;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,12 +34,13 @@ class DesignationServiceImplTest {
     @Mock DepartmentRepository departmentRepository;
     @Mock EmployeeJobDetailsRepository jobDetailsRepository;
     @Mock AuditTrail audit;
+    @Mock EntityManager entityManager;
 
     DesignationServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new DesignationServiceImpl(designationRepository, departmentRepository, jobDetailsRepository, audit);
+        service = new DesignationServiceImpl(designationRepository, departmentRepository, jobDetailsRepository, audit, entityManager);
     }
 
     private DesignationRequest request() {
@@ -47,7 +50,7 @@ class DesignationServiceImplTest {
 
     private Designation existing() {
         return Designation.builder().desigId(8L).code("SR_SWE").title("Senior Software Engineer")
-            .departmentId(100L).isActive(1).build();
+            .departmentId(100L).isActive(true).build();
     }
 
     @Test
@@ -109,7 +112,7 @@ class DesignationServiceImplTest {
     @Test
     void getAll_attachesDepartmentNamesAndToleratesNoDepartment() {
         Designation withDept = existing();
-        Designation noDept = Designation.builder().desigId(9L).code("X").title("X").isActive(0).build();
+        Designation noDept = Designation.builder().desigId(9L).code("X").title("X").isActive(false).build();
         when(departmentRepository.findAll()).thenReturn(List.of(
             Department.builder().deptId(100L).name("Information Technology").build()));
         when(designationRepository.findAllByOrderByTitleAsc()).thenReturn(List.of(withDept, noDept));
@@ -128,7 +131,7 @@ class DesignationServiceImplTest {
 
         service.deactivateDesignation(8L);
 
-        assertEquals(0, d.getIsActive());
+        assertFalse(d.getIsActive());
         assertNotNull(d.getUpdatedAt());
         verify(designationRepository).save(d);
         verify(audit).record("DESIGNATION_DEACTIVATED", "DESIGNATION", 8L, d.getCode());
@@ -154,5 +157,28 @@ class DesignationServiceImplTest {
 
         verify(designationRepository).delete(d);
         verify(audit).record(eq("DESIGNATION_DELETED"), eq("DESIGNATION"), eq(8L), anyString());
+    }
+
+    @Test
+    void update_rejectsStaleVersion() {
+        Designation d = existing();
+        d.setVersion(3L);
+        when(designationRepository.findById(8L)).thenReturn(Optional.of(d));
+        DesignationRequest r = request();
+        r.setVersion(2L);
+
+        assertThrows(OptimisticLockingFailureException.class, () -> service.updateDesignation(8L, r));
+        verify(designationRepository, never()).save(any());
+    }
+
+    @Test
+    void lookupByDepartment_returnsActiveDesignationsOfThatDepartment() {
+        when(designationRepository.findByDepartmentIdAndIsActiveOrderByTitleAsc(100L, true))
+            .thenReturn(java.util.List.of(existing()));
+
+        var out = service.getActiveLookupByDepartment(100L);
+
+        assertEquals(1, out.size());
+        assertEquals(100L, out.get(0).getDepartmentId());
     }
 }

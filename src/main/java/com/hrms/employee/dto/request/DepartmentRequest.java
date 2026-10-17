@@ -30,4 +30,7 @@ public class DepartmentRequest {
     private String costCenterCode;
 
     private Boolean isActive;
+
+    /** The version the screen was loaded with; omit to skip the stale-edit check. */
+    private Long version;
 }

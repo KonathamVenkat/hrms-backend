@@ -14,4 +14,5 @@ public class DepartmentResponse {
     private Boolean isActive;
     private String  createdAt;
     private String  updatedAt;
+    private Long    version;
 }

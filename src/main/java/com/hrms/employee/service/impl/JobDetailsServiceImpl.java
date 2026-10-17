@@ -220,13 +220,13 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private void validateAssignmentReferences(Long employeeId, JobDetailsRequest request) {
         var dept = departmentRepository.findById(request.getDepartmentId())
             .orElseThrow(() -> new ResourceNotFoundException("Department", "id", request.getDepartmentId()));
-        if (Integer.valueOf(0).equals(dept.getIsActive())) {
+        if (Boolean.FALSE.equals(dept.getIsActive())) {
             throw new BusinessRuleException("DEPARTMENT_INACTIVE", "The selected department is inactive.");
         }
 
         var desig = designationRepository.findById(request.getDesignationId())
             .orElseThrow(() -> new ResourceNotFoundException("Designation", "id", request.getDesignationId()));
-        if (Integer.valueOf(0).equals(desig.getIsActive())) {
+        if (Boolean.FALSE.equals(desig.getIsActive())) {
             throw new BusinessRuleException("DESIGNATION_INACTIVE", "The selected designation is inactive.");
         }
         if (desig.getDepartmentId() != null

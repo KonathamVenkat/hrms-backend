@@ -4,7 +4,9 @@ import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.common.util.Strings;
 import com.hrms.employee.dto.request.DepartmentRequest;
+import com.hrms.employee.dto.response.DepartmentLookupResponse;
 import com.hrms.employee.dto.response.DepartmentResponse;
 import com.hrms.employee.entity.Department;
 import com.hrms.employee.repository.DepartmentRepository;
@@ -12,6 +14,7 @@ import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.service.DepartmentService;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,17 +30,31 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class DepartmentServiceImpl implements DepartmentService {
 
+    private static final String TARGET = "DEPARTMENT";
+
     private final DepartmentRepository departmentRepository;
     private final DesignationRepository designationRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final EmployeeRepository employeeRepository;
     private final AuditTrail audit;
-
-    private static final String TARGET = "DEPARTMENT";
+    private final EntityManager entityManager;
 
     @Override
     public List<DepartmentResponse> getAllDepartments() {
         return departmentRepository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    public List<DepartmentLookupResponse> getActiveLookup() {
+        return departmentRepository.findByIsActiveOrderByNameAsc(true).stream()
+            .map(d -> DepartmentLookupResponse.builder()
+                .id(d.getDeptId())
+                .code(d.getCode())
+                .name(d.getName())
+                .nameAr(d.getNameAr())
+                .costCenterCode(d.getCostCenterCode())
+                .build())
+            .toList();
     }
 
     @Override
@@ -56,9 +73,12 @@ public class DepartmentServiceImpl implements DepartmentService {
 
         Department entity = Department.builder().build();
         apply(entity, request, code);
-        entity.setIsActive(request.getIsActive() == null || request.getIsActive() ? 1 : 0);
+        entity.setIsActive(request.getIsActive() == null || request.getIsActive());
 
         Department saved = departmentRepository.save(entity);
+        // The insert trigger stamps CREATED_AT / UPDATED_AT; read them back so the response carries them.
+        entityManager.flush();
+        entityManager.refresh(saved);
         log.info("Department created. ID: {}, code: {}", saved.getDeptId(), saved.getCode());
         audit.record("DEPARTMENT_CREATED", TARGET, saved.getDeptId(), summary(saved));
         return toResponse(saved);
@@ -68,17 +88,20 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Transactional
     public DepartmentResponse updateDepartment(Long id, DepartmentRequest request) {
         Department existing = findById(id);
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
         String code = request.getCode().trim().toUpperCase();
         if (departmentRepository.existsByCodeIgnoreCaseAndDeptIdNot(code, id)) {
             throw new DuplicateResourceException("Department", "code", code);
         }
         checkHeadEmployee(request.getHeadEmployeeId());
+        if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveDesignations(existing);
 
         String before = summary(existing);
         apply(existing, request, code);
-        if (request.getIsActive() != null) existing.setIsActive(request.getIsActive() ? 1 : 0);
+        if (request.getIsActive() != null) existing.setIsActive(request.getIsActive());
         existing.setUpdatedAt(LocalDateTime.now());
         Department saved = departmentRepository.save(existing);
+        entityManager.flush(); // so the response carries the incremented version
         audit.record("DEPARTMENT_UPDATED", TARGET, id, before + " -> " + summary(saved));
         return toResponse(saved);
     }
@@ -86,13 +109,13 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Override
     @Transactional
     public void deactivateDepartment(Long id) {
-        setActive(id, 0);
+        setActive(id, false);
     }
 
     @Override
     @Transactional
     public void activateDepartment(Long id) {
-        setActive(id, 1);
+        setActive(id, true);
     }
 
     @Override
@@ -119,12 +142,20 @@ public class DepartmentServiceImpl implements DepartmentService {
                 + "Deactivate it instead of deleting it.");
     }
 
-    private void setActive(Long id, int value) {
+    private void setActive(Long id, boolean active) {
         Department dept = findById(id);
-        dept.setIsActive(value);
+        if (!active) checkNoActiveDesignations(dept);
+        dept.setIsActive(active);
         dept.setUpdatedAt(LocalDateTime.now());
         departmentRepository.save(dept);
-        audit.record(value == 1 ? "DEPARTMENT_ACTIVATED" : "DEPARTMENT_DEACTIVATED", TARGET, id, dept.getCode());
+        audit.record(active ? "DEPARTMENT_ACTIVATED" : "DEPARTMENT_DEACTIVATED", TARGET, id, dept.getCode());
+    }
+
+    private void checkNoActiveDesignations(Department dept) {
+        if (designationRepository.existsByDepartmentIdAndIsActive(dept.getDeptId(), true)) {
+            throw new BusinessRuleException("DEPARTMENT_HAS_ACTIVE_DESIGNATIONS",
+                "Department " + dept.getCode() + " still has active designations. Deactivate them first.");
+        }
     }
 
     private static String summary(Department d) {
@@ -148,9 +179,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         d.setCode(code);
         d.setName(r.getName().trim());
         d.setNameAr(r.getNameAr().trim());
-        d.setDescription(r.getDescription());
+        d.setDescription(Strings.trimToNull(r.getDescription()));
         d.setHeadEmployeeId(r.getHeadEmployeeId());
-        d.setCostCenterCode(r.getCostCenterCode());
+        d.setCostCenterCode(Strings.trimToNull(r.getCostCenterCode()));
     }
 
     private DepartmentResponse toResponse(Department d) {
@@ -162,9 +193,10 @@ public class DepartmentServiceImpl implements DepartmentService {
             .description(d.getDescription())
             .headEmployeeId(d.getHeadEmployeeId())
             .costCenterCode(d.getCostCenterCode())
-            .isActive(d.getIsActive() != null && d.getIsActive() == 1)
+            .isActive(Boolean.TRUE.equals(d.getIsActive()))
             .createdAt(d.getCreatedAt() != null ? d.getCreatedAt().toString() : null)
             .updatedAt(d.getUpdatedAt() != null ? d.getUpdatedAt().toString() : null)
+            .version(d.getVersion())
             .build();
     }
 }

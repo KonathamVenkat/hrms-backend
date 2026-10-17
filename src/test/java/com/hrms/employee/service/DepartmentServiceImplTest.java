@@ -12,6 +12,7 @@ import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.service.impl.DepartmentServiceImpl;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 import java.util.Optional;
 
@@ -34,13 +36,14 @@ class DepartmentServiceImplTest {
     @Mock EmployeeJobDetailsRepository jobDetailsRepository;
     @Mock EmployeeRepository employeeRepository;
     @Mock AuditTrail audit;
+    @Mock EntityManager entityManager;
 
     DepartmentServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new DepartmentServiceImpl(departmentRepository, designationRepository,
-            jobDetailsRepository, employeeRepository, audit);
+            jobDetailsRepository, employeeRepository, audit, entityManager);
     }
 
     private DepartmentRequest request() {
@@ -50,7 +53,7 @@ class DepartmentServiceImplTest {
 
     private Department existing() {
         return Department.builder().deptId(100L).code("IT").name("Information Technology")
-            .nameAr("x").isActive(1).build();
+            .nameAr("x").isActive(true).build();
     }
 
     @Test
@@ -100,7 +103,7 @@ class DepartmentServiceImplTest {
 
         service.deactivateDepartment(100L);
 
-        assertEquals(0, d.getIsActive());
+        assertFalse(d.getIsActive());
         assertNotNull(d.getUpdatedAt());
         verify(departmentRepository).save(d);
     }
@@ -149,5 +152,64 @@ class DepartmentServiceImplTest {
 
         BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.deleteDepartment(100L));
         assertEquals("DEPARTMENT_IN_USE", ex.getRuleCode());
+    }
+
+    @Test
+    void deactivate_blockedWhileActiveDesignationsExist() {
+        Department d = existing();
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(d));
+        when(designationRepository.existsByDepartmentIdAndIsActive(100L, true)).thenReturn(true);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.deactivateDepartment(100L));
+        assertEquals("DEPARTMENT_HAS_ACTIVE_DESIGNATIONS", ex.getRuleCode());
+        assertTrue(d.getIsActive());
+        verify(departmentRepository, never()).save(any());
+    }
+
+    @Test
+    void update_toInactiveBlockedWhileActiveDesignationsExist() {
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(existing()));
+        when(departmentRepository.existsByCodeIgnoreCaseAndDeptIdNot("IT", 100L)).thenReturn(false);
+        when(designationRepository.existsByDepartmentIdAndIsActive(100L, true)).thenReturn(true);
+        DepartmentRequest r = request();
+        r.setIsActive(false);
+
+        assertThrows(BusinessRuleException.class, () -> service.updateDepartment(100L, r));
+        verify(departmentRepository, never()).save(any());
+    }
+
+    @Test
+    void update_rejectsStaleVersion() {
+        Department d = existing();
+        d.setVersion(3L);
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(d));
+        DepartmentRequest r = request();
+        r.setVersion(2L);
+
+        assertThrows(OptimisticLockingFailureException.class, () -> service.updateDepartment(100L, r));
+        verify(departmentRepository, never()).save(any());
+    }
+
+    @Test
+    void create_storesBlankOptionalFieldsAsNull() {
+        when(departmentRepository.save(any(Department.class))).thenAnswer(i -> i.getArgument(0));
+        DepartmentRequest r = request();
+        r.setDescription("   ");
+        r.setCostCenterCode("");
+
+        DepartmentResponse out = service.createDepartment(r);
+
+        assertNull(out.getDescription());
+        assertNull(out.getCostCenterCode());
+    }
+
+    @Test
+    void lookup_returnsOnlyActiveDepartments() {
+        when(departmentRepository.findByIsActiveOrderByNameAsc(true)).thenReturn(java.util.List.of(existing()));
+
+        var out = service.getActiveLookup();
+
+        assertEquals(1, out.size());
+        assertEquals(100L, out.get(0).getId());
     }
 }

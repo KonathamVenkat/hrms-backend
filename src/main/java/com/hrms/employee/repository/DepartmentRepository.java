@@ -7,7 +7,7 @@ import java.util.List;
 
 @Repository
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
-    List<Department> findByIsActiveOrderByNameAsc(Integer isActive);
+    List<Department> findByIsActiveOrderByNameAsc(Boolean isActive);
     List<Department> findAllByOrderByNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndDeptIdNot(String code, Long deptId);

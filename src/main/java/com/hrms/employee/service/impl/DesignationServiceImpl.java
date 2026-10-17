@@ -4,7 +4,9 @@ import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.common.util.Strings;
 import com.hrms.employee.dto.request.DesignationRequest;
+import com.hrms.employee.dto.response.DesignationLookupResponse;
 import com.hrms.employee.dto.response.DesignationResponse;
 import com.hrms.employee.entity.Department;
 import com.hrms.employee.entity.Designation;
@@ -12,6 +14,7 @@ import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.service.DesignationService;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -29,12 +31,13 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class DesignationServiceImpl implements DesignationService {
 
+    private static final String TARGET = "DESIGNATION";
+
     private final DesignationRepository designationRepository;
     private final DepartmentRepository departmentRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final AuditTrail audit;
-
-    private static final String TARGET = "DESIGNATION";
+    private final EntityManager entityManager;
 
     @Override
     public List<DesignationResponse> getAllDesignations() {
@@ -43,6 +46,17 @@ public class DesignationServiceImpl implements DesignationService {
         return designationRepository.findAllByOrderByTitleAsc().stream()
             .map(d -> toResponse(d, departmentNames.get(d.getDepartmentId())))
             .toList();
+    }
+
+    @Override
+    public List<DesignationLookupResponse> getActiveLookup() {
+        return designationRepository.findByIsActiveOrderByTitleAsc(true).stream().map(this::toLookup).toList();
+    }
+
+    @Override
+    public List<DesignationLookupResponse> getActiveLookupByDepartment(Long departmentId) {
+        return designationRepository.findByDepartmentIdAndIsActiveOrderByTitleAsc(departmentId, true).stream()
+            .map(this::toLookup).toList();
     }
 
     @Override
@@ -61,9 +75,12 @@ public class DesignationServiceImpl implements DesignationService {
 
         Designation entity = Designation.builder().build();
         apply(entity, request, code);
-        entity.setIsActive(request.getIsActive() == null || request.getIsActive() ? 1 : 0);
+        entity.setIsActive(request.getIsActive() == null || request.getIsActive());
 
         Designation saved = designationRepository.save(entity);
+        // The insert trigger stamps CREATED_AT / UPDATED_AT; read them back so the response carries them.
+        entityManager.flush();
+        entityManager.refresh(saved);
         log.info("Designation created. ID: {}, code: {}", saved.getDesigId(), saved.getCode());
         audit.record("DESIGNATION_CREATED", TARGET, saved.getDesigId(), summary(saved));
         return toResponse(saved);
@@ -73,6 +90,7 @@ public class DesignationServiceImpl implements DesignationService {
     @Transactional
     public DesignationResponse updateDesignation(Long id, DesignationRequest request) {
         Designation existing = findById(id);
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
         String code = request.getCode().trim().toUpperCase();
         if (designationRepository.existsByCodeIgnoreCaseAndDesigIdNot(code, id)) {
             throw new DuplicateResourceException("Designation", "code", code);
@@ -81,9 +99,10 @@ public class DesignationServiceImpl implements DesignationService {
 
         String before = summary(existing);
         apply(existing, request, code);
-        if (request.getIsActive() != null) existing.setIsActive(request.getIsActive() ? 1 : 0);
+        if (request.getIsActive() != null) existing.setIsActive(request.getIsActive());
         existing.setUpdatedAt(LocalDateTime.now());
         Designation saved = designationRepository.save(existing);
+        entityManager.flush(); // so the response carries the incremented version
         audit.record("DESIGNATION_UPDATED", TARGET, id, before + " -> " + summary(saved));
         return toResponse(saved);
     }
@@ -91,13 +110,13 @@ public class DesignationServiceImpl implements DesignationService {
     @Override
     @Transactional
     public void deactivateDesignation(Long id) {
-        setActive(id, 0);
+        setActive(id, false);
     }
 
     @Override
     @Transactional
     public void activateDesignation(Long id) {
-        setActive(id, 1);
+        setActive(id, true);
     }
 
     @Override
@@ -114,12 +133,12 @@ public class DesignationServiceImpl implements DesignationService {
         audit.record("DESIGNATION_DELETED", TARGET, id, summary(desig));
     }
 
-    private void setActive(Long id, int value) {
+    private void setActive(Long id, boolean active) {
         Designation desig = findById(id);
-        desig.setIsActive(value);
+        desig.setIsActive(active);
         desig.setUpdatedAt(LocalDateTime.now());
         designationRepository.save(desig);
-        audit.record(value == 1 ? "DESIGNATION_ACTIVATED" : "DESIGNATION_DEACTIVATED", TARGET, id, desig.getCode());
+        audit.record(active ? "DESIGNATION_ACTIVATED" : "DESIGNATION_DEACTIVATED", TARGET, id, desig.getCode());
     }
 
     private static String summary(Designation d) {
@@ -142,9 +161,20 @@ public class DesignationServiceImpl implements DesignationService {
     private void apply(Designation d, DesignationRequest r, String code) {
         d.setCode(code);
         d.setTitle(r.getTitle().trim());
-        d.setTitleAr(r.getTitleAr() == null || r.getTitleAr().isBlank() ? null : r.getTitleAr().trim());
-        d.setGradeLevel(r.getGradeLevel() == null || r.getGradeLevel().isBlank() ? null : r.getGradeLevel().trim());
+        d.setTitleAr(Strings.trimToNull(r.getTitleAr()));
+        d.setGradeLevel(Strings.trimToNull(r.getGradeLevel()));
         d.setDepartmentId(r.getDepartmentId());
+    }
+
+    private DesignationLookupResponse toLookup(Designation d) {
+        return DesignationLookupResponse.builder()
+            .id(d.getDesigId())
+            .code(d.getCode())
+            .title(d.getTitle())
+            .titleAr(d.getTitleAr())
+            .gradeLevel(d.getGradeLevel())
+            .departmentId(d.getDepartmentId())
+            .build();
     }
 
     private DesignationResponse toResponse(Designation d) {
@@ -162,9 +192,10 @@ public class DesignationServiceImpl implements DesignationService {
             .gradeLevel(d.getGradeLevel())
             .departmentId(d.getDepartmentId())
             .departmentName(departmentName)
-            .isActive(d.getIsActive() != null && d.getIsActive() == 1)
+            .isActive(Boolean.TRUE.equals(d.getIsActive()))
             .createdAt(d.getCreatedAt() != null ? d.getCreatedAt().toString() : null)
             .updatedAt(d.getUpdatedAt() != null ? d.getUpdatedAt().toString() : null)
+            .version(d.getVersion())
             .build();
     }
 }

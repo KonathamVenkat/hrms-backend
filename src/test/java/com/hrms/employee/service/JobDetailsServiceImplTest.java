@@ -46,10 +46,10 @@ class JobDetailsServiceImplTest {
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
         Department dept = mock(Department.class);
-        when(dept.getIsActive()).thenReturn(1);
+        when(dept.getIsActive()).thenReturn(true);
         when(departmentRepository.findById(10L)).thenReturn(Optional.of(dept));
         Designation desig = mock(Designation.class);
-        when(desig.getIsActive()).thenReturn(1);
+        when(desig.getIsActive()).thenReturn(true);
         when(desig.getDepartmentId()).thenReturn(10L);
         when(designationRepository.findById(20L)).thenReturn(Optional.of(desig));
         OfficeLocation loc = mock(OfficeLocation.class);
@@ -85,7 +85,7 @@ class JobDetailsServiceImplTest {
     @Test
     void designationMustBelongToTheSelectedDepartment() {
         Designation other = mock(Designation.class);
-        when(other.getIsActive()).thenReturn(1);
+        when(other.getIsActive()).thenReturn(true);
         when(other.getDepartmentId()).thenReturn(99L);
         when(designationRepository.findById(20L)).thenReturn(Optional.of(other));
 
@@ -97,7 +97,7 @@ class JobDetailsServiceImplTest {
     @Test
     void inactiveDepartmentIsRejected() {
         Department inactive = mock(Department.class);
-        when(inactive.getIsActive()).thenReturn(0);
+        when(inactive.getIsActive()).thenReturn(false);
         when(departmentRepository.findById(10L)).thenReturn(Optional.of(inactive));
 
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,

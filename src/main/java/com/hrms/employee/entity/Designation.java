@@ -1,5 +1,6 @@
 package com.hrms.employee.entity;
 
+import com.hrms.common.util.BooleanToNumberConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,8 +33,14 @@ public class Designation {
     @Column(name = "DEPARTMENT_ID")
     private Long departmentId;
 
+    @Convert(converter = BooleanToNumberConverter.class)
     @Column(name = "IS_ACTIVE")
-    private Integer isActive;
+    private Boolean isActive;
+
+    /** Optimistic lock: two admins saving the same row no longer overwrite each other. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 
     // CREATED_AT is stamped by the insert trigger, so it is never written from here.
     @Column(name = "CREATED_AT", insertable = false, updatable = false)

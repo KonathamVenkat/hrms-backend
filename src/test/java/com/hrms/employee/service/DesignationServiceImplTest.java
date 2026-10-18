@@ -1,6 +1,7 @@
 package com.hrms.employee.service;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -50,15 +51,14 @@ class DesignationServiceImplTest {
 
     private Designation existing() {
         return Designation.builder().desigId(8L).code("SR_SWE").title("Senior Software Engineer")
-            .departmentId(100L).isActive(true).build();
+            .departmentId(100L).isActive(true).version(0L).build();
     }
 
     @Test
     void create_normalisesFieldsAndDefaultsToActive() {
         when(designationRepository.existsByCodeIgnoreCase("SR_SWE")).thenReturn(false);
-        when(departmentRepository.existsById(100L)).thenReturn(true);
         when(departmentRepository.findById(100L)).thenReturn(Optional.of(
-            Department.builder().deptId(100L).name("Information Technology").build()));
+            Department.builder().deptId(100L).name("Information Technology").isActive(true).build()));
         when(designationRepository.save(any(Designation.class))).thenAnswer(i -> i.getArgument(0));
 
         DesignationResponse out = service.createDesignation(request());
@@ -82,7 +82,7 @@ class DesignationServiceImplTest {
     @Test
     void create_rejectsUnknownDepartment() {
         when(designationRepository.existsByCodeIgnoreCase("SR_SWE")).thenReturn(false);
-        when(departmentRepository.existsById(100L)).thenReturn(false);
+        when(departmentRepository.findById(100L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.createDesignation(request()));
         verify(designationRepository, never()).save(any());
@@ -105,8 +105,10 @@ class DesignationServiceImplTest {
     void update_rejectsAnotherDesignationsCode() {
         when(designationRepository.findById(8L)).thenReturn(Optional.of(existing()));
         when(designationRepository.existsByCodeIgnoreCaseAndDesigIdNot("SR_SWE", 8L)).thenReturn(true);
+        DesignationRequest r = request();
+        r.setVersion(0L);
 
-        assertThrows(DuplicateResourceException.class, () -> service.updateDesignation(8L, request()));
+        assertThrows(DuplicateResourceException.class, () -> service.updateDesignation(8L, r));
     }
 
     @Test
@@ -180,5 +182,52 @@ class DesignationServiceImplTest {
 
         assertEquals(1, out.size());
         assertEquals(100L, out.get(0).getDepartmentId());
+    }
+
+    @Test
+    void update_requiresVersion() {
+        when(designationRepository.findById(8L)).thenReturn(Optional.of(existing()));
+
+        assertThrows(BadRequestException.class, () -> service.updateDesignation(8L, request()));
+        verify(designationRepository, never()).save(any());
+    }
+
+    @Test
+    void create_rejectsInactiveDepartment() {
+        when(designationRepository.existsByCodeIgnoreCase("SR_SWE")).thenReturn(false);
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(
+            Department.builder().deptId(100L).code("IT").isActive(false).build()));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.createDesignation(request()));
+        assertEquals("DEPARTMENT_INACTIVE", ex.getRuleCode());
+    }
+
+    @Test
+    void activate_rejectsInactiveDepartment() {
+        Designation d = existing();
+        d.setIsActive(false);
+        when(designationRepository.findById(8L)).thenReturn(Optional.of(d));
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(
+            Department.builder().deptId(100L).code("IT").isActive(false).build()));
+
+        assertThrows(BusinessRuleException.class, () -> service.activateDesignation(8L));
+        verify(designationRepository, never()).save(any());
+    }
+
+    @Test
+    void update_blocksMovingAnInUseDesignationToAnotherDepartment() {
+        Designation d = existing();
+        d.setVersion(1L);
+        when(designationRepository.findById(8L)).thenReturn(Optional.of(d));
+        when(departmentRepository.findById(200L)).thenReturn(Optional.of(
+            Department.builder().deptId(200L).code("HR").isActive(true).build()));
+        when(jobDetailsRepository.existsByDesignationId(8L)).thenReturn(true);
+        DesignationRequest r = request();
+        r.setDepartmentId(200L);
+        r.setVersion(1L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateDesignation(8L, r));
+        assertEquals("DESIGNATION_IN_USE", ex.getRuleCode());
+        verify(designationRepository, never()).save(any());
     }
 }

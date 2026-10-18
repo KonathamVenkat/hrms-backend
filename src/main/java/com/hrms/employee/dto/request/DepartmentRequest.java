@@ -14,13 +14,16 @@ public class DepartmentRequest {
 
     @NotBlank(message = "Department name is required")
     @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Name contains control or invisible characters")
     private String name;
 
     @NotBlank(message = "Arabic department name is required")
     @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic name contains control or invisible characters")
     private String nameAr;
 
     @Size(max = 500)
+    @Pattern(regexp = "^[[^\\p{Cc}\\p{Cf}]\\r\\n\\t]*$", message = "Description contains control or invisible characters")
     private String description;
 
     /** Optional; must be an existing employee. */

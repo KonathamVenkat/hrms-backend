@@ -9,5 +9,4 @@ public class DepartmentLookupResponse {
     private String code;
     private String name;
     private String nameAr;
-    private String costCenterCode;
 }

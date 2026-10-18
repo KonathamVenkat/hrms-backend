@@ -14,9 +14,11 @@ public class DesignationRequest {
 
     @NotBlank(message = "Designation title is required")
     @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Title contains control or invisible characters")
     private String title;
 
     @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic title contains control or invisible characters")
     private String titleAr;
 
     /** Free-form grade such as E1, M1 or P3. */

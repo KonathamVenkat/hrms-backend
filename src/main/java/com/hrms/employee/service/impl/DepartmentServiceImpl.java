@@ -1,6 +1,7 @@
 package com.hrms.employee.service.impl;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -52,7 +53,6 @@ public class DepartmentServiceImpl implements DepartmentService {
                 .code(d.getCode())
                 .name(d.getName())
                 .nameAr(d.getNameAr())
-                .costCenterCode(d.getCostCenterCode())
                 .build())
             .toList();
     }
@@ -69,7 +69,7 @@ public class DepartmentServiceImpl implements DepartmentService {
         if (departmentRepository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Department", "code", code);
         }
-        checkHeadEmployee(request.getHeadEmployeeId());
+        checkHeadEmployee(request.getHeadEmployeeId(), null);
 
         Department entity = Department.builder().build();
         apply(entity, request, code);
@@ -88,12 +88,13 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Transactional
     public DepartmentResponse updateDepartment(Long id, DepartmentRequest request) {
         Department existing = findById(id);
+        if (request.getVersion() == null) throw new BadRequestException("version is required to update a department");
         Versions.requireCurrent(request.getVersion(), existing.getVersion());
         String code = request.getCode().trim().toUpperCase();
         if (departmentRepository.existsByCodeIgnoreCaseAndDeptIdNot(code, id)) {
             throw new DuplicateResourceException("Department", "code", code);
         }
-        checkHeadEmployee(request.getHeadEmployeeId());
+        checkHeadEmployee(request.getHeadEmployeeId(), existing.getHeadEmployeeId());
         if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveDesignations(existing);
 
         String before = summary(existing);
@@ -164,9 +165,13 @@ public class DepartmentServiceImpl implements DepartmentService {
             + ", active=" + d.getIsActive();
     }
 
-    private void checkHeadEmployee(Long headEmployeeId) {
-        if (headEmployeeId != null && !employeeRepository.existsById(headEmployeeId)) {
-            throw new ResourceNotFoundException("Employee", "id", headEmployeeId);
+    /** A newly named head must be an active employee; an unchanged head is left alone so other edits still save. */
+    private void checkHeadEmployee(Long headEmployeeId, Long currentHeadId) {
+        if (headEmployeeId == null || headEmployeeId.equals(currentHeadId)) return;
+        var head = employeeRepository.findById(headEmployeeId)
+            .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", headEmployeeId));
+        if (!Boolean.TRUE.equals(head.getIsActive())) {
+            throw new BusinessRuleException("HEAD_EMPLOYEE_INACTIVE", "The selected department head is not an active employee.");
         }
     }
 

@@ -1,6 +1,7 @@
 package com.hrms.employee.service.impl;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -71,11 +73,12 @@ public class DesignationServiceImpl implements DesignationService {
         if (designationRepository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Designation", "code", code);
         }
-        checkDepartment(request.getDepartmentId());
+        boolean active = request.getIsActive() == null || request.getIsActive();
+        checkDepartment(request.getDepartmentId(), active);
 
         Designation entity = Designation.builder().build();
         apply(entity, request, code);
-        entity.setIsActive(request.getIsActive() == null || request.getIsActive());
+        entity.setIsActive(active);
 
         Designation saved = designationRepository.save(entity);
         // The insert trigger stamps CREATED_AT / UPDATED_AT; read them back so the response carries them.
@@ -90,12 +93,20 @@ public class DesignationServiceImpl implements DesignationService {
     @Transactional
     public DesignationResponse updateDesignation(Long id, DesignationRequest request) {
         Designation existing = findById(id);
+        if (request.getVersion() == null) throw new BadRequestException("version is required to update a designation");
         Versions.requireCurrent(request.getVersion(), existing.getVersion());
         String code = request.getCode().trim().toUpperCase();
         if (designationRepository.existsByCodeIgnoreCaseAndDesigIdNot(code, id)) {
             throw new DuplicateResourceException("Designation", "code", code);
         }
-        checkDepartment(request.getDepartmentId());
+        boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
+        checkDepartment(request.getDepartmentId(), active);
+        // Moving an in-use designation would leave employees holding a department/designation pair that no longer matches.
+        if (!Objects.equals(request.getDepartmentId(), existing.getDepartmentId())
+                && jobDetailsRepository.existsByDesignationId(id)) {
+            throw new BusinessRuleException("DESIGNATION_IN_USE",
+                "Designation " + existing.getCode() + " is used by employee job records, so its department cannot change.");
+        }
 
         String before = summary(existing);
         apply(existing, request, code);
@@ -135,6 +146,7 @@ public class DesignationServiceImpl implements DesignationService {
 
     private void setActive(Long id, boolean active) {
         Designation desig = findById(id);
+        if (active) checkDepartment(desig.getDepartmentId(), true);
         desig.setIsActive(active);
         desig.setUpdatedAt(LocalDateTime.now());
         designationRepository.save(desig);
@@ -147,9 +159,14 @@ public class DesignationServiceImpl implements DesignationService {
             + ", active=" + d.getIsActive();
     }
 
-    private void checkDepartment(Long departmentId) {
-        if (departmentId != null && !departmentRepository.existsById(departmentId)) {
-            throw new ResourceNotFoundException("Department", "id", departmentId);
+    /** The department must exist, and an active designation needs an active department. */
+    private void checkDepartment(Long departmentId, boolean designationActive) {
+        if (departmentId == null) return;
+        Department dept = departmentRepository.findById(departmentId)
+            .orElseThrow(() -> new ResourceNotFoundException("Department", "id", departmentId));
+        if (designationActive && !Boolean.TRUE.equals(dept.getIsActive())) {
+            throw new BusinessRuleException("DEPARTMENT_INACTIVE",
+                "Department " + dept.getCode() + " is inactive, so it cannot hold an active designation.");
         }
     }
 

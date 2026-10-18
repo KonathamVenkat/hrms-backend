@@ -1,12 +1,14 @@
 package com.hrms.employee.service;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.DepartmentRequest;
 import com.hrms.employee.dto.response.DepartmentResponse;
 import com.hrms.employee.entity.Department;
+import com.hrms.employee.entity.Employee;
 import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
@@ -53,7 +55,7 @@ class DepartmentServiceImplTest {
 
     private Department existing() {
         return Department.builder().deptId(100L).code("IT").name("Information Technology")
-            .nameAr("x").isActive(true).build();
+            .nameAr("x").isActive(true).version(0L).build();
     }
 
     @Test
@@ -82,7 +84,7 @@ class DepartmentServiceImplTest {
         DepartmentRequest r = request();
         r.setHeadEmployeeId(999L);
         when(departmentRepository.existsByCodeIgnoreCase("IT")).thenReturn(false);
-        when(employeeRepository.existsById(999L)).thenReturn(false);
+        when(employeeRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.createDepartment(r));
         verify(departmentRepository, never()).save(any());
@@ -92,8 +94,10 @@ class DepartmentServiceImplTest {
     void update_allowsOwnCodeButRejectsAnotherDepartmentsCode() {
         when(departmentRepository.findById(100L)).thenReturn(Optional.of(existing()));
         when(departmentRepository.existsByCodeIgnoreCaseAndDeptIdNot("IT", 100L)).thenReturn(true);
+        DepartmentRequest r = request();
+        r.setVersion(0L);
 
-        assertThrows(DuplicateResourceException.class, () -> service.updateDepartment(100L, request()));
+        assertThrows(DuplicateResourceException.class, () -> service.updateDepartment(100L, r));
     }
 
     @Test
@@ -173,6 +177,7 @@ class DepartmentServiceImplTest {
         when(designationRepository.existsByDepartmentIdAndIsActive(100L, true)).thenReturn(true);
         DepartmentRequest r = request();
         r.setIsActive(false);
+        r.setVersion(0L);
 
         assertThrows(BusinessRuleException.class, () -> service.updateDepartment(100L, r));
         verify(departmentRepository, never()).save(any());
@@ -211,5 +216,27 @@ class DepartmentServiceImplTest {
 
         assertEquals(1, out.size());
         assertEquals(100L, out.get(0).getId());
+    }
+
+    @Test
+    void update_requiresVersion() {
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(existing()));
+
+        assertThrows(BadRequestException.class, () -> service.updateDepartment(100L, request()));
+        verify(departmentRepository, never()).save(any());
+    }
+
+    @Test
+    void create_rejectsInactiveHeadEmployee() {
+        DepartmentRequest r = request();
+        r.setHeadEmployeeId(7L);
+        when(departmentRepository.existsByCodeIgnoreCase("IT")).thenReturn(false);
+        Employee e = new Employee();
+        e.setIsActive(false);
+        when(employeeRepository.findById(7L)).thenReturn(Optional.of(e));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.createDepartment(r));
+        assertEquals("HEAD_EMPLOYEE_INACTIVE", ex.getRuleCode());
+        verify(departmentRepository, never()).save(any());
     }
 }

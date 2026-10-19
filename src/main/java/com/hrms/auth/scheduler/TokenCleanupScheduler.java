@@ -18,7 +18,7 @@ public class TokenCleanupScheduler {
     @Scheduled(cron = "${hrms.jwt.cleanup-cron:0 0 2 * * *}")
     @Transactional
     public void purgeExpiredTokens() {
-        int deleted = refreshTokenRepository.deleteExpiredAndRevoked(Instant.now());
-        log.info("Token cleanup: removed {} expired/revoked tokens", deleted);
+        int deleted = refreshTokenRepository.deleteExpired(Instant.now());
+        log.info("Token cleanup: removed {} expired tokens", deleted);
     }
 }

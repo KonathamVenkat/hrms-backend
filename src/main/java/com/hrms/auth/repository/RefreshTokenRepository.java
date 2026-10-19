@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
@@ -25,11 +26,22 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("UPDATE RefreshToken rt SET rt.isRevoked = true WHERE rt.token = :token")
     int revokeByToken(@Param("token") String token);
 
-    /** House-keeping — purge expired or revoked tokens older than 30 days. */
+    /**
+     * Revokes a token only while it is still active. The count is 1 for exactly one caller, so two
+     * concurrent refreshes with the same cookie cannot both rotate it.
+     */
     @Modifying
-    @Query("""
-        DELETE FROM RefreshToken rt
-        WHERE (rt.isRevoked = true OR rt.expiryDate < :cutoff)
-        """)
-    int deleteExpiredAndRevoked(@Param("cutoff") Instant cutoff);
+    @Query("UPDATE RefreshToken rt SET rt.isRevoked = true WHERE rt.token = :token AND rt.isRevoked = false")
+    int revokeIfActive(@Param("token") String token);
+
+    /** True when the user was issued a token after the given time, i.e. a rotation happened moments ago. */
+    boolean existsByUser_UserIdAndCreatedAtAfter(Long userId, LocalDateTime createdAfter);
+
+    /**
+     * House-keeping: purge tokens past their expiry. Revoked tokens stay until they expire, so a replay of a
+     * rotated token can still be recognised.
+     */
+    @Modifying
+    @Query("DELETE FROM RefreshToken rt WHERE rt.expiryDate < :cutoff")
+    int deleteExpired(@Param("cutoff") Instant cutoff);
 }

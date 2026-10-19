@@ -48,6 +48,9 @@ spring.jackson.default-property-inclusion=NON_NULL
 hrms.jwt.secret=${HRMS_JWT_SECRET}
 hrms.jwt.expiration-ms=1800000
 hrms.jwt.refresh-expiration-ms=604800000
+# A refresh token works once. Within this many seconds of a rotation, another tab of the same browser that still
+# sends the old cookie gets an access token only; later, the used token is refused. Rotation never extends the session.
+hrms.jwt.refresh-reuse-grace-seconds=10
 
 # Refresh-token cookie. Secure must stay true outside local development (HTTPS only).
 hrms.auth.refresh-cookie.secure=${HRMS_REFRESH_COOKIE_SECURE:true}

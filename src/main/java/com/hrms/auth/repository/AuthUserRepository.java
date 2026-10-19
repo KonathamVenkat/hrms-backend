@@ -2,6 +2,8 @@ package com.hrms.auth.repository;
 
 import com.hrms.auth.entity.AuthUser;
 import org.springframework.data.jpa.repository.JpaRepository;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +25,19 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, Long> {
           AND u.isActive = true
         """)
     Optional<AuthUser> findByUsernameOrEmail(@Param("identifier") String identifier);
+
+    /**
+     * Same lookup, but the row stays locked until the transaction ends. Login and change-password use it so that
+     * concurrent password guesses for one account queue up and each sees the previous attempt's committed count.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT u FROM AuthUser u
+        WHERE (LOWER(u.username) = LOWER(:identifier)
+           OR  LOWER(u.email)    = LOWER(:identifier))
+          AND u.isActive = true
+        """)
+    Optional<AuthUser> findByUsernameOrEmailForUpdate(@Param("identifier") String identifier);
     
     Optional<AuthUser> findByEmployeeId(Long employeeId);
     

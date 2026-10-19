@@ -98,12 +98,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
 
-        String message = extractEnumErrorMessage(ex);
-        log.warn("Unreadable request on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        // The framework message names internal classes and echoes the caller's input, so it is only logged
+        // (without control characters), never returned.
+        log.warn("Unreadable request on [{}]: {}", request.getRequestURI(), forLog(ex.getMessage()));
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(400, message));
+                .body(ApiResponse.error(400, UNREADABLE_BODY_MESSAGE));
     }
 
     /**
@@ -290,12 +291,14 @@ public class GlobalExceptionHandler {
     // Private helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private String extractEnumErrorMessage(HttpMessageNotReadableException ex) {
-        String cause = ex.getMostSpecificCause().getMessage();
-        if (cause != null && cause.contains("not one of the values accepted")) {
-            return "Invalid value provided. " + cause.replaceAll("\\[.*?\\]", "").trim();
-        }
-        return "Invalid or malformed request body. Please check your JSON format and field values.";
+    private static final String UNREADABLE_BODY_MESSAGE =
+            "Invalid or malformed request body. Please check your JSON format and field values.";
+
+    /** Caller-influenced text for a log line: control characters become '?' and the length is capped. */
+    private static String forLog(String text) {
+        if (text == null) return null;
+        String s = text.replaceAll("[\\p{Cc}\\p{Cf}\\u2028\\u2029]", "?");
+        return s.length() > 300 ? s.substring(0, 300) : s;
     }
 
     private String resolveDataIntegrityMessage(DataIntegrityViolationException ex) {

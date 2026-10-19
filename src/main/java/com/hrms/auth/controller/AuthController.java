@@ -3,6 +3,7 @@ package com.hrms.auth.controller;
 import com.hrms.auth.dto.request.*;
 import com.hrms.auth.dto.response.*;
 import com.hrms.auth.service.AuthService;
+import com.hrms.auth.service.LogText;
 import com.hrms.auth.security.RefreshCookie;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.exception.InvalidTokenException;
@@ -49,7 +50,7 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest) {
 
-        log.info("Login attempt — identifier={}", request.username());
+        log.info("Login attempt — identifier={}", LogText.clean(request.username()));
         LoginResponse response = authService.login(request, httpRequest);
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, refreshCookie.create(response.refreshToken()))
@@ -68,9 +69,12 @@ public class AuthController {
         String token = refreshCookie.read(httpRequest)
             .orElseThrow(() -> new InvalidTokenException("Refresh token not found."));
         LoginResponse response = authService.refreshToken(new RefreshTokenRequest(token), httpRequest);
-        return ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, refreshCookie.create(response.refreshToken()))
-            .body(ApiResponse.success("Token refreshed", response.withoutRefreshToken()));
+        // No refresh token means another tab rotated it a moment ago; the browser already holds the new cookie
+        ResponseEntity.BodyBuilder reply = ResponseEntity.ok();
+        if (response.refreshToken() != null) {
+            reply.header(HttpHeaders.SET_COOKIE, refreshCookie.create(response.refreshToken()));
+        }
+        return reply.body(ApiResponse.success("Token refreshed", response.withoutRefreshToken()));
     }
 
     // ── POST /api/v1/auth/logout ──────────────────────────────────────────

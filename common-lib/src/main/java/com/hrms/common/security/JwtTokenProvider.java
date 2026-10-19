@@ -143,15 +143,10 @@ public class JwtTokenProvider {
                 .parseSignedClaims(token);
             return true;
         } catch (ExpiredJwtException ex) {
-            log.warn("JWT token is expired: {}", ex.getMessage());
-        } catch (UnsupportedJwtException ex) {
-            log.warn("JWT token is unsupported: {}", ex.getMessage());
-        } catch (MalformedJwtException ex) {
-            log.warn("JWT token is malformed: {}", ex.getMessage());
-        } catch (SecurityException ex) {
-            log.warn("JWT signature validation failed: {}", ex.getMessage());
-        } catch (IllegalArgumentException ex) {
-            log.warn("JWT token compact string is empty or null: {}", ex.getMessage());
+            log.warn("JWT token is expired");
+        } catch (JwtException | IllegalArgumentException ex) {
+            // Covers a bad signature too. The exception message can quote the caller's token, so only its type is logged.
+            log.warn("JWT token rejected: {}", ex.getClass().getSimpleName());
         }
         return false;
     }

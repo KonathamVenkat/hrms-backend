@@ -129,4 +129,14 @@ class AuthControllerCookieTest {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.message").value("Account is locked. Please try again later."));
     }
+
+    @Test
+    void aRefreshWithoutANewTokenLeavesTheBrowsersCookieAlone() throws Exception {
+        when(authService.refreshToken(any(), any())).thenReturn(tokens(null));
+
+        mvc.perform(post("/api/v1/auth/refresh").cookie(new Cookie("hrms_refresh", "old")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.accessToken").value("access-jwt"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+    }
 }

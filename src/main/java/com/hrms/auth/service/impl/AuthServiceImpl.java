@@ -17,6 +17,7 @@ import com.hrms.auth.repository.AuthUserRepository;
 import com.hrms.auth.repository.RefreshTokenRepository;
 import com.hrms.auth.security.UserDetailsServiceImpl;
 import com.hrms.auth.service.AuthService;
+import com.hrms.auth.service.LogText;
 import com.hrms.common.exception.AccountDisabledException;
 import com.hrms.common.exception.AccountLockedException;
 import com.hrms.common.exception.InvalidTokenException;
@@ -60,6 +61,10 @@ public class AuthServiceImpl implements AuthService {
     @Value("${hrms.jwt.rotate-refresh-token:true}")
     private boolean rotateRefreshToken;
 
+    /** How long after a rotation a second request with the old cookie (another tab) still gets an access token. */
+    @Value("${hrms.jwt.refresh-reuse-grace-seconds:10}")
+    private long reuseGraceSeconds;
+
     /**
      * noRollbackFor is essential: a bad password increments the failed-attempts counter and
      * THEN throws. Without it the runtime exception rolls the increment back and the
@@ -70,13 +75,14 @@ public class AuthServiceImpl implements AuthService {
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         // LoginRequest is a record — use record accessor methods
         String identifier = request.username().trim();
-        AuthUser user = authUserRepository.findByUsernameOrEmail(identifier)
+        // The row is locked until this transaction ends, so parallel guesses for one account run one after
+        // another and the lock check below always sees the previous attempt's committed failure count.
+        AuthUser user = authUserRepository.findByUsernameOrEmailForUpdate(identifier)
             .orElseThrow(() -> {
                 // Same work as a real attempt, so response time does not reveal whether the user exists
                 passwordEncoder.matches(request.password(), dummyHash());
                 // Free text typed by an anonymous caller: strip control characters and cap the length
-                String shown = identifier.replaceAll("\\p{Cntrl}", "?");
-                shown = shown.length() > 100 ? shown.substring(0, 100) : shown;
+                String shown = LogText.clean(identifier);
                 audit.recordAs(shown, "LOGIN_FAILED", "USER", shown, "unknown user");
                 return new BadCredentialsException("Invalid username or password.");
             });
@@ -113,33 +119,50 @@ public class AuthServiceImpl implements AuthService {
         return buildResponse(user, accessToken, rt.getToken());
     }
 
+    /**
+     * A refresh token works once. The conditional revoke decides a race: exactly one request rotates the token.
+     * A request that finds it already used within a few seconds is another tab of the same browser, which shares
+     * the winner's new cookie, so it gets an access token only. A used token presented later is refused and
+     * audited. The replacement expires with the token it replaces, so rotation never extends a session.
+     * noRollbackFor keeps the audit row when the call is refused.
+     */
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = InvalidTokenException.class)
     public LoginResponse refreshToken(RefreshTokenRequest request, HttpServletRequest httpRequest) {
         // RefreshTokenRequest is a record
         RefreshToken rt = refreshTokenRepository.findByToken(request.refreshToken())
             .orElseThrow(() -> new InvalidTokenException("Refresh token not found."));
 
-        if (!rt.isValid()) {
-            if (rt.isExpired()) {
-                refreshTokenRepository.revokeByToken(request.refreshToken());
-                throw new InvalidTokenException("Refresh token expired. Please login again.");
-            }
-            throw new InvalidTokenException("Refresh token revoked. Please login again.");
+        if (rt.isExpired()) {
+            throw new InvalidTokenException("Refresh token expired. Please login again.");
         }
 
         AuthUser user = rt.getUser();
         validateAccountState(user);
 
-        String newAccess = generateToken(user);
-        String rtValue   = request.refreshToken();
-
-        if (rotateRefreshToken) {
-            refreshTokenRepository.revokeByToken(rtValue);
-            rtValue = createRefreshToken(user, httpRequest).getToken();
+        boolean alreadyUsed = Boolean.TRUE.equals(rt.getIsRevoked())
+            || (rotateRefreshToken && refreshTokenRepository.revokeIfActive(request.refreshToken()) == 0);
+        if (alreadyUsed) {
+            return answerUsedToken(user);
         }
 
-        return buildResponse(user, newAccess, rtValue);
+        String newAccess = generateToken(user);
+        if (!rotateRefreshToken) {
+            return buildResponse(user, newAccess, request.refreshToken());
+        }
+        String next = createRefreshToken(user, httpRequest, rt.getExpiryDate()).getToken();
+        return buildResponse(user, newAccess, next);
+    }
+
+    /** Answer for a token that was already rotated or revoked: tolerate the same-moment tab, refuse a later replay. */
+    private LoginResponse answerUsedToken(AuthUser user) {
+        LocalDateTime graceStart = LocalDateTime.now().minusSeconds(reuseGraceSeconds);
+        if (refreshTokenRepository.existsByUser_UserIdAndCreatedAtAfter(user.getUserId(), graceStart)) {
+            return buildResponse(user, generateToken(user), null);
+        }
+        audit.recordAs(user.getUsername(), "REFRESH_TOKEN_REJECTED", "USER", user.getUserId(),
+            "a revoked or already used refresh token was presented");
+        throw new InvalidTokenException("Refresh token revoked. Please login again.");
     }
 
     @Override
@@ -173,8 +196,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(noRollbackFor = BusinessRuleException.class)
     public void changePassword(String username, ChangePasswordRequest request) {
-        AuthUser user = authUserRepository.findByUsernameOrEmail(username)
+        AuthUser user = authUserRepository.findByUsernameOrEmailForUpdate(username)
             .orElseThrow(() -> new InvalidTokenException("User not found."));
+
+        // The lock applies here too: an already-issued access token must not keep guessing the current password
+        validateAccountState(user);
 
         if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
             // A stolen session must not be able to brute-force the current password for free
@@ -193,6 +219,8 @@ public class AuthServiceImpl implements AuthService {
         user.setMustChangePassword(0);
         user.setPasswordChangedAt(LocalDateTime.now());
         user.setFailedAttempts(0);
+        user.setIsLocked(false);
+        user.setLockTime(null);
         user.setUpdatedBy(user.getUsername());
         authUserRepository.save(user);
 
@@ -242,10 +270,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private RefreshToken createRefreshToken(AuthUser user, HttpServletRequest req) {
+        return createRefreshToken(user, req, Instant.now().plusMillis(refreshTokenExpiryMs));
+    }
+
+    private RefreshToken createRefreshToken(AuthUser user, HttpServletRequest req, Instant expiry) {
         return refreshTokenRepository.save(RefreshToken.builder()
             .token(UUID.randomUUID().toString())
             .user(user)
-            .expiryDate(Instant.now().plusMillis(refreshTokenExpiryMs))
+            .expiryDate(expiry)
             .isRevoked(false)
             .userAgent(truncate(req.getHeader("User-Agent"), 500))
             .ipAddress(clientIp(req))

@@ -35,13 +35,14 @@ class JobDetailsServiceImplTest {
     @Mock DesignationRepository designationRepository;
     @Mock OfficeLocationRepository locationRepository;
     @Mock WorkShiftRepository shiftRepository;
+    @Mock com.hrms.employee.service.DepartmentHeadService departmentHeads;
 
     JobDetailsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, locationRepository, shiftRepository);
+            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -158,6 +159,7 @@ class JobDetailsServiceImplTest {
         assertThrows(java.util.NoSuchElementException.class,   // reaches the final lookup, i.e. past the date check
             () -> service.assignJob(5L, request(LocalDate.now())));
         verify(jobDetailsRepository).save(any());
+        verify(departmentHeads).clearHeadOf(5L, 10L);
     }
 
     @Test

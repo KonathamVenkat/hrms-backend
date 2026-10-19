@@ -59,6 +59,23 @@ class DepartmentServiceImplTest {
     }
 
     @Test
+    void list_carriesTheHeadNameFromOneBatchLookup() {
+        Department withHead = Department.builder().deptId(1L).code("IT").name("IT").headEmployeeId(5L).isActive(true).build();
+        Department noHead = Department.builder().deptId(2L).code("HR").name("HR").isActive(true).build();
+        Employee head = mock(Employee.class);
+        when(head.getId()).thenReturn(5L);
+        when(head.getFullName()).thenReturn("Jane Doe");
+        when(departmentRepository.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(withHead, noHead));
+        when(employeeRepository.findAllById(java.util.List.of(5L))).thenReturn(java.util.List.of(head));
+
+        var result = service.getAllDepartments();
+
+        assertEquals("Jane Doe", result.get(0).getHeadEmployeeName());
+        assertNull(result.get(1).getHeadEmployeeName());
+        verify(employeeRepository, times(1)).findAllById(any());
+    }
+
+    @Test
     void create_normalisesCodeAndDefaultsToActive() {
         when(departmentRepository.existsByCodeIgnoreCase("IT")).thenReturn(false);
         when(departmentRepository.save(any(Department.class))).thenAnswer(i -> i.getArgument(0));

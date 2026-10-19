@@ -53,6 +53,7 @@ class EmployeeServiceImplTest {
     @Mock PasswordEncoder passwordEncoder;
     @Mock EmployeeAccessGuard accessGuard;
     @Mock com.hrms.employee.repository.EmployeeJobDetailsRepository jobDetails;
+    @Mock com.hrms.employee.service.DepartmentHeadService departmentHeads;
 
     EmployeeServiceImpl service;
 
@@ -62,7 +63,7 @@ class EmployeeServiceImplTest {
             employeeRepository, employeeMapper, accessGuard,
             new WorkEmailGenerator(employeeRepository, authUserRepository, "nilepet.com"),
             new EmployeeLoginAccounts(authUserRepository, passwordEncoder),
-            jobDetails, mock(AuditTrail.class));
+            jobDetails, mock(AuditTrail.class), departmentHeads);
     }
 
     @Test
@@ -321,6 +322,7 @@ class EmployeeServiceImplTest {
         assertEquals(EmploymentStatus.RESIGNED, e.getEmploymentStatus());
         assertFalse(login.getIsActive());
         verify(authUserRepository).save(login);
+        verify(departmentHeads).clearHeadOf(5L, null);
     }
 
     @Test

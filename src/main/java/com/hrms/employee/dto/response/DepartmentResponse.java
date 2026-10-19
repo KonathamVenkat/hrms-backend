@@ -10,6 +10,8 @@ public class DepartmentResponse {
     private String  nameAr;
     private String  description;
     private Long    headEmployeeId;
+    /** Read-only; the head is set from the employee's job details. */
+    private String  headEmployeeName;
     private String  costCenterCode;
     private Boolean isActive;
     private String  createdAt;

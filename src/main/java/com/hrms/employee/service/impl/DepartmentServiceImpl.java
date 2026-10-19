@@ -24,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -42,7 +45,9 @@ public class DepartmentServiceImpl implements DepartmentService {
 
     @Override
     public List<DepartmentResponse> getAllDepartments() {
-        return departmentRepository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
+        List<Department> all = departmentRepository.findAllByOrderByNameAsc();
+        Map<Long, String> heads = headNames(all.stream().map(Department::getHeadEmployeeId).filter(Objects::nonNull).distinct().toList());
+        return all.stream().map(d -> toResponse(d, heads)).toList();
     }
 
     @Override
@@ -190,6 +195,18 @@ public class DepartmentServiceImpl implements DepartmentService {
     }
 
     private DepartmentResponse toResponse(Department d) {
+        Long headId = d.getHeadEmployeeId();
+        return toResponse(d, headNames(headId == null ? List.of() : List.of(headId)));
+    }
+
+    /** One query for all head names, so the department list does not look each head up separately. */
+    private Map<Long, String> headNames(List<Long> employeeIds) {
+        if (employeeIds.isEmpty()) return Map.of();
+        return employeeRepository.findAllById(employeeIds).stream()
+            .collect(Collectors.toMap(e -> e.getId(), e -> e.getFullName()));
+    }
+
+    private DepartmentResponse toResponse(Department d, Map<Long, String> headNames) {
         return DepartmentResponse.builder()
             .deptId(d.getDeptId())
             .code(d.getCode())
@@ -197,6 +214,7 @@ public class DepartmentServiceImpl implements DepartmentService {
             .nameAr(d.getNameAr())
             .description(d.getDescription())
             .headEmployeeId(d.getHeadEmployeeId())
+            .headEmployeeName(d.getHeadEmployeeId() == null ? null : headNames.get(d.getHeadEmployeeId()))
             .costCenterCode(d.getCostCenterCode())
             .isActive(Boolean.TRUE.equals(d.getIsActive()))
             .createdAt(d.getCreatedAt() != null ? d.getCreatedAt().toString() : null)

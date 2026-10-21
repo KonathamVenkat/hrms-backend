@@ -9,6 +9,7 @@ import com.hrms.employee.dto.request.CompanyBranchRequest;
 import com.hrms.employee.dto.response.CompanyBranchResponse;
 import com.hrms.employee.entity.CompanyBranch;
 import com.hrms.employee.repository.CompanyBranchRepository;
+import com.hrms.employee.repository.DirectorateRepository;
 import com.hrms.employee.repository.CompanyRepository;
 import com.hrms.employee.entity.Company;
 import com.hrms.employee.service.CompanyBranchService;
@@ -32,6 +33,7 @@ public class CompanyBranchServiceImpl implements CompanyBranchService {
 
     private final CompanyBranchRepository repository;
     private final CompanyRepository companyRepository;
+    private final DirectorateRepository directorateRepository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
 
@@ -81,6 +83,7 @@ public class CompanyBranchServiceImpl implements CompanyBranchService {
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getCompanyId(), active);
+        if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveChildren(existing);
 
         String before = summary(existing);
         apply(existing, request, code);
@@ -127,10 +130,19 @@ public class CompanyBranchServiceImpl implements CompanyBranchService {
     private void setActive(Long id, boolean active) {
         CompanyBranch e = findById(id);
         if (active) checkParent(e.getCompanyId(), true);
+        else checkNoActiveChildren(e);
         e.setIsActive(active);
         e.setUpdatedAt(LocalDateTime.now());
         repository.save(e);
         audit.record(active ? "COMPANY_BRANCH_ACTIVATED" : "COMPANY_BRANCH_DEACTIVATED", TARGET, id, e.getCode());
+    }
+
+    /** A branch cannot be switched off while it still has active directorates. */
+    private void checkNoActiveChildren(CompanyBranch e) {
+        if (directorateRepository.existsByCompanyBranchIdAndIsActive(e.getId(), true)) {
+            throw new BusinessRuleException("MASTER_HAS_ACTIVE_CHILDREN",
+                "Company branch " + e.getCode() + " still has active directorates. Deactivate them first.");
+        }
     }
 
     /** The company must exist, and an active company branch needs an active company. */

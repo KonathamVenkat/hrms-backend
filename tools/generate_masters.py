@@ -7,16 +7,51 @@ import pathlib, re, sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "src" / "main" / "java" / "com" / "hrms" / "employee"
 P = "com.hrms.employee"
 
-# cls, label, table, idcol, path, parent=(cls, field, col, label) | None, child=(cls, label) | None
+# cls, label, table, idcol, path, parent=(cls, field, col, label) | None, child=(cls, label, field on the child) | None
+# gen=False: already generated and since edited by hand (CompanyBranch has V8 columns), so never overwritten.
+# sort=True: the table has a nullable SORT_ORDER and rows are listed by it.
+# lookup is left out on purpose: no HR screen reads these dropdowns yet, so no unused endpoint code is generated.
 MASTERS = [
     dict(cls="Bank", label="Bank", table="BANKS", idcol="BANK_ID", path="banks", parent=None,
-         child=("BankBranch", "bank branches"), lookup="all"),
+         child=("BankBranch", "bank branches", "bankId"), lookup="all", gen=False),
     dict(cls="BankBranch", label="Bank branch", table="BANK_BRANCHES", idcol="BANK_BRANCH_ID", path="bank-branches",
-         parent=("Bank", "bankId", "BANK_ID", "Bank"), child=None, lookup="byParent"),
+         parent=("Bank", "bankId", "BANK_ID", "Bank"), child=None, lookup="byParent", gen=False),
     dict(cls="Company", label="Company", table="COMPANIES", idcol="COMPANY_ID", path="companies", parent=None,
-         child=("CompanyBranch", "company branches")),
+         child=("CompanyBranch", "company branches", "companyId"), gen=False),
     dict(cls="CompanyBranch", label="Company branch", table="COMPANY_BRANCHES", idcol="COMPANY_BRANCH_ID",
-         path="company-branches", parent=("Company", "companyId", "COMPANY_ID", "Company"), child=None),
+         path="company-branches", parent=("Company", "companyId", "COMPANY_ID", "Company"), child=None, gen=False),
+    # Geography: region > wilaya > province > city.
+    dict(cls="Region", label="Region", table="REGIONS", idcol="REGION_ID", path="regions", parent=None,
+         child=("Wilaya", "wilayas", "regionId")),
+    dict(cls="Wilaya", label="Wilaya", table="WILAYAS", idcol="WILAYA_ID", path="wilayas",
+         parent=("Region", "regionId", "REGION_ID", "Region"), child=("Province", "provinces", "wilayaId")),
+    dict(cls="Province", label="Province", table="PROVINCES", idcol="PROVINCE_ID", path="provinces",
+         parent=("Wilaya", "wilayaId", "WILAYA_ID", "Wilaya"), child=("City", "cities", "provinceId")),
+    dict(cls="City", label="City", table="CITIES", idcol="CITY_ID", path="cities",
+         parent=("Province", "provinceId", "PROVINCE_ID", "Province"), child=None),
+    # Employee reference lists.
+    dict(cls="Religion", label="Religion", table="RELIGIONS", idcol="RELIGION_ID", path="religions", parent=None, child=None),
+    dict(cls="Nationality", label="Nationality", table="NATIONALITIES", idcol="NATIONALITY_ID", path="nationalities",
+         parent=None, child=None),
+    dict(cls="ContractType", label="Contract type", table="CONTRACT_TYPES", idcol="CONTRACT_TYPE_ID",
+         path="contract-types", parent=None, child=None),
+    dict(cls="Profession", label="Profession", table="PROFESSIONS", idcol="PROFESSION_ID", path="professions",
+         parent=None, child=None),
+    dict(cls="EducationLevel", label="Education level", table="EDUCATION_LEVELS", idcol="EDUCATION_LEVEL_ID",
+         path="education-levels", parent=None, child=None),
+    dict(cls="Language", label="Language", table="LANGUAGES", idcol="LANGUAGE_ID", path="languages", parent=None, child=None),
+    dict(cls="LanguageLevel", label="Language level", table="LANGUAGE_LEVELS", idcol="LANGUAGE_LEVEL_ID",
+         path="language-levels", parent=None, child=None),
+    dict(cls="HouseType", label="House type", table="HOUSE_TYPES", idcol="HOUSE_TYPE_ID", path="house-types",
+         parent=None, child=None),
+    dict(cls="RelationType", label="Relation type", table="RELATION_TYPES", idcol="RELATION_TYPE_ID",
+         path="relation-types", parent=None, child=("Relation", "relations", "relationTypeId")),
+    dict(cls="Relation", label="Relation", table="RELATIONS", idcol="RELATION_ID", path="relations",
+         parent=("RelationType", "relationTypeId", "RELATION_TYPE_ID", "Relation type"), child=None),
+    dict(cls="Directorate", label="Directorate", table="DIRECTORATES", idcol="DIRECTORATE_ID", path="directorates",
+         parent=("CompanyBranch", "companyBranchId", "COMPANY_BRANCH_ID", "Company branch"), child=None),
+    # GRADES.COMPANY_ID is optional and unused (the grade scale applies to every company), so it is not mapped.
+    dict(cls="Grade", label="Grade", table="GRADES", idcol="GRADE_ID", path="grades", parent=None, child=None, sort=True),
 ]
 
 
@@ -34,6 +69,12 @@ def entity(m):
         parent = f'''
     @Column(name = "{col}", nullable = false)
     private Long {fld};
+'''
+    sort = ""
+    if m.get("sort"):
+        sort = '''
+    @Column(name = "SORT_ORDER")
+    private Integer sortOrder;
 '''
     return f'''package {P}.entity;
 
@@ -63,7 +104,7 @@ public class {c} {{
 
     @Column(name = "{t}_NAME_AR", nullable = false, columnDefinition = "NVARCHAR2(200)")
     private String nameAr;
-
+{sort}
     @Convert(converter = BooleanToNumberConverter.class)
     @Column(name = "IS_ACTIVE", nullable = false)
     private Boolean isActive;
@@ -85,6 +126,7 @@ public class {c} {{
 
 def repository(m):
     c = m["cls"]
+    order = "findAllByOrderBySortOrderAscNameAsc" if m.get("sort") else "findAllByOrderByNameAsc"
     return f'''package {P}.repository;
 
 import {P}.entity.{c};
@@ -94,7 +136,7 @@ import java.util.List;
 
 @Repository
 public interface {c}Repository extends JpaRepository<{c}, Long> {{
-    List<{c}> findAllByOrderByNameAsc();
+    List<{c}> {order}();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
 {lookup_repo(m)}{child_repo(m)}}}
@@ -168,6 +210,12 @@ def child_repository_extra(m):
 
 def request(m):
     l = m["label"]
+    sort = ""
+    if m.get("sort"):
+        sort = '''    @Min(0) @Max(9999)
+    private Integer sortOrder;
+
+'''
     parent = ""
     if m["parent"]:
         _, fld, _, plabel = m["parent"]
@@ -199,7 +247,7 @@ public class {m["cls"]}Request {{
     @Pattern(regexp = "^[^\\\\p{{Cc}}\\\\p{{Cf}}]*$", message = "Arabic name contains control or invisible characters")
     private String nameAr;
 
-    private Boolean isActive;
+{sort}    private Boolean isActive;
 
     /** The version the screen was loaded with; omit to skip the stale-edit check. */
     private Long version;
@@ -211,6 +259,8 @@ def response(m):
     parent = ""
     if m["parent"]:
         parent = f"    private Long    {m['parent'][1]};\n"
+    if m.get("sort"):
+        parent += "    private Integer sortOrder;\n"
     return f'''package {P}.dto.response;
 
 import lombok.*;
@@ -253,6 +303,10 @@ public interface {c}Service {{
 def impl(m):
     c, l = m["cls"], m["label"]
     ll = l.lower()
+    order = "findAllByOrderBySortOrderAscNameAsc" if m.get("sort") else "findAllByOrderByNameAsc"
+    sort_apply = "        e.setSortOrder(r.getSortOrder());\n" if m.get("sort") else ""
+    sort_resp = "            .sortOrder(e.getSortOrder())\n" if m.get("sort") else ""
+    sort_summary = ' + ", sortOrder=" + e.getSortOrder()' if m.get("sort") else ""
     tag = re.sub(r"(?<!^)(?=[A-Z])", "_", c).upper()  # BANK_BRANCH
     imports_extra, fields_extra, parent_check, parent_apply, parent_resp, parent_summary = "", "", "", "", "", ""
     child_check_deact, child_check_delete = "", ""
@@ -278,9 +332,8 @@ def impl(m):
         parent_resp = f"            .{fld}(e.get{cap}())\n"
         parent_summary = f' + ", {fld}=" + e.get{cap}()'
     if m["child"]:
-        cc, clabel = m["child"]
+        cc, clabel, cfld = m["child"]
         cr = cc[0].lower() + cc[1:] + "Repository"
-        cfld = {"Bank": "bankId", "Company": "companyId"}[c]
         ccap = cfld[0].upper() + cfld[1:]
         imports_extra += f"import {P}.repository.{cc}Repository;\n"
         fields_extra += f"    private final {cc}Repository {cr};\n"
@@ -295,7 +348,7 @@ def impl(m):
         child_check_delete = f"{cr}.existsBy{ccap}(id)"
     deact_call = "        if (!active) checkNoActiveChildren(e);\n" if m["child"] else ""
     upd_deact = "        if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveChildren(existing);\n" if m["child"] else ""
-    upd_parent, create_parent, activate_parent = "", "", ""
+    upd_parent, create_parent, activate_parent, move_guard = "", "", "", ""
     if m["parent"]:
         fld = m["parent"][1]
         cap = fld[0].upper() + fld[1:]
@@ -303,6 +356,13 @@ def impl(m):
                       f" : Boolean.TRUE.equals(existing.getIsActive());\n"
                       f"        checkParent(request.get{cap}(), active);\n")
         create_parent = f"        checkParent(request.get{cap}(), active);\n"
+        if m["child"]:
+            move_guard = (
+                f"        if (!existing.get{cap}().equals(request.get{cap}()) && {child_check_delete}) {{\n"
+                f"            throw new BusinessRuleException(\"MASTER_HAS_CHILDREN\",\n"
+                f"                \"{l} \" + existing.getCode() + \" has {m['child'][1]} below it, so it cannot move to "
+                f"another {m['parent'][3].lower()}.\");\n"
+                f"        }}\n")
         activate_parent = f"        if (active) checkParent(e.get{cap}(), true);\n"
     delete_guard = ""
     if m["child"]:
@@ -343,7 +403,7 @@ public class {c}ServiceImpl implements {c}Service {{
 
     @Override
     public List<{c}Response> getAll() {{
-        return repository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
+        return repository.{order}().stream().map(this::toResponse).toList();
     }}
 
 {lookup_impl(m)}
@@ -384,7 +444,7 @@ public class {c}ServiceImpl implements {c}Service {{
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {{
             throw new DuplicateResourceException("{l}", "code", code);
         }}
-{upd_parent}{upd_deact}
+{upd_parent}{move_guard}{upd_deact}
         String before = summary(existing);
         apply(existing, request, code);
         if (request.getIsActive() != null) existing.setIsActive(request.getIsActive());
@@ -436,7 +496,7 @@ public class {c}ServiceImpl implements {c}Service {{
     }}
 {child_check_deact}{parent_check}
     private static String summary({c} e) {{
-        return "code=" + e.getCode() + ", name=" + e.getName() + ", nameAr=" + e.getNameAr(){parent_summary}
+        return "code=" + e.getCode() + ", name=" + e.getName() + ", nameAr=" + e.getNameAr(){parent_summary}{sort_summary}
             + ", active=" + e.getIsActive();
     }}
 
@@ -449,7 +509,7 @@ public class {c}ServiceImpl implements {c}Service {{
 {parent_apply}        e.setCode(code);
         e.setName(r.getName().trim());
         e.setNameAr(r.getNameAr().trim());
-    }}
+{sort_apply}    }}
 
     private {c}Response toResponse({c} e) {{
         return {c}Response.builder()
@@ -457,7 +517,7 @@ public class {c}ServiceImpl implements {c}Service {{
 {parent_resp}            .code(e.getCode())
             .name(e.getName())
             .nameAr(e.getNameAr())
-            .isActive(Boolean.TRUE.equals(e.getIsActive()))
+{sort_resp}            .isActive(Boolean.TRUE.equals(e.getIsActive()))
             .createdAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null)
             .updatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null)
             .version(e.getVersion())
@@ -548,6 +608,8 @@ public class {c}AdminController {{
 
 
 for m in MASTERS:
+    if not m.get("gen", True):
+        continue
     c = m["cls"]
     repo = repository(m)
     extra = child_repository_extra(m)

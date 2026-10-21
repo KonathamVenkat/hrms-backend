@@ -7,6 +7,7 @@ import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.RelationRequest;
 import com.hrms.employee.dto.response.RelationResponse;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.entity.Relation;
 import com.hrms.employee.repository.RelationRepository;
 import com.hrms.employee.repository.RelationTypeRepository;
@@ -40,6 +41,11 @@ public class RelationServiceImpl implements RelationService {
         return repository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
     }
 
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream().map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build()).toList();
+    }
 
     @Override
     public RelationResponse getById(Long id) {

@@ -7,6 +7,7 @@ import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.LanguageRequest;
 import com.hrms.employee.dto.response.LanguageResponse;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.entity.Language;
 import com.hrms.employee.repository.LanguageRepository;
 import com.hrms.employee.service.LanguageService;
@@ -37,6 +38,11 @@ public class LanguageServiceImpl implements LanguageService {
         return repository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
     }
 
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream().map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build()).toList();
+    }
 
     @Override
     public LanguageResponse getById(Long id) {

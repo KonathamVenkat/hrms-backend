@@ -7,6 +7,7 @@ import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.LanguageLevelRequest;
 import com.hrms.employee.dto.response.LanguageLevelResponse;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.entity.LanguageLevel;
 import com.hrms.employee.repository.LanguageLevelRepository;
 import com.hrms.employee.service.LanguageLevelService;
@@ -37,6 +38,11 @@ public class LanguageLevelServiceImpl implements LanguageLevelService {
         return repository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
     }
 
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream().map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build()).toList();
+    }
 
     @Override
     public LanguageLevelResponse getById(Long id) {

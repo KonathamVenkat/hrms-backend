@@ -10,4 +10,5 @@ public interface EducationLevelRepository extends JpaRepository<EducationLevel, 
     List<EducationLevel> findAllByOrderByNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    List<EducationLevel> findByIsActiveOrderByNameAsc(Boolean isActive);
 }

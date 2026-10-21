@@ -7,6 +7,7 @@ import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.EducationLevelRequest;
 import com.hrms.employee.dto.response.EducationLevelResponse;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.entity.EducationLevel;
 import com.hrms.employee.repository.EducationLevelRepository;
 import com.hrms.employee.service.EducationLevelService;
@@ -37,6 +38,11 @@ public class EducationLevelServiceImpl implements EducationLevelService {
         return repository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
     }
 
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream().map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build()).toList();
+    }
 
     @Override
     public EducationLevelResponse getById(Long id) {

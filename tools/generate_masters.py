@@ -10,7 +10,8 @@ P = "com.hrms.employee"
 # cls, label, table, idcol, path, parent=(cls, field, col, label) | None, child=(cls, label, field on the child) | None
 # gen=False: already generated and since edited by hand (CompanyBranch has V8 columns), so never overwritten.
 # sort=True: the table has a nullable SORT_ORDER and rows are listed by it.
-# lookup is left out on purpose: no HR screen reads these dropdowns yet, so no unused endpoint code is generated.
+# lookup="all" only where an HR screen reads the dropdown (relations, languages, language levels, education
+# levels: the employee-information tabs); the others get none, so no unused endpoint code is generated.
 MASTERS = [
     dict(cls="Bank", label="Bank", table="BANKS", idcol="BANK_ID", path="banks", parent=None,
          child=("BankBranch", "bank branches", "bankId"), lookup="all", gen=False),
@@ -38,16 +39,17 @@ MASTERS = [
     dict(cls="Profession", label="Profession", table="PROFESSIONS", idcol="PROFESSION_ID", path="professions",
          parent=None, child=None),
     dict(cls="EducationLevel", label="Education level", table="EDUCATION_LEVELS", idcol="EDUCATION_LEVEL_ID",
-         path="education-levels", parent=None, child=None),
-    dict(cls="Language", label="Language", table="LANGUAGES", idcol="LANGUAGE_ID", path="languages", parent=None, child=None),
+         path="education-levels", parent=None, child=None, lookup="all"),
+    dict(cls="Language", label="Language", table="LANGUAGES", idcol="LANGUAGE_ID", path="languages", parent=None, child=None,
+         lookup="all"),
     dict(cls="LanguageLevel", label="Language level", table="LANGUAGE_LEVELS", idcol="LANGUAGE_LEVEL_ID",
-         path="language-levels", parent=None, child=None),
+         path="language-levels", parent=None, child=None, lookup="all"),
     dict(cls="HouseType", label="House type", table="HOUSE_TYPES", idcol="HOUSE_TYPE_ID", path="house-types",
          parent=None, child=None),
     dict(cls="RelationType", label="Relation type", table="RELATION_TYPES", idcol="RELATION_TYPE_ID",
          path="relation-types", parent=None, child=("Relation", "relations", "relationTypeId")),
     dict(cls="Relation", label="Relation", table="RELATIONS", idcol="RELATION_ID", path="relations",
-         parent=("RelationType", "relationTypeId", "RELATION_TYPE_ID", "Relation type"), child=None),
+         parent=("RelationType", "relationTypeId", "RELATION_TYPE_ID", "Relation type"), child=None, lookup="all"),
     dict(cls="Directorate", label="Directorate", table="DIRECTORATES", idcol="DIRECTORATE_ID", path="directorates",
          parent=("CompanyBranch", "companyBranchId", "COMPANY_BRANCH_ID", "Company branch"), child=None),
     # GRADES.COMPANY_ID is optional and unused (the grade scale applies to every company), so it is not mapped.

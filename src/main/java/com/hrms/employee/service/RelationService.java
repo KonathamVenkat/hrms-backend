@@ -2,9 +2,12 @@ package com.hrms.employee.service;
 
 import com.hrms.employee.dto.request.RelationRequest;
 import com.hrms.employee.dto.response.RelationResponse;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import java.util.List;
 
 public interface RelationService {
+    /** Active rows for dropdowns (read-only, for the roles that pick them). */
+    List<MasterLookupResponse> getActiveLookup();
     List<RelationResponse> getAll();
     RelationResponse getById(Long id);
     RelationResponse create(RelationRequest request);

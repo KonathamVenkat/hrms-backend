@@ -24,6 +24,7 @@ import com.hrms.employee.repository.projection.EmployeeDetailProjection;
 import com.hrms.employee.repository.projection.EmployeeListProjection;
 import com.hrms.employee.repository.specification.EmployeeSpecification;
 import com.hrms.employee.service.DepartmentHeadService;
+import com.hrms.employee.service.OrganisationService;
 import com.hrms.employee.service.EmployeeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -65,6 +66,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeJobDetailsRepository jobDetails;
     private final AuditTrail audit;
     private final DepartmentHeadService departmentHeads;
+    private final OrganisationService organisationService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -383,6 +385,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         // employee must not retain a working login.
         accounts.setActive(id, false, currentUser);
         departmentHeads.clearHeadOf(id, null);
+        organisationService.clearManagerOf(id);
 
         audit.record("EMPLOYEE_DEACTIVATED", "EMPLOYEE", id, exitStatus == null ? null : "exit status " + exitStatus);
         log.info("Employee ID: {} deactivated by: {}", id, currentUser);

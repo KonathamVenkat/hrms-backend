@@ -49,6 +49,13 @@ public interface JobDetailsProjection {
     String  getShiftStartTime();
     String  getShiftEndTime();
 
+    // ── Branch (workflow phase 1; null until HR assigns one) ──
+    Long    getCompanyBranchId();
+    String  getBranchCode();
+    String  getBranchName();
+    String  getBranchNameAr();
+    String  getBranchManagerName();
+
     // ── Work mode & SCD ──────────────────────────────────────
     String  getWorkMode();
     String  getEffectiveFrom();

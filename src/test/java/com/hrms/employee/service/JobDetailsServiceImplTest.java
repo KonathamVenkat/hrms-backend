@@ -36,13 +36,14 @@ class JobDetailsServiceImplTest {
     @Mock OfficeLocationRepository locationRepository;
     @Mock WorkShiftRepository shiftRepository;
     @Mock com.hrms.employee.service.DepartmentHeadService departmentHeads;
+    @Mock com.hrms.employee.repository.CompanyBranchRepository branchRepository;
 
     JobDetailsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads);
+            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads, branchRepository);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -183,6 +184,116 @@ class JobDetailsServiceImplTest {
             () -> service.assignJob(5L, request(currentFrom)));
         assertEquals("INVALID_EFFECTIVE_FROM", ex.getRuleCode());
         verify(jobDetailsRepository, never()).closeCurrentRecord(anyLong(), any(), anyString());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+// ── Branch (workflow phase 1) ─────────────────────────────
+
+    private com.hrms.employee.entity.CompanyBranch branch(Long id, Long locationId, boolean active) {
+        return com.hrms.employee.entity.CompanyBranch.builder().id(id).code("B" + id).name("Branch " + id)
+            .locationId(locationId).isActive(active).build();
+    }
+
+    private EmployeeJobDetails savedJobFor(JobDetailsRequest req) {
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.empty());
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        // The save succeeds; the final re-read is not stubbed, so the call ends in NoSuchElementException, as above.
+        assertThrows(java.util.NoSuchElementException.class, () -> service.assignJob(5L, req));
+        var captor = org.mockito.ArgumentCaptor.forClass(EmployeeJobDetails.class);
+        verify(jobDetailsRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    void branchOfTheSameLocationIsStoredOnTheNewJobRow() {
+        when(branchRepository.findById(40L)).thenReturn(Optional.of(branch(40L, 30L, true)));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setCompanyBranchId(40L);
+
+        assertEquals(40L, savedJobFor(req).getCompanyBranchId());
+    }
+
+    @Test
+    void newAssignmentWithoutABranch_keepsTheCurrentBranchWhenTheLocationIsUnchanged() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertThrows(java.util.NoSuchElementException.class, () -> service.assignJob(5L, request(LocalDate.now())));
+        var captor = org.mockito.ArgumentCaptor.forClass(EmployeeJobDetails.class);
+        verify(jobDetailsRepository).save(captor.capture());
+
+        assertEquals(40L, captor.getValue().getCompanyBranchId());
+    }
+
+    @Test
+    void newAssignmentInAnotherLocation_doesNotCarryTheOldBranchOver() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(31L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertThrows(java.util.NoSuchElementException.class, () -> service.assignJob(5L, request(LocalDate.now())));
+        var captor = org.mockito.ArgumentCaptor.forClass(EmployeeJobDetails.class);
+        verify(jobDetailsRepository).save(captor.capture());
+
+        assertNull(captor.getValue().getCompanyBranchId());
+    }
+
+    @Test
+    void noBranchStoresNull() {
+        assertNull(savedJobFor(request(LocalDate.now())).getCompanyBranchId());
+        verifyNoInteractions(branchRepository);
+    }
+
+    @Test
+    void branchOfAnotherLocationIsRejected() {
+        when(branchRepository.findById(40L)).thenReturn(Optional.of(branch(40L, 31L, true)));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setCompanyBranchId(40L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("BRANCH_LOCATION_MISMATCH", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void branchWithoutALocationIsRejectedAsMismatch() {
+        when(branchRepository.findById(40L)).thenReturn(Optional.of(branch(40L, null, true)));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setCompanyBranchId(40L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("BRANCH_LOCATION_MISMATCH", ex.getRuleCode());
+    }
+
+    @Test
+    void inactiveBranchIsRejected() {
+        when(branchRepository.findById(40L)).thenReturn(Optional.of(branch(40L, 30L, false)));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setCompanyBranchId(40L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("BRANCH_INACTIVE", ex.getRuleCode());
+    }
+
+    @Test
+    void unknownBranchIsNotFound() {
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setCompanyBranchId(404L);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.assignJob(5L, req));
+    }
+
+    @Test
+    void changingTheBranchOnAnUpdateIsAStructuralChange() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).companyBranchId(40L).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setCompanyBranchId(41L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
+        assertEquals("STRUCTURAL_CHANGE_NOT_ALLOWED", ex.getRuleCode());
         verify(jobDetailsRepository, never()).save(any());
     }
 }

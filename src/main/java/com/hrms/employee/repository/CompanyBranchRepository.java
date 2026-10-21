@@ -12,4 +12,14 @@ public interface CompanyBranchRepository extends JpaRepository<CompanyBranch, Lo
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
     boolean existsByCompanyId(Long companyId);
     boolean existsByCompanyIdAndIsActive(Long companyId, Boolean isActive);
+
+    List<CompanyBranch> findByIsActiveTrueOrderByNameAsc();
+
+    List<CompanyBranch> findByLocationIdAndIsActiveTrueOrderByNameAsc(Long locationId);
+
+    List<CompanyBranch> findByBranchManagerEmployeeId(Long employeeId);
+
+    long countByIsActiveTrueAndBranchManagerEmployeeIdIsNull();
+
+    long countByIsActiveTrueAndLocationIdIsNull();
 }

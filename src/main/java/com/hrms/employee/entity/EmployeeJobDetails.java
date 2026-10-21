@@ -70,6 +70,10 @@ public class EmployeeJobDetails {
     @Column(name = "SHIFT_ID")
     private Long shiftId;
 
+    /** The branch the employee belongs to; null until HR assigns one (V8). */
+    @Column(name = "COMPANY_BRANCH_ID")
+    private Long companyBranchId;
+
     /**
      * ON_SITE | REMOTE | HYBRID
      * Maps to CHK_EJOB_WORK_MODE constraint

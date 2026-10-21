@@ -2,6 +2,7 @@ package com.hrms.employee.controller;
 
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.employee.dto.response.DepartmentLookupResponse;
+import com.hrms.employee.dto.response.ManagerLookupResponse;
 import com.hrms.employee.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,19 @@ public class DepartmentController {
     public ResponseEntity<ApiResponse<List<DepartmentLookupResponse>>> getAllDepartments() {
         return ResponseEntity.ok(
             ApiResponse.success("Departments fetched successfully", departmentService.getActiveLookup())
+        );
+    }
+
+    /**
+     * GET /api/v1/departments/{departmentId}/managers
+     * Manager/executive-grade employees currently in the department, for the reporting and
+     * functional manager pickers on the job-details form.
+     */
+    @GetMapping("/{departmentId}/managers")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
+    public ResponseEntity<ApiResponse<List<ManagerLookupResponse>>> getManagers(@PathVariable Long departmentId) {
+        return ResponseEntity.ok(
+            ApiResponse.success("Managers fetched successfully", departmentService.getManagerCandidates(departmentId))
         );
     }
 }

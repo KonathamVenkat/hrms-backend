@@ -9,6 +9,7 @@ import com.hrms.common.util.Strings;
 import com.hrms.employee.dto.request.DepartmentRequest;
 import com.hrms.employee.dto.response.DepartmentLookupResponse;
 import com.hrms.employee.dto.response.DepartmentResponse;
+import com.hrms.employee.dto.response.ManagerLookupResponse;
 import com.hrms.employee.entity.Department;
 import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
@@ -60,6 +61,12 @@ public class DepartmentServiceImpl implements DepartmentService {
                 .nameAr(d.getNameAr())
                 .build())
             .toList();
+    }
+
+    @Override
+    public List<ManagerLookupResponse> getManagerCandidates(Long departmentId) {
+        findById(departmentId);
+        return jobDetailsRepository.findManagerCandidates(departmentId);
     }
 
     @Override

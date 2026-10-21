@@ -16,4 +16,6 @@ public interface DepartmentService {
     void                     activateDepartment(Long id);
     /** Hard delete; only allowed while no designation or employee job record uses the department. */
     void                     deleteDepartment(Long id);
+    /** Manager- and executive-grade employees currently working in the department (reporting/functional manager picker). */
+    java.util.List<com.hrms.employee.dto.response.ManagerLookupResponse> getManagerCandidates(Long departmentId);
 }

@@ -50,6 +50,12 @@ public class JobDetailsResponse {
     private String  shiftStartTime;
     private String  shiftEndTime;
 
+    // Branch
+    private Long    companyBranchId;
+    private String  branchCode;
+    private String  branchName;
+    private String  branchNameAr;
+    private String  branchManagerName;
     // Work details
     private String  workMode;
     private String  effectiveFrom;

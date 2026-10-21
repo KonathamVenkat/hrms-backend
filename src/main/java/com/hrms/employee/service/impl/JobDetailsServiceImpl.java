@@ -15,6 +15,7 @@ import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.repository.OfficeLocationRepository;
 import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.employee.repository.projection.JobDetailsProjection;
+import com.hrms.employee.repository.CompanyBranchRepository;
 import com.hrms.employee.service.DepartmentHeadService;
 import com.hrms.employee.service.JobDetailsService;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final OfficeLocationRepository     locationRepository;
     private final WorkShiftRepository          shiftRepository;
     private final DepartmentHeadService        departmentHeads;
+    private final CompanyBranchRepository      branchRepository;
 
     // ── Get current job ───────────────────────────────────────
 
@@ -117,6 +119,13 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 closed, employeeId);
         }
 
+        // A new assignment in the same location keeps the employee's branch unless another one is chosen.
+        Long branchId = request.getCompanyBranchId();
+        if (branchId == null && currentRecord.isPresent()
+                && Objects.equals(currentRecord.get().getLocationId(), request.getLocationId())) {
+            branchId = currentRecord.get().getCompanyBranchId();
+        }
+
         // ── Create new current record ─────────────────────────
         EmployeeJobDetails newJob = EmployeeJobDetails.builder()
             .employeeId(employeeId)
@@ -127,6 +136,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .functionalManagerId(request.getFunctionalManagerId())
             .locationId(request.getLocationId())
             .shiftId(request.getShiftId())
+            .companyBranchId(branchId)
             .workMode(request.getWorkMode())
             .effectiveFrom(request.getEffectiveFrom())
             .effectiveTo(null)              // null = still active
@@ -168,13 +178,14 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         if (!Objects.equals(request.getDepartmentId(), current.getDepartmentId())
                 || !Objects.equals(request.getDesignationId(), current.getDesignationId())
                 || !Objects.equals(request.getLocationId(), current.getLocationId())
+                || !Objects.equals(request.getCompanyBranchId(), current.getCompanyBranchId())
                 || !Objects.equals(request.getReportingManagerId(), current.getReportingManagerId())
                 || !Objects.equals(request.getFunctionalManagerId(), current.getFunctionalManagerId())
                 || !Objects.equals(Strings.trimToNull(request.getJobPositionId()),
                                    Strings.trimToNull(current.getJobPositionId()))) {
             throw new BusinessRuleException(
                 "STRUCTURAL_CHANGE_NOT_ALLOWED",
-                "Department, designation, position, location and managers can only be changed "
+                "Department, designation, position, location, branch and managers can only be changed "
                     + "with a new assignment. This update may change shift, work mode and remarks only.");
         }
         if (request.getShiftId() != null) {
@@ -250,8 +261,23 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             requireActiveShift(request.getShiftId());
         }
 
+        requireBranchInLocation(request.getCompanyBranchId(), request.getLocationId());
         requireValidManager(employeeId, request.getReportingManagerId(), "Reporting manager");
         requireValidManager(employeeId, request.getFunctionalManagerId(), "Functional manager");
+    }
+
+    /** A branch, when given, must exist, be active and sit in the location chosen for the job. */
+    private void requireBranchInLocation(Long branchId, Long locationId) {
+        if (branchId == null) return;
+        var branch = branchRepository.findById(branchId)
+            .orElseThrow(() -> new ResourceNotFoundException("Company branch", "id", branchId));
+        if (!Boolean.TRUE.equals(branch.getIsActive())) {
+            throw new BusinessRuleException("BRANCH_INACTIVE", "The selected branch is inactive.");
+        }
+        if (!Objects.equals(branch.getLocationId(), locationId)) {
+            throw new BusinessRuleException("BRANCH_LOCATION_MISMATCH",
+                "The selected branch is not in the selected office location.");
+        }
     }
 
     private void requireActiveShift(Long shiftId) {
@@ -308,6 +334,12 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .shiftName(p.getShiftName())
             .shiftStartTime(p.getShiftStartTime())
             .shiftEndTime(p.getShiftEndTime())
+            // Branch
+            .companyBranchId(p.getCompanyBranchId())
+            .branchCode(p.getBranchCode())
+            .branchName(p.getBranchName())
+            .branchNameAr(p.getBranchNameAr())
+            .branchManagerName(p.getBranchManagerName())
             // Work
             .workMode(p.getWorkMode())
             .effectiveFrom(p.getEffectiveFrom())

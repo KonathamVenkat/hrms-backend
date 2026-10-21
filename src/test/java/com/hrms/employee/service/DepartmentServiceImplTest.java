@@ -256,4 +256,26 @@ class DepartmentServiceImplTest {
         assertEquals("HEAD_EMPLOYEE_INACTIVE", ex.getRuleCode());
         verify(departmentRepository, never()).save(any());
     }
+
+    @Test
+    void managerCandidates_comeFromTheJobDetailsQueryForThatDepartment() {
+        var hrMgr = new com.hrms.employee.dto.response.ManagerLookupResponse(
+            1013L, "EMP-2026-0002", "HR", null, "Manager", "HR Manager", "M1");
+        when(departmentRepository.findById(101L)).thenReturn(Optional.of(existing()));
+        when(jobDetailsRepository.findManagerCandidates(101L)).thenReturn(java.util.List.of(hrMgr));
+
+        var out = service.getManagerCandidates(101L);
+
+        assertEquals(1, out.size());
+        assertEquals("HR Manager", out.get(0).fullNameEn());
+        assertEquals("M1", out.get(0).gradeLevel());
+    }
+
+    @Test
+    void managerCandidates_unknownDepartmentIsNotFound() {
+        when(departmentRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.getManagerCandidates(999L));
+        verifyNoInteractions(jobDetailsRepository);
+    }
 }

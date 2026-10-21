@@ -30,6 +30,14 @@ public class CompanyBranch {
     @Column(name = "COMPANY_BRANCHES_NAME_AR", nullable = false, columnDefinition = "NVARCHAR2(200)")
     private String nameAr;
 
+    /** The office location this branch sits in; null until HR sets it (V8). */
+    @Column(name = "LOCATION_ID")
+    private Long locationId;
+
+    /** The one manager of this branch; one person may manage several branches (V8). */
+    @Column(name = "BRANCH_MANAGER_EMPLOYEE_ID")
+    private Long branchManagerEmployeeId;
+
     @Convert(converter = BooleanToNumberConverter.class)
     @Column(name = "IS_ACTIVE", nullable = false)
     private Boolean isActive;

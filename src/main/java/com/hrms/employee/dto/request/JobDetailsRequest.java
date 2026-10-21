@@ -28,6 +28,9 @@ public class JobDetailsRequest {
 
     private Long shiftId;
 
+    /** Optional: the branch the employee belongs to; it must be active and in the chosen location. */
+    private Long companyBranchId;
+
     @NotBlank(message = "Work mode is required")
     @Pattern(regexp = "^(ON_SITE|REMOTE|HYBRID)$",
              message = "Work mode must be ON_SITE, REMOTE, or HYBRID")

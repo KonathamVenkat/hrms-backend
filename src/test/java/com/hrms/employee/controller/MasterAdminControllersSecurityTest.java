@@ -106,6 +106,7 @@ class MasterAdminControllersSecurityTest {
         int created = expected == 200 ? 201 : expected;
         mvc.perform(get(base)).andExpect(status().is(expected));
         mvc.perform(get(base + "/1")).andExpect(status().is(expected));
+        if (path.equals("cities")) mvc.perform(get(base + "/search")).andExpect(status().is(expected));
         mvc.perform(post(base).contentType("application/json").content(BODY)).andExpect(status().is(created));
         mvc.perform(put(base + "/1").contentType("application/json").content(BODY)).andExpect(status().is(expected));
         mvc.perform(patch(base + "/1/deactivate")).andExpect(status().is(expected));

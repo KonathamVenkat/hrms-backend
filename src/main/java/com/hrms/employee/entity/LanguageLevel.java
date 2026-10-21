@@ -27,6 +27,9 @@ public class LanguageLevel {
     @Column(name = "LANGUAGE_LEVELS_NAME_AR", nullable = false, columnDefinition = "NVARCHAR2(200)")
     private String nameAr;
 
+    @Column(name = "SORT_ORDER")
+    private Integer sortOrder;
+
     @Convert(converter = BooleanToNumberConverter.class)
     @Column(name = "IS_ACTIVE", nullable = false)
     private Boolean isActive;

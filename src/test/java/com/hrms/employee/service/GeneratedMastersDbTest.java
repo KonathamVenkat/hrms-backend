@@ -8,6 +8,7 @@ import com.hrms.employee.dto.request.CompanyBranchRequest;
 import com.hrms.employee.dto.request.CompanyRequest;
 import com.hrms.employee.dto.request.DirectorateRequest;
 import com.hrms.employee.dto.request.GradeRequest;
+import com.hrms.employee.dto.request.LanguageLevelRequest;
 import com.hrms.employee.dto.request.LanguageRequest;
 import com.hrms.employee.dto.request.ProvinceRequest;
 import com.hrms.employee.dto.request.RegionRequest;
@@ -41,6 +42,7 @@ class GeneratedMastersDbTest extends DatabaseTest {
     @Autowired WilayaService wilayas;
     @Autowired ProvinceService provinces;
     @Autowired CityService cities;
+    @Autowired LanguageLevelService languageLevels;
     @Autowired RelationTypeService relationTypes;
     @Autowired RelationService relations;
     @Autowired LanguageService languages;
@@ -69,6 +71,15 @@ class GeneratedMastersDbTest extends DatabaseTest {
     }
 
     @Test
+    void languageLevels_areListedByProficiency_notAlphabetically() {
+        languageLevels.create(LanguageLevelRequest.builder().code("T_ZULU").name("Zulu level").nameAr("ز").sortOrder(10).build());
+        languageLevels.create(LanguageLevelRequest.builder().code("T_ALPHA").name("Alpha level").nameAr("أ").sortOrder(20).build());
+        fresh();
+        List<String> codes = languageLevels.getActiveLookup().stream().map(l -> l.getCode()).toList();
+        assertTrue(codes.indexOf("T_ZULU") < codes.indexOf("T_ALPHA"));
+    }
+
+    @Test
     void geographyChain_keepsItsParents_andProtectsRowsThatHaveChildren() {
         RegionResponse region = region("T_EQUATORIA");
         WilayaResponse wilaya = wilaya(region.getId(), "T_CENTRAL");
@@ -82,6 +93,13 @@ class GeneratedMastersDbTest extends DatabaseTest {
         assertEquals(provinceId, cities.getById(cityId).getProvinceId());
         assertEquals("جوبا", cities.getById(cityId).getNameAr());
         assertNotNull(cities.getById(cityId).getCreatedAt());   // from the column default, read back
+
+        // the paged search filters by text (name, Arabic name, code), province and status, and counts the total
+        assertEquals(1, cities.search("juba_c", provinceId, true, 0, 10).getTotalElements());   // code, "_" is literal
+        assertEquals(1, cities.search("جوبا", null, null, 0, 10).getTotalElements());
+        assertEquals(0, cities.search("juba", provinceId, false, 0, 10).getTotalElements());
+        assertEquals(0, cities.search("juba", provinceId + 999, null, 0, 10).getTotalElements());
+        assertEquals(0, cities.search("%", provinceId, null, 0, 10).getTotalElements());        // "%" is not a wildcard
 
         // a code is unique for the whole table
         assertThrows(DuplicateResourceException.class, () -> wilaya(region.getId(), "T_CENTRAL"));

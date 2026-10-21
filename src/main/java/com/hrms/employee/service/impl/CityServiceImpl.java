@@ -1,6 +1,7 @@
 package com.hrms.employee.service.impl;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
@@ -15,6 +16,9 @@ import com.hrms.employee.service.CityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
@@ -29,6 +33,7 @@ import java.util.List;
 public class CityServiceImpl implements CityService {
 
     private static final String TARGET = "CITY";
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final CityRepository repository;
     private final ProvinceRepository provinceRepository;
@@ -40,6 +45,29 @@ public class CityServiceImpl implements CityService {
         return repository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
     }
 
+    @Override
+    public PagedResponse<CityResponse> search(String q, Long provinceId, Boolean active, int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new BadRequestException("Page must be 0 or more and size between 1 and " + MAX_PAGE_SIZE);
+        }
+        Specification<City> spec = Specification.unrestricted();
+        String text = q == null ? "" : q.trim();
+        if (!text.isEmpty()) {
+            String like = "%" + text.toLowerCase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                cb.like(cb.lower(root.get("name")), like, '\\'),
+                cb.like(cb.lower(root.get("code")), like, '\\'),
+                cb.like(cb.lower(root.get("nameAr")), like, '\\')));
+        }
+        if (provinceId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("provinceId"), provinceId));
+        }
+        if (active != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("isActive"), active));
+        }
+        var result = repository.findAll(spec, PageRequest.of(page, size, Sort.by("name", "id")));
+        return PagedResponse.from(result.map(this::toResponse));
+    }
 
     @Override
     public CityResponse getById(Long id) {

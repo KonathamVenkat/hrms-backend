@@ -87,18 +87,21 @@ def block(lang, spec):
 
 SHARED = {
     "en": {
+        "pageOf": "Page {{page}} of {{pages}}",
         "sortOrder": "Sort order",
         "sortOrderHint": "Lower numbers come first",
         "MASTER_HAS_ACTIVE_CHILDREN": "{{code}} still has active entries below it. Deactivate them first.",
         "MASTER_HAS_CHILDREN": "{{code}} has entries below it, so it cannot move to another parent.",
     },
     "fr": {
+        "pageOf": "Page {{page}} sur {{pages}}",
         "sortOrder": "Ordre de tri",
         "sortOrderHint": "Les nombres les plus petits viennent en premier",
         "MASTER_HAS_ACTIVE_CHILDREN": "{{code}} a encore des éléments actifs en dessous. Désactivez-les d'abord.",
         "MASTER_HAS_CHILDREN": "{{code}} a des éléments en dessous : il ne peut pas être déplacé vers un autre parent.",
     },
     "ar": {
+        "pageOf": "صفحة {{page}} من {{pages}}",
         "sortOrder": "ترتيب العرض",
         "sortOrderHint": "الأرقام الأصغر تظهر أولاً",
         "MASTER_HAS_ACTIVE_CHILDREN": "لا يزال {{code}} يحتوي على عناصر نشطة تابعة له. عطّلها أولاً.",
@@ -112,10 +115,13 @@ for lang in ("en", "fr", "ar"):
     masters = data["admin"]["masters"]
     masters["sortOrder"] = SHARED[lang]["sortOrder"]
     masters["sortOrderHint"] = SHARED[lang]["sortOrderHint"]
+    masters["pageOf"] = SHARED[lang]["pageOf"]
     rules = masters["errors"]["rules"]
     rules["MASTER_HAS_ACTIVE_CHILDREN"] = SHARED[lang]["MASTER_HAS_ACTIVE_CHILDREN"]
     rules["MASTER_HAS_CHILDREN"] = SHARED[lang]["MASTER_HAS_CHILDREN"]
     for key, spec in MASTERS.items():
         masters[key] = block(lang, spec)
+    # Cities are paged and filtered by province on the server.
+    masters["cities"]["filterParentAll"] = {"en": "All provinces", "fr": "Toutes les provinces", "ar": "كل المقاطعات"}[lang]
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\r\n")
 print("ok:", len(MASTERS), "masters x 3 languages")

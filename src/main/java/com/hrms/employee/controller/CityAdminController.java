@@ -1,6 +1,7 @@
 package com.hrms.employee.controller;
 
 import com.hrms.common.dto.ApiResponse;
+import com.hrms.common.dto.PagedResponse;
 import com.hrms.employee.dto.request.CityRequest;
 import com.hrms.employee.dto.response.CityResponse;
 import com.hrms.employee.service.CityService;
@@ -27,6 +28,18 @@ public class CityAdminController {
         return ResponseEntity.ok(ApiResponse.<List<CityResponse>>builder()
             .success(true).message("City list fetched")
             .data(service.getAll()).statusCode(200).build());
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<PagedResponse<CityResponse>>> search(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long provinceId,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.<PagedResponse<CityResponse>>builder()
+            .success(true).message("City page fetched")
+            .data(service.search(q, provinceId, active, page, size)).statusCode(200).build());
     }
 
     @GetMapping("/{id}")

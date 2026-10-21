@@ -29,7 +29,7 @@ MASTERS = [
     dict(cls="Province", label="Province", table="PROVINCES", idcol="PROVINCE_ID", path="provinces",
          parent=("Wilaya", "wilayaId", "WILAYA_ID", "Wilaya"), child=("City", "cities", "provinceId")),
     dict(cls="City", label="City", table="CITIES", idcol="CITY_ID", path="cities",
-         parent=("Province", "provinceId", "PROVINCE_ID", "Province"), child=None),
+         parent=("Province", "provinceId", "PROVINCE_ID", "Province"), child=None, gen=False),  # + paged search by hand
     # Employee reference lists.
     dict(cls="Religion", label="Religion", table="RELIGIONS", idcol="RELIGION_ID", path="religions", parent=None, child=None),
     dict(cls="Nationality", label="Nationality", table="NATIONALITIES", idcol="NATIONALITY_ID", path="nationalities",
@@ -43,7 +43,7 @@ MASTERS = [
     dict(cls="Language", label="Language", table="LANGUAGES", idcol="LANGUAGE_ID", path="languages", parent=None, child=None,
          lookup="all"),
     dict(cls="LanguageLevel", label="Language level", table="LANGUAGE_LEVELS", idcol="LANGUAGE_LEVEL_ID",
-         path="language-levels", parent=None, child=None, lookup="all"),
+         path="language-levels", parent=None, child=None, lookup="all", sort=True),
     dict(cls="HouseType", label="House type", table="HOUSE_TYPES", idcol="HOUSE_TYPE_ID", path="house-types",
          parent=None, child=None),
     dict(cls="RelationType", label="Relation type", table="RELATION_TYPES", idcol="RELATION_TYPE_ID",
@@ -145,10 +145,14 @@ public interface {c}Repository extends JpaRepository<{c}, Long> {{
 '''
 
 
+def lookup_order(m):
+    return "findByIsActiveOrderBySortOrderAscNameAsc" if m.get("sort") else "findByIsActiveOrderByNameAsc"
+
+
 def lookup_repo(m):
     c = m["cls"]
     if m.get("lookup") == "all":
-        return f"    List<{c}> findByIsActiveOrderByNameAsc(Boolean isActive);\n"
+        return f"    List<{c}> {lookup_order(m)}(Boolean isActive);\n"
     if m.get("lookup") == "byParent":
         fld = m["parent"][1]
         return f"    List<{c}> findBy{fld[0].upper() + fld[1:]}AndIsActiveOrderByNameAsc(Long {fld}, Boolean isActive);\n"
@@ -173,7 +177,7 @@ def lookup_impl(m):
         return f"""
     @Override
     public List<MasterLookupResponse> getActiveLookup() {{
-        return repository.findByIsActiveOrderByNameAsc(true){conv};
+        return repository.{lookup_order(m)}(true){conv};
     }}
 """
     if m.get("lookup") == "byParent":

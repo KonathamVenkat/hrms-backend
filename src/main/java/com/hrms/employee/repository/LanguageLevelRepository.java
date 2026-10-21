@@ -7,8 +7,8 @@ import java.util.List;
 
 @Repository
 public interface LanguageLevelRepository extends JpaRepository<LanguageLevel, Long> {
-    List<LanguageLevel> findAllByOrderByNameAsc();
+    List<LanguageLevel> findAllByOrderBySortOrderAscNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
-    List<LanguageLevel> findByIsActiveOrderByNameAsc(Boolean isActive);
+    List<LanguageLevel> findByIsActiveOrderBySortOrderAscNameAsc(Boolean isActive);
 }

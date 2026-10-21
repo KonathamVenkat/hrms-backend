@@ -35,13 +35,13 @@ public class LanguageLevelServiceImpl implements LanguageLevelService {
 
     @Override
     public List<LanguageLevelResponse> getAll() {
-        return repository.findAllByOrderByNameAsc().stream().map(this::toResponse).toList();
+        return repository.findAllByOrderBySortOrderAscNameAsc().stream().map(this::toResponse).toList();
     }
 
 
     @Override
     public List<MasterLookupResponse> getActiveLookup() {
-        return repository.findByIsActiveOrderByNameAsc(true).stream().map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build()).toList();
+        return repository.findByIsActiveOrderBySortOrderAscNameAsc(true).stream().map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build()).toList();
     }
 
     @Override
@@ -133,7 +133,7 @@ public class LanguageLevelServiceImpl implements LanguageLevelService {
     }
 
     private static String summary(LanguageLevel e) {
-        return "code=" + e.getCode() + ", name=" + e.getName() + ", nameAr=" + e.getNameAr()
+        return "code=" + e.getCode() + ", name=" + e.getName() + ", nameAr=" + e.getNameAr() + ", sortOrder=" + e.getSortOrder()
             + ", active=" + e.getIsActive();
     }
 
@@ -146,6 +146,7 @@ public class LanguageLevelServiceImpl implements LanguageLevelService {
         e.setCode(code);
         e.setName(r.getName().trim());
         e.setNameAr(r.getNameAr().trim());
+        e.setSortOrder(r.getSortOrder());
     }
 
     private LanguageLevelResponse toResponse(LanguageLevel e) {
@@ -154,6 +155,7 @@ public class LanguageLevelServiceImpl implements LanguageLevelService {
             .code(e.getCode())
             .name(e.getName())
             .nameAr(e.getNameAr())
+            .sortOrder(e.getSortOrder())
             .isActive(Boolean.TRUE.equals(e.getIsActive()))
             .createdAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null)
             .updatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null)

@@ -22,6 +22,9 @@ public class LanguageLevelRequest {
     @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic name contains control or invisible characters")
     private String nameAr;
 
+    @Min(0) @Max(9999)
+    private Integer sortOrder;
+
     private Boolean isActive;
 
     /** The version the screen was loaded with; omit to skip the stale-edit check. */

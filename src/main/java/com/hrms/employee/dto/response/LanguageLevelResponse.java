@@ -5,6 +5,7 @@ import lombok.*;
 @Data @Builder
 public class LanguageLevelResponse {
     private Long    id;
+    private Integer sortOrder;
     private String  code;
     private String  name;
     private String  nameAr;

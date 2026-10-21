@@ -37,6 +37,12 @@ class CityServiceSearchTest {
     }
 
     @Test
+    void refusesSearchTextLongerThan100Characters() {
+        assertThrows(BadRequestException.class, () -> service.search("x".repeat(101), null, null, 0, 20));
+        verifyNoInteractions(repository);
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void returnsTheRequestedPageOrderedByName() {
         Page<com.hrms.employee.entity.City> empty = new PageImpl<>(List.of(), PageRequest.of(2, 50), 0);

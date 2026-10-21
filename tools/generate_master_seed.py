@@ -113,8 +113,9 @@ LANGUAGES = [
     ("SWAHILI", "Swahili", "السواحيلية"), ("AMHARIC", "Amharic", "الأمهرية"),
 ]
 LANGUAGE_LEVELS = [
-    ("BASIC", "Basic", "أساسي"), ("INTERMEDIATE", "Intermediate", "متوسط"), ("ADVANCED", "Advanced", "متقدم"),
-    ("FLUENT", "Fluent", "طليق"), ("NATIVE", "Native", "لغة أم"),
+    # The 4th value is SORT_ORDER: the dropdown lists by proficiency, not A-Z (V9 adds the column).
+    ("BASIC", "Basic", "أساسي", 10), ("INTERMEDIATE", "Intermediate", "متوسط", 20),
+    ("ADVANCED", "Advanced", "متقدم", 30), ("FLUENT", "Fluent", "طليق", 40), ("NATIVE", "Native", "لغة أم", 50),
 ]
 HOUSE_TYPES = [
     ("OWNED", "Owned", "ملك"), ("RENTED", "Rented", "مستأجر"), ("COMPANY_HOUSING", "Company housing", "سكن الشركة"),
@@ -163,10 +164,12 @@ def q(text):
 
 def statement(table, idcol, row, parent):
     code, name, name_ar = row[0], row[1], row[2]
-    cols = f"{idcol}, " + (f"{parent[0]}, " if parent else "") + f"{table}_CODE, {table}_NAME, {table}_NAME_AR, IS_ACTIVE"
+    sort = row[3] if not parent and len(row) > 3 else None
+    cols = (f"{idcol}, " + (f"{parent[0]}, " if parent else "") + f"{table}_CODE, {table}_NAME, {table}_NAME_AR, IS_ACTIVE"
+            + (", SORT_ORDER" if sort is not None else ""))
     parent_value = (f"(SELECT {parent[0]} FROM HRMS.{parent[1]} WHERE {parent[1]}_CODE = {q(row[3])}), " if parent else "")
     return (f"INSERT INTO HRMS.{table} ({cols})\n"
-            f"SELECT HRMS.SEQ_{table}.NEXTVAL, {parent_value}{q(code)}, {q(name)}, {unistr(name_ar)}, 1 FROM DUAL\n"
+            f"SELECT HRMS.SEQ_{table}.NEXTVAL, {parent_value}{q(code)}, {q(name)}, {unistr(name_ar)}, 1{'' if sort is None else ', ' + str(sort)} FROM DUAL\n"
             f" WHERE NOT EXISTS (SELECT 1 FROM HRMS.{table} WHERE {table}_CODE = {q(code)});   -- {name_ar}\n")
 
 

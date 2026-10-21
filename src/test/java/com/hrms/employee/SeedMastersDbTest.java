@@ -62,6 +62,9 @@ class SeedMastersDbTest extends DatabaseTest {
             assertEquals("جوبا", jdbc.queryForObject(
                 "select CITIES_NAME_AR from HRMS.CITIES where CITIES_CODE = 'JUBA'", String.class));
             assertEquals(0, count("select count(*) from HRMS.NATIONALITIES where IS_ACTIVE <> 1"));
+            // language levels come loaded in proficiency order
+            assertEquals(10, count("select SORT_ORDER from HRMS.LANGUAGE_LEVELS where LANGUAGE_LEVELS_CODE = 'BASIC'"));
+            assertEquals(50, count("select SORT_ORDER from HRMS.LANGUAGE_LEVELS where LANGUAGE_LEVELS_CODE = 'NATIVE'"));
 
             jdbc.execute(seed);   // second run: everything exists, nothing changes
             assertEquals(loaded, total());

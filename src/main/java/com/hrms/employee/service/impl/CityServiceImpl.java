@@ -34,6 +34,7 @@ public class CityServiceImpl implements CityService {
 
     private static final String TARGET = "CITY";
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_SEARCH_LENGTH = 100;
 
     private final CityRepository repository;
     private final ProvinceRepository provinceRepository;
@@ -52,6 +53,9 @@ public class CityServiceImpl implements CityService {
         }
         Specification<City> spec = Specification.unrestricted();
         String text = q == null ? "" : q.trim();
+        if (text.length() > MAX_SEARCH_LENGTH) {
+            throw new BadRequestException("Search text must be at most " + MAX_SEARCH_LENGTH + " characters");
+        }
         if (!text.isEmpty()) {
             String like = "%" + text.toLowerCase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
             spec = spec.and((root, query, cb) -> cb.or(

@@ -88,6 +88,7 @@ def block(lang, spec):
 SHARED = {
     "en": {
         "pageOf": "Page {{page}} of {{pages}}",
+        "pager": {"showing": "Showing {{from}}–{{to}} of {{total}}", "label": "Pages", "prev": "Previous page", "next": "Next page"},
         "sortOrder": "Sort order",
         "sortOrderHint": "Lower numbers come first",
         "MASTER_HAS_ACTIVE_CHILDREN": "{{code}} still has active entries below it. Deactivate them first.",
@@ -95,6 +96,7 @@ SHARED = {
     },
     "fr": {
         "pageOf": "Page {{page}} sur {{pages}}",
+        "pager": {"showing": "Affichage de {{from}} à {{to}} sur {{total}}", "label": "Pages", "prev": "Page précédente", "next": "Page suivante"},
         "sortOrder": "Ordre de tri",
         "sortOrderHint": "Les nombres les plus petits viennent en premier",
         "MASTER_HAS_ACTIVE_CHILDREN": "{{code}} a encore des éléments actifs en dessous. Désactivez-les d'abord.",
@@ -102,6 +104,7 @@ SHARED = {
     },
     "ar": {
         "pageOf": "صفحة {{page}} من {{pages}}",
+        "pager": {"showing": "عرض {{from}}–{{to}} من {{total}}", "label": "الصفحات", "prev": "الصفحة السابقة", "next": "الصفحة التالية"},
         "sortOrder": "ترتيب العرض",
         "sortOrderHint": "الأرقام الأصغر تظهر أولاً",
         "MASTER_HAS_ACTIVE_CHILDREN": "لا يزال {{code}} يحتوي على عناصر نشطة تابعة له. عطّلها أولاً.",
@@ -116,6 +119,7 @@ for lang in ("en", "fr", "ar"):
     masters["sortOrder"] = SHARED[lang]["sortOrder"]
     masters["sortOrderHint"] = SHARED[lang]["sortOrderHint"]
     masters["pageOf"] = SHARED[lang]["pageOf"]
+    masters["pager"] = SHARED[lang]["pager"]
     rules = masters["errors"]["rules"]
     rules["MASTER_HAS_ACTIVE_CHILDREN"] = SHARED[lang]["MASTER_HAS_ACTIVE_CHILDREN"]
     rules["MASTER_HAS_CHILDREN"] = SHARED[lang]["MASTER_HAS_CHILDREN"]

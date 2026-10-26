@@ -1,6 +1,7 @@
 package com.hrms.auth.repository;
 
 import com.hrms.auth.entity.AuthUser;
+import com.hrms.common.enums.UserRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
@@ -40,6 +41,13 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, Long> {
     Optional<AuthUser> findByUsernameOrEmailForUpdate(@Param("identifier") String identifier);
     
     Optional<AuthUser> findByEmployeeId(Long employeeId);
+
+    /** Active logins with this role linked to an employee other than {@code employeeId} (who could act on a step). */
+    @Query("""
+        SELECT COUNT(u) FROM AuthUser u
+        WHERE u.role = :role AND u.isActive = true AND u.employeeId <> :employeeId
+        """)
+    long countOtherActiveHolders(@Param("role") UserRole role, @Param("employeeId") Long employeeId);
     
     boolean existsByUsername(String username);       // ← ADD
 

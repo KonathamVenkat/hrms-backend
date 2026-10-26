@@ -43,7 +43,7 @@ public class SecurityConfig {
     private final ObjectMapper       objectMapper;
     private final AuthUserRepository authUserRepository;
 
-    @Value("${hrms.cors.allowed-origins:http://localhost:4201}")
+    @Value("${hrms.cors.allowed-origins:http://localhost:4200,http://localhost:4201}")
     private String allowedOrigins;
 
     @Bean

@@ -16,9 +16,11 @@ import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.service.DepartmentService;
+import com.hrms.employee.service.OrganisationChanged;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +45,7 @@ public class DepartmentServiceImpl implements DepartmentService {
     private final EmployeeRepository employeeRepository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
+    private final ApplicationEventPublisher events;
 
     @Override
     public List<DepartmentResponse> getAllDepartments() {
@@ -110,11 +113,16 @@ public class DepartmentServiceImpl implements DepartmentService {
         if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveDesignations(existing);
 
         String before = summary(existing);
+        Long headBefore = existing.getHeadEmployeeId();
+        Boolean activeBefore = existing.getIsActive();
         apply(existing, request, code);
         if (request.getIsActive() != null) existing.setIsActive(request.getIsActive());
         existing.setUpdatedAt(LocalDateTime.now());
         Department saved = departmentRepository.save(existing);
         entityManager.flush(); // so the response carries the incremented version
+        if (!Objects.equals(headBefore, saved.getHeadEmployeeId()) || !Objects.equals(activeBefore, saved.getIsActive())) {
+            events.publishEvent(new OrganisationChanged()); // the head of waiting workflow requests may have changed
+        }
         audit.record("DEPARTMENT_UPDATED", TARGET, id, before + " -> " + summary(saved));
         return toResponse(saved);
     }
@@ -158,9 +166,13 @@ public class DepartmentServiceImpl implements DepartmentService {
     private void setActive(Long id, boolean active) {
         Department dept = findById(id);
         if (!active) checkNoActiveDesignations(dept);
+        boolean changed = !Objects.equals(dept.getIsActive(), active);
         dept.setIsActive(active);
         dept.setUpdatedAt(LocalDateTime.now());
         departmentRepository.save(dept);
+        if (changed) {
+            events.publishEvent(new OrganisationChanged()); // an inactive department has no head or secretary
+        }
         audit.record(active ? "DEPARTMENT_ACTIVATED" : "DEPARTMENT_DEACTIVATED", TARGET, id, dept.getCode());
     }
 

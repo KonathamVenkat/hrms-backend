@@ -57,6 +57,9 @@ public class BpmnGenerator {
             process.addFlowElement(userTask(s.getStepKey()));
         }
         flow(process, start, node(process, ordered.get(0).getStepKey()), null);
+        if (routes.stream().anyMatch(r -> r.getPositionNo() == null || r.getStep() == null)) {
+            throw new IllegalArgumentException("Route without a step or a position");
+        }
         for (WorkflowStep s : ordered) {
             List<WorkflowRoute> own = routes.stream().filter(r -> s.getStepKey().equals(r.getStep().getStepKey()))
                 .sorted(Comparator.comparing(WorkflowRoute::getPositionNo)).toList();

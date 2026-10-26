@@ -166,7 +166,8 @@ public class WorkflowServiceImpl implements WorkflowService {
         if (live.isPresent()) {
             Live l = live.get();
             return waiting(type, requestId, l.step(), l.ctx().flow().outcomes(l.step()),
-                authorization.mayAct(l.step(), l.ctx().requesterId(), l.ctx().targetDepartmentId()));
+                authorization.mayAct(l.step(), l.ctx().requesterId(), l.ctx().targetDepartmentId()),
+                authorization.mayOverride(l.step(), l.ctx().requesterId(), l.ctx().targetDepartmentId()));
         }
         String stage = ports.access(type).stage(requestId).orElseThrow(() ->
             new BusinessRuleException("NOT_IN_WORKFLOW", "This request does not use the approval workflow."));
@@ -230,18 +231,24 @@ public class WorkflowServiceImpl implements WorkflowService {
                 approver.role());
         }
         return waiting(ctx.type(), ctx.requestId(), step, ctx.flow().outcomes(step),
-            authorization.mayAct(step, ctx.requesterId(), ctx.targetDepartmentId()));
+            authorization.mayAct(step, ctx.requesterId(), ctx.targetDepartmentId()),
+            authorization.mayOverride(step, ctx.requesterId(), ctx.targetDepartmentId()));
     }
 
-    /** The step is shown to every related caller, but outcomes (and the department picker) only to who may act. */
+    /**
+     * The step is shown to every related caller, but outcomes (and the department picker) only to who may act;
+     * the override flag only to who may override, and whether an override must pick the department to everyone.
+     */
     private WorkflowStatusResponse waiting(RequestType type, long requestId, WorkflowStep step,
-                                           Set<StepOutcome> allowed, boolean callerMayAct) {
+                                           Set<StepOutcome> allowed, boolean callerMayAct,
+                                           boolean callerMayOverride) {
         Set<StepOutcome> offered = callerMayAct ? allowed : Set.of();
         WorkflowRequestAccess.Brief brief = ports.access(type).brief(requestId);
         return new WorkflowStatusResponse(type, requestId, PENDING_PREFIX + step.getStepKey(), step.getStepKey(),
             step.getLabelEn(), step.getLabelAr(), List.copyOf(offered),
             Boolean.TRUE.equals(step.getPicksTargetDepartment()) && offered.contains(StepOutcome.FORWARD),
-            brief.requesterEmployeeId(), brief.requesterName(), brief.summary());
+            brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), callerMayOverride,
+            Boolean.TRUE.equals(step.getPicksTargetDepartment()) && allowed.contains(StepOutcome.FORWARD));
     }
 
     /** Downstream effects first, then the request's terminal stage: a handler failure leaves the stage untouched. */
@@ -295,6 +302,6 @@ public class WorkflowServiceImpl implements WorkflowService {
     private WorkflowStatusResponse closed(RequestType type, long requestId, String stage) {
         WorkflowRequestAccess.Brief brief = ports.access(type).brief(requestId);
         return new WorkflowStatusResponse(type, requestId, stage, null, null, null, List.of(), false,
-            brief.requesterEmployeeId(), brief.requesterName(), brief.summary());
+            brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), false, false);
     }
 }

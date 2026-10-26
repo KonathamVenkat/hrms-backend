@@ -1,6 +1,10 @@
 package com.hrms.workflow.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hrms.auth.repository.AuthUserRepository;
 import com.hrms.common.dto.PagedResponse;
+import com.hrms.common.security.JwtTokenProvider;
+import com.hrms.employee.config.SecurityConfig;
 import com.hrms.common.exception.GlobalExceptionHandler;
 import com.hrms.workflow.dto.request.WorkflowActionRequest;
 import com.hrms.workflow.dto.request.WorkflowOverrideRequest;
@@ -20,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -43,6 +48,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -64,9 +70,14 @@ class WorkflowControllerTest {
         + "\"reason\":\"manager away\"}";
 
     // Not annotated @Configuration on purpose, see EmployeeEndpointSecurityTest.
+    // The real filter chain is in the context too (for the 401 test); the shared MockMvc does not apply it, the 401 test builds its own with the filter chain.
     @EnableWebMvc
     @EnableMethodSecurity
+    @Import(SecurityConfig.class)
     static class TestConfig {
+        @Bean JwtTokenProvider jwtTokenProvider() { return mock(JwtTokenProvider.class); }
+        @Bean AuthUserRepository authUserRepository() { return mock(AuthUserRepository.class); }
+        @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
         @Bean GlobalExceptionHandler globalExceptionHandler() { return new GlobalExceptionHandler(); }
         @Bean WorkflowService workflowService() { return mock(WorkflowService.class); }
         @Bean WorkflowDefinitionService definitionService() { return mock(WorkflowDefinitionService.class); }
@@ -86,7 +97,7 @@ class WorkflowControllerTest {
     MockMvc mvc;
 
     private final WorkflowStatusResponse pending = new WorkflowStatusResponse(RequestType.LEAVE, 7, "PENDING_BRANCH",
-        "BRANCH", "Branch manager", "Branch manager AR", List.of(StepOutcome.FORWARD, StepOutcome.REJECT), true, 3L, "Req Name", "ANNUAL 2027-03-01 to 2027-03-03 (3.0 days)");
+        "BRANCH", "Branch manager", "Branch manager AR", List.of(StepOutcome.FORWARD, StepOutcome.REJECT), true, 3L, "Req Name", "ANNUAL 2027-03-01 to 2027-03-03 (3.0 days)", true, true);
 
     @BeforeEach
     void setUp() {
@@ -113,7 +124,9 @@ class WorkflowControllerTest {
 
         mvc.perform(get(BASE + "/workflow")).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.stage").value("PENDING_BRANCH"))
-            .andExpect(jsonPath("$.data.requesterName").value("Req Name"));
+            .andExpect(jsonPath("$.data.requesterName").value("Req Name"))
+            .andExpect(jsonPath("$.data.mayOverride").value(true))
+            .andExpect(jsonPath("$.data.overridePicksTargetDepartment").value(true));
         when(workflow.targetDepartments(RequestType.LEAVE, 7)).thenReturn(List.of());
         mvc.perform(get(BASE + "/workflow/target-departments")).andExpect(status().isOk());
         mvc.perform(json(post(BASE + "/actions"), ACT)).andExpect(status().isOk());
@@ -204,6 +217,20 @@ class WorkflowControllerTest {
         mvc.perform(json(post(BASE + "/override"),
             "{\"stepKey\":\"BRANCH\",\"outcome\":\"FORWARD\",\"targetDepartmentId\":3}")).andExpect(status().isBadRequest());
         verifyNoInteractions(workflow);
+    }
+
+    /** Through the application's real security filter chain: no token at all. */
+    @Test
+    void anonymousCaller_isA401_andNeverReachesTheService() throws Exception {
+        MockMvc secured = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        secured.perform(get(BASE + "/workflow")).andExpect(status().isUnauthorized());
+        secured.perform(get(BASE + "/workflow/target-departments")).andExpect(status().isUnauthorized());
+        secured.perform(json(post(BASE + "/actions"), ACT)).andExpect(status().isUnauthorized());
+        secured.perform(json(post(BASE + "/override"), OVERRIDE)).andExpect(status().isUnauthorized());
+        secured.perform(post(BASE + "/cancel")).andExpect(status().isUnauthorized());
+        secured.perform(get(BASE + "/history")).andExpect(status().isUnauthorized());
+        secured.perform(get("/api/v1/inbox")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(workflow, inbox);
     }
 
     @Test @WithMockUser(roles = "EMPLOYEE")

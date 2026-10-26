@@ -2,6 +2,7 @@ package com.hrms.auth.security;
 
 import com.hrms.auth.entity.AuthUser;
 import com.hrms.auth.repository.AuthUserRepository;
+import com.hrms.common.enums.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -85,6 +86,22 @@ public class EmployeeAccessGuard {
     public boolean isHrStaff() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.isAuthenticated() && isPrivileged(auth);
+    }
+
+    /**
+     * True when the employee's own active login has {@code role} and no other active login linked to an employee has
+     * it: nobody but that employee could act on a step held by the role. False for an unknown role name.
+     */
+    public boolean isSoleActiveHolderOf(String role, long employeeId) {
+        UserRole userRole;
+        try {
+            userRole = UserRole.valueOf(role);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        boolean holds = authUserRepository.findByEmployeeId(employeeId)
+            .filter(u -> Boolean.TRUE.equals(u.getIsActive()) && u.getRole() == userRole).isPresent();
+        return holds && authUserRepository.countOtherActiveHolders(userRole, employeeId) == 0;
     }
 
     private boolean isPrivileged(Authentication auth) {

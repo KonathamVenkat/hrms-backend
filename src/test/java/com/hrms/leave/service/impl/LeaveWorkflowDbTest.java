@@ -24,6 +24,7 @@ import com.hrms.leave.repository.LeaveRequestRepository;
 import com.hrms.leave.repository.LeaveTypeRepository;
 import com.hrms.leave.service.LeaveService;
 import com.hrms.workflow.dto.request.WorkflowActionRequest;
+import com.hrms.workflow.dto.request.WorkflowOverrideRequest;
 import com.hrms.workflow.entity.WorkflowDefinition;
 import com.hrms.workflow.entity.WorkflowSetting;
 import com.hrms.workflow.enums.RequestType;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -81,6 +83,8 @@ class LeaveWorkflowDbTest extends DatabaseTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired TransactionTemplate tx;
     @Autowired EntityManager em;
+    @Autowired com.hrms.workflow.service.InboxService inbox;
+    @Autowired org.springframework.context.ApplicationEventPublisher events;
     @MockitoBean OrganisationLookup organisation;
     @MockitoBean EmployeeAccessGuard guard;
 
@@ -215,6 +219,25 @@ class LeaveWorkflowDbTest extends DatabaseTest {
         assertEquals(0.0, balanceOf(requester).getUsedDays());
     }
 
+    /** The chunked read of the approver refresh: by stage, after an id, in id order, capped. */
+    @Test
+    void openRequestsAreReadByStageInIdOrderAfterTheLastId() {
+        long id = apply().getLeaveReqId();
+        em.flush();
+        var page = org.springframework.data.domain.PageRequest.of(0, 1000);
+
+        assertTrue(requests.findOpenAtStages(List.of("PENDING_BRANCH"), id - 1, page).stream()
+            .anyMatch(lr -> lr.getLeaveReqId() == id));
+        assertTrue(requests.findOpenAtStages(List.of("PENDING_BRANCH"), id, page).stream()
+            .noneMatch(lr -> lr.getLeaveReqId() <= id));
+        assertTrue(requests.findOpenAtStages(List.of("PENDING_HEAD"), id - 1, page).stream()
+            .noneMatch(lr -> lr.getLeaveReqId() == id));
+        List<Long> ids = requests.findOpenAtStages(List.of("PENDING_BRANCH", "PENDING_HEAD"), 0,
+            org.springframework.data.domain.PageRequest.of(0, 3)).stream().map(LeaveRequest::getLeaveReqId).toList();
+        assertTrue(ids.size() <= 3);
+        assertEquals(ids.stream().sorted().toList(), ids);
+    }
+
     @Test
     void applyingWithTheFlagOffLeavesTheWorkflowColumnsEmptyAndTheOldEndpointDecides() {
         enable(false);
@@ -319,6 +342,101 @@ class LeaveWorkflowDbTest extends DatabaseTest {
     }
 
     @Test
+    void aRejectionByTheGmReleasesThePendingDays() {
+        LeaveRequestResponse r = apply();
+        long id = r.getLeaveReqId();
+        act(id, branchManager, "EMPLOYEE", "BRANCH", StepOutcome.FORWARD, dept, null);
+        act(id, secretary, "EMPLOYEE", "SECRETARY", StepOutcome.FORWARD, null, null);
+        act(id, head, "EMPLOYEE", "HEAD", StepOutcome.APPROVE, null, null);
+
+        act(id, gm, "GENERAL_MANAGER", "GM", StepOutcome.REJECT, null, "Not now");
+
+        LeaveRequest lr = request(id);
+        assertEquals(LeaveStatus.REJECTED, lr.getStatus());
+        assertEquals("REJECTED", lr.getStage());
+        assertEquals("Not now", lr.getRejectionReason());
+        assertEquals(0.0, balanceOf(requester).getPendingDays());
+        assertEquals(0.0, balanceOf(requester).getUsedDays());
+    }
+
+    @Test
+    void aRejectionByHrReleasesThePendingDays() {
+        LeaveRequestResponse r = apply();
+        long id = r.getLeaveReqId();
+        toHr(id);
+
+        act(id, hr, "HR_ADMIN", "HR", StepOutcome.REJECT, null, "Overlaps the audit");
+
+        LeaveRequest lr = request(id);
+        assertEquals(LeaveStatus.REJECTED, lr.getStatus());
+        assertEquals("REJECTED", lr.getStage());
+        assertEquals(0.0, balanceOf(requester).getPendingDays());
+        assertEquals(0.0, balanceOf(requester).getUsedDays());
+    }
+
+    // ----- the only General Manager applies (HR_ADMIN override of a role step) --------------------------------
+
+    /** The GM's own leave, forwarded by the branch manager and the secretary and approved by the head: at GM. */
+    private long gmLeaveAtGm() {
+        balance(gm, 21.0);
+        as(gm, "GENERAL_MANAGER");
+        long id = leave.applyLeave(gm, CreateLeaveRequest.builder().leaveTypeCode(TYPE)
+            .startDate(monday).endDate(monday.plusDays(1)).reason("Own leave").build(), null).getLeaveReqId();
+        act(id, branchManager, "EMPLOYEE", "BRANCH", StepOutcome.FORWARD, dept, null);
+        act(id, secretary, "EMPLOYEE", "SECRETARY", StepOutcome.FORWARD, null, null);
+        act(id, head, "EMPLOYEE", "HEAD", StepOutcome.APPROVE, null, null);
+        assertEquals("PENDING_GM", request(id).getStage());
+        return id;
+    }
+
+    @Test
+    void theSoleGeneralManagersOwnLeaveIsOverriddenByAnHrAdminAndGoesOnToHr() {
+        when(guard.isSoleActiveHolderOf("GENERAL_MANAGER", gm)).thenReturn(true);
+        long id = gmLeaveAtGm();
+
+        as(gm, "GENERAL_MANAGER");
+        assertEquals("SELF_APPROVAL", assertThrows(BusinessRuleException.class, () -> workflow.act(RequestType.LEAVE,
+            id, new WorkflowActionRequest("GM", StepOutcome.APPROVE, null, null))).getRuleCode());
+
+        as(hr, "HR_ADMIN");
+        assertTrue(workflow.status(RequestType.LEAVE, id).mayOverride());
+        assertEquals("PENDING_HR", workflow.override(RequestType.LEAVE, id,
+            new WorkflowOverrideRequest("GM", StepOutcome.APPROVE, null, "Only general manager")).stage());
+        var last = workflow.history(RequestType.LEAVE, id).getLast();
+        assertEquals(com.hrms.workflow.enums.HistoryAction.OVERRIDDEN, last.action());
+        assertEquals("GM", last.stepKey());
+        assertEquals("PENDING_HR", request(id).getStage());
+    }
+
+    @Test
+    void withASecondGeneralManagerTheGmStepIsNotOverridden() {
+        when(guard.isSoleActiveHolderOf("GENERAL_MANAGER", gm)).thenReturn(false);
+        long id = gmLeaveAtGm();
+
+        as(hr, "HR_ADMIN");
+        assertFalse(workflow.status(RequestType.LEAVE, id).mayOverride());
+        assertThrows(AccessDeniedException.class, () -> workflow.override(RequestType.LEAVE, id,
+            new WorkflowOverrideRequest("GM", StepOutcome.APPROVE, null, "Only general manager")));
+        assertEquals("PENDING_GM", request(id).getStage());
+    }
+
+    /** Documented limit: the only HR_ADMIN cannot push their own leave through the HR step; another HR_ADMIN must. */
+    @Test
+    void anHrAdminCannotOverrideTheirOwnRequestEvenAsTheOnlyHolder() {
+        when(guard.isSoleActiveHolderOf("HR_ADMIN", hr)).thenReturn(true);
+        balance(hr, 21.0);
+        as(hr, "HR_ADMIN");
+        long id = leave.applyLeave(hr, CreateLeaveRequest.builder().leaveTypeCode(TYPE)
+            .startDate(monday).endDate(monday.plusDays(1)).reason("Own leave").build(), null).getLeaveReqId();
+        toHr(id);
+
+        as(hr, "HR_ADMIN");
+        assertFalse(workflow.status(RequestType.LEAVE, id).mayOverride());
+        assertEquals("SELF_APPROVAL", assertThrows(BusinessRuleException.class, () -> workflow.override(
+            RequestType.LEAVE, id, new WorkflowOverrideRequest("HR", StepOutcome.APPROVE, null, "Own"))).getRuleCode());
+    }
+
+    @Test
     void cancellingAfterTheGmApprovedButBeforeHrReleasesThePendingDays() {
         LeaveRequestResponse r = apply();
         long id = r.getLeaveReqId();
@@ -375,6 +493,51 @@ class LeaveWorkflowDbTest extends DatabaseTest {
         } finally {
             cleanUp(def, people, id);
         }
+    }
+
+    /**
+     * Real leave port and real inbox query: the head changes in a committed transaction and the refresher re-points
+     * the request waiting at the HEAD step, so the new head finds it in the inbox and the old head no longer does.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void aNewDepartmentHeadIsStoredOnTheWaitingLeaveAndSeesItInTheRealInbox() {
+        long[] people = tx.execute(s -> {
+            seed();
+            return new long[]{requester, branchManager, secretary, head, gm, hr};
+        });
+        WorkflowDefinition def = tx.execute(s -> {
+            enable(true);
+            return definitions.publishDefault(RequestType.LEAVE);
+        });
+        long id = 0;
+        try {
+            id = tx.execute(s -> apply()).getLeaveReqId();
+            final long requestId = id;
+            tx.executeWithoutResult(s -> {
+                act(requestId, branchManager, "EMPLOYEE", "BRANCH", StepOutcome.FORWARD, dept, null);
+                act(requestId, secretary, "EMPLOYEE", "SECRETARY", StepOutcome.FORWARD, null, null);
+            });
+            assertEquals(head, tx.execute(s -> request(requestId)).getCurrentApproverEmployeeId());
+            assertTrue(inboxIds(head).contains(requestId));
+            assertFalse(inboxIds(gm).contains(requestId));
+
+            when(organisation.headOf(dept)).thenReturn(Optional.of(gm));
+            tx.executeWithoutResult(s -> events.publishEvent(new com.hrms.employee.service.OrganisationChanged()));
+
+            LeaveRequest stored = tx.execute(s -> request(requestId));
+            assertEquals("PENDING_HEAD", stored.getStage());
+            assertEquals(gm, stored.getCurrentApproverEmployeeId());
+            assertTrue(inboxIds(gm).contains(requestId));
+            assertFalse(inboxIds(head).contains(requestId));
+        } finally {
+            cleanUp(def, people, id);
+        }
+    }
+
+    private List<Long> inboxIds(long who) {
+        as(who, "EMPLOYEE");
+        return tx.execute(s -> inbox.inbox(0, 100).getContent().stream().map(i -> i.requestId()).toList());
     }
 
     private void cleanUp(WorkflowDefinition def, long[] people, long requestId) {

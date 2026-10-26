@@ -190,6 +190,61 @@ class WorkflowAuthorizationTest {
         assertThrows(AccessDeniedException.class, () -> authorization.assertMayOverride(HEAD, 1L, 8L));
     }
 
+    // ----- B1: a role step whose only holder is the requester ----------------------------------------------------
+
+    @Test
+    void hrAdminMayOverrideARoleStepWhoseOnlyHolderIsTheRequester() {
+        caller(3L, "ROLE_HR_ADMIN");
+        when(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 1L)).thenReturn(true);
+
+        assertDoesNotThrow(() -> authorization.assertMayOverride(GM, 1L, 7L));
+        assertTrue(authorization.mayOverride(GM, 1L, 7L));
+    }
+
+    @Test
+    void aRoleStepWithAnotherHolderIsNeverOverridden() {
+        caller(3L, "ROLE_HR_ADMIN");
+        when(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 1L)).thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () -> authorization.assertMayOverride(GM, 1L, 7L));
+        assertFalse(authorization.mayOverride(GM, 1L, 7L));
+    }
+
+    @Test
+    void theSoleHolderRuleNeedsAnHrAdminWhoIsNotTheRequester() {
+        when(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 1L)).thenReturn(true);
+        caller(4L, "ROLE_HR_MANAGER");
+        assertThrows(AccessDeniedException.class, () -> authorization.assertMayOverride(GM, 1L, 7L));
+        assertFalse(authorization.mayOverride(GM, 1L, 7L));
+
+        caller(1L, "ROLE_HR_ADMIN");
+        assertEquals("SELF_APPROVAL", assertThrows(BusinessRuleException.class,
+            () -> authorization.assertMayOverride(GM, 1L, 7L)).getRuleCode());
+        assertFalse(authorization.mayOverride(GM, 1L, 7L));
+    }
+
+    // ----- B4: mayOverride is the same rule as assertMayOverride, without the exception -------------------------
+
+    @Test
+    void mayOverrideFollowsTheOverrideRule() {
+        WorkflowStep hr = ApproverResolverTest.step(ApproverType.ROLE, "HR_ADMIN");
+        when(organisation.headOf(8L)).thenReturn(Optional.empty());
+
+        caller(3L, "ROLE_HR_ADMIN");
+        assertFalse(authorization.mayOverride(hr, 1L, 7L), "HR step held by the caller: act, not override");
+        assertFalse(authorization.mayOverride(GM, 1L, 7L), "GM step with another GM");
+        assertFalse(authorization.mayOverride(HEAD, 1L, 7L), "head present");
+        assertTrue(authorization.mayOverride(HEAD, 1L, 8L), "no head");
+
+        caller(1L, "ROLE_HR_ADMIN");
+        assertFalse(authorization.mayOverride(HEAD, 1L, 8L), "own request");
+
+        caller(4L, "ROLE_EMPLOYEE");
+        assertFalse(authorization.mayOverride(HEAD, 1L, 8L), "not HR_ADMIN");
+        caller(null, "ROLE_HR_ADMIN");
+        assertFalse(authorization.mayOverride(HEAD, 1L, 8L), "no employee record");
+    }
+
     @Test
     void unauthenticatedCallerIsDeniedOnOverrideAndAct() {
         assertThrows(AccessDeniedException.class, () -> authorization.assertMayOverride(HEAD, 1L, 8L));

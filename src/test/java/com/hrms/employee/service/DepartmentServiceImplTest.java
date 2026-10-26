@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 
@@ -39,13 +40,14 @@ class DepartmentServiceImplTest {
     @Mock EmployeeRepository employeeRepository;
     @Mock AuditTrail audit;
     @Mock EntityManager entityManager;
+    @Mock ApplicationEventPublisher events;
 
     DepartmentServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new DepartmentServiceImpl(departmentRepository, designationRepository,
-            jobDetailsRepository, employeeRepository, audit, entityManager);
+            jobDetailsRepository, employeeRepository, audit, entityManager, events);
     }
 
     private DepartmentRequest request() {
@@ -127,6 +129,67 @@ class DepartmentServiceImplTest {
         assertFalse(d.getIsActive());
         assertNotNull(d.getUpdatedAt());
         verify(departmentRepository).save(d);
+    }
+
+    // ----- waiting workflow requests follow the organisation (OrganisationChanged) -------------------------------
+
+    private DepartmentRequest updateWithHead(Long headId) {
+        DepartmentRequest r = request();
+        r.setVersion(0L);
+        r.setHeadEmployeeId(headId);
+        return r;
+    }
+
+    @Test
+    void update_newHeadPublishesOrganisationChanged() {
+        Department d = existing();
+        d.setHeadEmployeeId(5L);
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(d));
+        Employee head = new Employee();
+        head.setIsActive(true);
+        when(employeeRepository.findById(6L)).thenReturn(Optional.of(head));
+        when(departmentRepository.save(d)).thenReturn(d);
+
+        service.updateDepartment(100L, updateWithHead(6L));
+
+        verify(events).publishEvent(any(OrganisationChanged.class));
+    }
+
+    @Test
+    void update_clearingTheHeadPublishesButAnUnchangedHeadDoesNot() {
+        Department d = existing();
+        d.setHeadEmployeeId(5L);
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(d));
+        when(departmentRepository.save(d)).thenReturn(d);
+
+        service.updateDepartment(100L, updateWithHead(5L));
+        verify(events, never()).publishEvent(any());
+
+        service.updateDepartment(100L, updateWithHead(null));
+        verify(events).publishEvent(any(OrganisationChanged.class));
+    }
+
+    @Test
+    void deactivateAndActivatePublishOrganisationChanged() {
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(existing()));
+
+        service.deactivateDepartment(100L);
+        service.activateDepartment(100L);
+
+        verify(events, times(2)).publishEvent(any(OrganisationChanged.class));
+    }
+
+    @Test
+    void deactivatingAnInactiveOrActivatingAnActiveDepartmentPublishesNothing() {
+        Department d = existing();
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(d));
+
+        service.activateDepartment(100L); // already active
+        verify(events, never()).publishEvent(any());
+
+        d.setIsActive(false);
+        service.deactivateDepartment(100L); // already inactive
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

@@ -19,8 +19,10 @@ import com.hrms.employee.repository.CompanyBranchRepository;
 import com.hrms.employee.service.DepartmentHeadService;
 import com.hrms.employee.service.DepartmentSecretaryService;
 import com.hrms.employee.service.JobDetailsService;
+import com.hrms.employee.service.OrganisationChanged;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final DepartmentHeadService        departmentHeads;
     private final DepartmentSecretaryService   departmentSecretaries;
     private final CompanyBranchRepository      branchRepository;
+    private final ApplicationEventPublisher    events;
 
     // ── Get current job ───────────────────────────────────────
 
@@ -153,6 +156,11 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         // Moving to another department ends any headship or secretary post of the old one.
         departmentHeads.clearHeadOf(employeeId, request.getDepartmentId());
         departmentSecretaries.clearSecretaryOf(employeeId, request.getDepartmentId());
+        // The branch decides the branch manager of the employee's waiting workflow requests.
+        Long previousBranchId = currentRecord.map(EmployeeJobDetails::getCompanyBranchId).orElse(null);
+        if (!Objects.equals(previousBranchId, branchId)) {
+            events.publishEvent(new OrganisationChanged());
+        }
 
         return jobDetailsRepository
             .findCurrentJobByEmployee(employeeId)

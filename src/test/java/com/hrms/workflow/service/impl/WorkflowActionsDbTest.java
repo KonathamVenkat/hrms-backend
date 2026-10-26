@@ -409,22 +409,52 @@ class WorkflowActionsDbTest extends DatabaseTest {
         assertEquals(DEPT, requests.rows.get(id).targetDepartmentId);
     }
 
+    /**
+     * The head changes in a committed transaction (two events in it): the waiting request names the new head only
+     * after the commit, then HR_ADMIN once there is no head. Committed, so the refresh (its own transactions) runs.
+     */
     @Test
-    void aChangedHeadOrNoHeadIsReflectedInTheStoredApprover() {
-        long id = atHead();
-        assertEquals(head, requests.rows.get(id).approverEmployeeId);
-        assertNull(requests.rows.get(id).approverRole);
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void aChangedHeadOrNoHeadIsStoredOnTheWaitingRequestOnceTheChangeCommits() {
+        Committed c = commitFlow(3, headOnlyFlow());
+        try {
+            long requesterId = c.people()[0], oldHead = c.people()[1], newHead = c.people()[2];
+            when(organisation.departmentExists(DEPT)).thenReturn(true);
+            when(organisation.isDepartmentActive(DEPT)).thenReturn(true);
+            when(organisation.headOf(DEPT)).thenReturn(Optional.of(oldHead));
+            long id = newRequest(requesterId);
+            c.requestIds().add(id);
+            as(requesterId, "EMPLOYEE");
+            assertEquals("PENDING_HEAD", tx.execute(s -> workflow.submit(RequestType.LEAVE, id, requesterId, DEPT,
+                Map.of("totalDays", 1))).stage());
+            assertEquals(oldHead, requests.rows.get(id).approverEmployeeId);
 
+            when(organisation.headOf(DEPT)).thenReturn(Optional.of(newHead));
+            tx.executeWithoutResult(s -> {
+                events.publishEvent(new com.hrms.employee.service.OrganisationChanged());
+                events.publishEvent(new com.hrms.employee.service.OrganisationChanged());
+                assertEquals(oldHead, requests.rows.get(id).approverEmployeeId, "not before the commit");
+            });
+            assertEquals(newHead, requests.rows.get(id).approverEmployeeId);
+            assertNull(requests.rows.get(id).approverRole);
+
+            when(organisation.headOf(DEPT)).thenReturn(Optional.empty());
+            tx.executeWithoutResult(s -> events.publishEvent(new com.hrms.employee.service.OrganisationChanged()));
+            assertNull(requests.rows.get(id).approverEmployeeId);
+            assertEquals("HR_ADMIN", requests.rows.get(id).approverRole);
+            assertEquals("PENDING_HEAD", requests.rows.get(id).stage);
+        } finally {
+            removeCommitted(c);
+        }
+    }
+
+    /** Rolled back: the refresh never runs, nothing is re-pointed. */
+    @Test
+    void aChangeThatRollsBackRefreshesNothing() {
+        long id = atHead();
         when(organisation.headOf(DEPT)).thenReturn(Optional.of(other));
         events.publishEvent(new com.hrms.employee.service.OrganisationChanged());
-        assertEquals(other, requests.rows.get(id).approverEmployeeId);
-        assertNull(requests.rows.get(id).approverRole);
-
-        when(organisation.headOf(DEPT)).thenReturn(Optional.empty());
-        events.publishEvent(new com.hrms.employee.service.OrganisationChanged());
-        assertNull(requests.rows.get(id).approverEmployeeId);
-        assertEquals("HR_ADMIN", requests.rows.get(id).approverRole);
-        assertEquals("PENDING_HEAD", requests.rows.get(id).stage);
+        assertEquals(head, requests.rows.get(id).approverEmployeeId);
     }
 
     @Test
@@ -819,6 +849,10 @@ class WorkflowActionsDbTest extends DatabaseTest {
     }
 
     private Committed commitHrOnlyFlow(int employeeCount) {
+        return commitFlow(employeeCount, hrOnlyFlow());
+    }
+
+    private Committed commitFlow(int employeeCount, DefaultWorkflowFactory.Flow flow) {
         String run = Long.toString(System.nanoTime(), 36);
         long[] people = tx.execute(s -> {
             long[] p = new long[employeeCount];
@@ -829,7 +863,6 @@ class WorkflowActionsDbTest extends DatabaseTest {
         });
         WorkflowDefinition def = tx.execute(s -> {
             enable(true);
-            DefaultWorkflowFactory.Flow flow = hrOnlyFlow();
             return definitionImpl.publish(RequestType.LEAVE, flow.steps(), flow.routes());
         });
         return new Committed(def, people, new ArrayList<>());
@@ -988,6 +1021,14 @@ class WorkflowActionsDbTest extends DatabaseTest {
             DefaultWorkflowFactory.route(hr, StepOutcome.REJECT, "REJECTED", 2)));
     }
 
+    /** A single department-head step: approve or reject. */
+    private static DefaultWorkflowFactory.Flow headOnlyFlow() {
+        var headStep = DefaultWorkflowFactory.step("HEAD", 1, "Head", "Head", ApproverType.DEPARTMENT_HEAD, null);
+        return new DefaultWorkflowFactory.Flow(List.of(headStep), List.of(
+            DefaultWorkflowFactory.route(headStep, StepOutcome.APPROVE, "APPROVED", 1),
+            DefaultWorkflowFactory.route(headStep, StepOutcome.REJECT, "REJECTED", 2)));
+    }
+
     /** Removes everything the committed fixture and its requests left, including the Flowable deployment. */
     private void removeCommitted(Committed c) {
         SecurityContextHolder.clearContext();
@@ -1116,8 +1157,10 @@ class WorkflowActionsDbTest extends DatabaseTest {
         }
 
         @Override
-        public List<OpenRequest> openRequests() {
-            return rows.entrySet().stream().filter(e -> e.getValue().stepKey != null)
+        public List<OpenRequest> openRequests(java.util.Collection<String> stages, long afterRequestId, int limit) {
+            return rows.entrySet().stream()
+                .filter(e -> stages.contains(e.getValue().stage) && e.getKey() > afterRequestId)
+                .sorted(Map.Entry.comparingByKey()).limit(limit)
                 .map(e -> new OpenRequest(e.getKey(), e.getValue().requester, e.getValue().targetDepartmentId,
                     e.getValue().definitionId, e.getValue().stepKey, e.getValue().stage,
                     e.getValue().approverEmployeeId, e.getValue().approverRole)).toList();

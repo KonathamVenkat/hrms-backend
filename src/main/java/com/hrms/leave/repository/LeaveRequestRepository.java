@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -126,8 +127,14 @@ public interface LeaveRequestRepository
 
     long countByStatusAndWorkflowDefinitionIdIsNull(LeaveStatus status);
 
-    /** Requests waiting at a workflow step. */
-    List<LeaveRequest> findByCurrentStepKeyIsNotNull();
+    /** One chunk of requests waiting at these workflow stages, by id (IDX_LR_STAGE serves the stage filter). */
+    @Query("""
+        SELECT lr FROM LeaveRequest lr
+        WHERE lr.stage IN :stages AND lr.leaveReqId > :afterId
+        ORDER BY lr.leaveReqId
+        """)
+    List<LeaveRequest> findOpenAtStages(@Param("stages") Collection<String> stages, @Param("afterId") long afterId,
+                                        Pageable page);
 
     // ── Dashboard — distinct employees on approved leave on a date ──
 

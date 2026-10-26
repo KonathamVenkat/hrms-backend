@@ -5,7 +5,8 @@
 -- Safe to re-run after a partial failure: every statement ignores "object already gone"
 -- (ORA-00942 table, ORA-02443 constraint, ORA-01418 index, ORA-00904 column, ORA-02289 sequence, ORA-12987 column).
 -- Before running: no AUTH_USERS row may have ROLE = 'GENERAL_MANAGER' (move those users to another role first),
--- otherwise the restored role check cannot be added.
+-- otherwise the restored role check cannot be added. The script checks this first and stops (ORA-20010) before
+-- changing anything.
 -- NOTE: the restored AUTH_USERS role check is the 10-role version that dev had before V10 (it includes SYSTEM_ADMIN),
 -- NOT the original 3-role check from V1__baseline.sql.
 -- Afterwards remove the history row and the migration file, or the app will not start:
@@ -13,6 +14,7 @@
 -- Also run the rollback block at the bottom of db/workflow_menu.sql if that script was run.
 
 DECLARE
+  v_general_managers NUMBER;
   PROCEDURE run(p_sql VARCHAR2) IS
   BEGIN
     EXECUTE IMMEDIATE p_sql;
@@ -23,6 +25,14 @@ DECLARE
       END IF;
   END;
 BEGIN
+  -- 0. Stop before any change while a login still has the role: dropping the check and failing to re-add it would
+  --    leave AUTH_USERS without any role check.
+  SELECT COUNT(*) INTO v_general_managers FROM HRMS.AUTH_USERS WHERE "ROLE" = 'GENERAL_MANAGER';
+  IF v_general_managers > 0 THEN
+    RAISE_APPLICATION_ERROR(-20010, v_general_managers || ' AUTH_USERS row(s) still have ROLE = GENERAL_MANAGER. '
+      || 'Move them to another role, then run this script again. Nothing was changed.');
+  END IF;
+
   -- 6. Role: remove its rights and row, restore the 10-role check.
   run('DELETE FROM HRMS.ROLE_RIGHTS WHERE ROLE_ID IN (SELECT ROLE_ID FROM HRMS.ROLES WHERE ROLE_NAME = ''GENERAL_MANAGER'')');
   run('DELETE FROM HRMS.ROLES WHERE ROLE_NAME = ''GENERAL_MANAGER''');

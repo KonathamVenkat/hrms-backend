@@ -10,6 +10,9 @@ import java.util.List;
  * the step fields are null and {@code allowedOutcomes} empty once the request is closed. {@code allowedOutcomes} and
  * {@code pickTargetDepartment} are what the CALLER may do now (empty for anyone who cannot act). The requester id,
  * name and one-line summary are for the detail page; name and summary may be null.
+ * {@code mayOverride}: the CALLER (an HR_ADMIN, not the requester) may override the open step because nobody else can
+ * act on it. {@code overridePicksTargetDepartment}: the open step chooses the department, so an override that forwards
+ * must send one (same for every caller). Both false once closed.
  */
 public record WorkflowStatusResponse(
     RequestType type,
@@ -22,5 +25,7 @@ public record WorkflowStatusResponse(
     boolean pickTargetDepartment,
     long requesterEmployeeId,
     String requesterName,
-    String summary) {
+    String summary,
+    boolean mayOverride,
+    boolean overridePicksTargetDepartment) {
 }

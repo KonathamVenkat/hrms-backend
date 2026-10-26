@@ -25,7 +25,10 @@ import java.util.regex.Pattern;
  * Codes are plain ("LOOP") except for problems that name a step: UNREACHABLE_STEP:KEY (a step no path reaches, a
  * duplicate step key, or a route whose step is not in the flow; the key is "null" for a route with no step) and
  * BAD_STEP_KEY:KEY (a key that is not [A-Z][A-Z0-9_]{0,29}, a reserved terminal name APPROVED / REJECTED, or a step
- * with no position). A flow with a bad step key is reported on those alone: the other checks need sound keys.
+ * with no position). A flow with a bad step key or a route with no position (BAD_ROUTE_POSITION) is reported on those
+ * alone: the other checks need sound keys and positions.
+ * The request's result is read from the end event reached, not from the button pressed, so a REJECT route must end
+ * REJECTED and an APPROVE / FORWARD route must not (OUTCOME_ROUTE_MISMATCH).
  */
 @Component
 public class WorkflowValidator {
@@ -40,6 +43,8 @@ public class WorkflowValidator {
     static final String BAD_CONDITION_VALUE = "BAD_CONDITION_VALUE";
     static final String SECRETARY_CANNOT_DECIDE = "SECRETARY_CANNOT_DECIDE";
     static final String BAD_STEP_KEY = "BAD_STEP_KEY";
+    static final String BAD_ROUTE_POSITION = "BAD_ROUTE_POSITION";
+    static final String OUTCOME_ROUTE_MISMATCH = "OUTCOME_ROUTE_MISMATCH";
 
     /** Step keys become BPMN element ids, so only plain identifiers (the generator checks again). */
     static final Pattern STEP_KEY = Pattern.compile("[A-Z][A-Z0-9_]{0,29}");
@@ -55,7 +60,10 @@ public class WorkflowValidator {
     static final Set<String> OPERATORS = Set.of(">", ">=", "<", "<=", "=", "<>");
 
     public List<String> validate(List<WorkflowStep> steps, List<WorkflowRoute> routes, RequestType type) {
-        List<String> badKeys = badStepKeys(steps);
+        List<String> badKeys = new ArrayList<>(badStepKeys(steps));
+        if (routes.stream().anyMatch(r -> r.getPositionNo() == null)) {
+            badKeys.add(BAD_ROUTE_POSITION);
+        }
         if (!badKeys.isEmpty()) {
             return badKeys;
         }
@@ -112,6 +120,9 @@ public class WorkflowValidator {
             }
             if (secretary && (has(own, StepOutcome.APPROVE) || has(own, StepOutcome.REJECT))) {
                 errors.add(SECRETARY_CANNOT_DECIDE);
+            }
+            if (own.stream().anyMatch(r -> (r.getOutcome() == StepOutcome.REJECT) != REJECTED.equals(r.getTarget()))) {
+                errors.add(OUTCOME_ROUTE_MISMATCH);
             }
         }
     }

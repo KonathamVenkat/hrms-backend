@@ -2,6 +2,7 @@ package com.hrms.workflow.service;
 
 import com.hrms.workflow.enums.RequestType;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,8 +43,11 @@ public interface WorkflowRequestAccess {
     void markStage(long requestId, String stage, String stepKey, String approverType, Long approverEmployeeId,
                    String approverRole);
 
-    /** Every request currently waiting at a step (any type-specific table), for re-pointing stored approvers. */
-    List<OpenRequest> openRequests();
+    /**
+     * One chunk of the requests waiting at one of {@code stages} (PENDING_&lt;STEP_KEY&gt;): at most {@code limit},
+     * request id above {@code afterRequestId}, in id order. For re-pointing stored approvers; the caller pages on.
+     */
+    List<OpenRequest> openRequests(Collection<String> stages, long afterRequestId, int limit);
 
     record OpenRequest(long requestId, long requesterEmployeeId, Long targetDepartmentId, Long definitionId,
                        String stepKey, String stage, Long approverEmployeeId, String approverRole) {

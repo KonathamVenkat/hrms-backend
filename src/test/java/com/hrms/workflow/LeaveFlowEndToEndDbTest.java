@@ -378,7 +378,9 @@ class LeaveFlowEndToEndDbTest extends DatabaseTest {
         em.flush();
         em.clear();
 
-        assertInboxOnlyFor(id, other);
+        // The stored approver (the inbox) follows after the change commits; this test rolls back, so the inbox still
+        // shows the old head (the committed re-pointing is WorkflowActionsDbTest). Authorization is live already.
+        assertInboxOnlyFor(id, head);
         actAs(head, id, json("HEAD", "APPROVE", null, null)).andExpect(status().isForbidden());
         String result = body(actAs(other, id, json("HEAD", "APPROVE", null, null)).andExpect(status().isOk()));
         assertEquals("PENDING_GM", JsonPath.read(result, "$.data.stage"));
@@ -395,7 +397,9 @@ class LeaveFlowEndToEndDbTest extends DatabaseTest {
         em.flush();
         em.clear();
 
-        assertInboxOnlyFor(id, hr);
+        // The inbox moves to HR_ADMIN once the change commits (WorkflowActionsDbTest); the override is live already.
+        assertTrue(JsonPath.<Boolean>read(body(call(hr, get(BASE + id + "/workflow")).andExpect(status().isOk())),
+            "$.data.mayOverride"));
         String result = body(call(hr, post(BASE + id + "/override").contentType("application/json")
             .content("{\"stepKey\":\"HEAD\",\"outcome\":\"APPROVE\",\"reason\":\"Head post vacant\"}"))
             .andExpect(status().isOk()));

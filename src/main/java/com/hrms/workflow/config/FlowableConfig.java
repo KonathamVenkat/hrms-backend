@@ -1,6 +1,7 @@
 package com.hrms.workflow.config;
 
 import org.flowable.common.engine.impl.AbstractEngineConfiguration;
+import org.flowable.common.engine.impl.history.HistoryLevel;
 import org.flowable.spring.SpringProcessEngineConfiguration;
 import org.flowable.spring.boot.EngineConfigurationConfigurer;
 import org.springframework.context.annotation.Bean;
@@ -22,6 +23,15 @@ public class FlowableConfig {
             // Safety settings in code so they never depend on the git-ignored application.properties.
             config.setDatabaseSchemaUpdate(AbstractEngineConfiguration.DB_SCHEMA_UPDATE_FALSE);
             config.setAsyncExecutorActivate(false);
+            config.setDisableIdmEngine(true);
+            config.setDisableEventRegistry(true);
+            // FlowEngine.terminalStage reads the end event the instance reached from history: needs ACTIVITY or more.
+            // An unset level is Flowable's default (AUDIT): keep it, never lower it.
+            if (config.getHistoryLevel() == null) {
+                config.setHistoryLevel(HistoryLevel.AUDIT);
+            } else if (!config.getHistoryLevel().isAtLeast(HistoryLevel.ACTIVITY)) {
+                config.setHistoryLevel(HistoryLevel.ACTIVITY);
+            }
         };
     }
 }

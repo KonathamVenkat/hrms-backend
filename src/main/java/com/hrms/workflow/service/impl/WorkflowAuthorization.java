@@ -47,11 +47,13 @@ public class WorkflowAuthorization {
     }
 
     /**
-     * HR_ADMIN only, for a person step with nobody resolved, or whose resolved person is the requester (a step the
-     * requester holds that cannot be skipped without approving outright would otherwise wait forever). A present
-     * approver other than the requester is never overridden (there is no absence data; a wider policy is the user's
-     * call). The caller needs an employee record (the history row names the actor) and may not be the requester
-     * (422 SELF_APPROVAL).
+     * HR_ADMIN only, for a step nobody but the requester could act on: a person step with nobody resolved, or whose
+     * resolved person is the requester (a step the requester holds that cannot be skipped without approving outright
+     * would otherwise wait forever), or a ROLE step whose role no active login other than the requester's has (the
+     * only General Manager's own leave). A present approver other than the requester is never overridden (there is no
+     * absence data; a wider policy is the user's call). The caller needs an employee record (the history row names
+     * the actor) and may not be the requester (422 SELF_APPROVAL). Known limit: the only HR_ADMIN whose own request
+     * reaches an HR_ADMIN step cannot override it; a second HR_ADMIN login is needed.
      */
     public void assertMayOverride(WorkflowStep step, long requesterId, Long targetDepartmentId) {
         Long caller = accessGuard.currentEmployeeId();
@@ -61,12 +63,27 @@ public class WorkflowAuthorization {
         if (caller == requesterId) {
             throw new BusinessRuleException("SELF_APPROVAL", "You cannot act on your own request.");
         }
-        boolean personStep = step.getApproverType() != ApproverType.ROLE;
-        boolean nobodyElse = resolver.resolve(step, requesterId, targetDepartmentId)
-            .filter(id -> id != requesterId).isEmpty();
-        if (!accessGuard.isHrAdmin() || !personStep || !nobodyElse) {
+        if (!accessGuard.isHrAdmin() || !nobodyElseCanAct(step, requesterId, targetDepartmentId)) {
             throw new AccessDeniedException("This step cannot be overridden.");
         }
+    }
+
+    /** Whether {@link #assertMayOverride} would pass for the caller (no exception); drives what a status offers. */
+    public boolean mayOverride(WorkflowStep step, long requesterId, Long targetDepartmentId) {
+        if (!accessGuard.isHrAdmin()) {
+            return false;
+        }
+        Long caller = accessGuard.currentEmployeeId();
+        return caller != null && caller != requesterId && nobodyElseCanAct(step, requesterId, targetDepartmentId);
+    }
+
+    /** The override condition on the step itself, shared by {@link #assertMayOverride} and {@link #mayOverride}. */
+    private boolean nobodyElseCanAct(WorkflowStep step, long requesterId, Long targetDepartmentId) {
+        if (step.getApproverType() == ApproverType.ROLE) {
+            return step.getApproverRole() != null
+                && accessGuard.isSoleActiveHolderOf(step.getApproverRole(), requesterId);
+        }
+        return resolver.resolve(step, requesterId, targetDepartmentId).filter(id -> id != requesterId).isEmpty();
     }
 
     /** HR_ADMIN, HR_MANAGER and GENERAL_MANAGER may see every request (spec 10); acting still needs the step. */

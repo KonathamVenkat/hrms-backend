@@ -119,6 +119,10 @@ class BpmnGeneratorTest {
         DefaultWorkflowFactory.Flow badKey = DefaultWorkflowFactory.forType(RequestType.LEAVE);
         badKey.steps().get(0).setStepKey("BRANCH\"/><x");
         assertThrows(IllegalArgumentException.class, () -> generate(badKey));
+
+        DefaultWorkflowFactory.Flow noPosition = DefaultWorkflowFactory.forType(RequestType.LEAVE);
+        noPosition.routes().get(0).setPositionNo(null);
+        assertThrows(IllegalArgumentException.class, () -> generate(noPosition));
     }
 
     private void generate(DefaultWorkflowFactory.Flow flow) {

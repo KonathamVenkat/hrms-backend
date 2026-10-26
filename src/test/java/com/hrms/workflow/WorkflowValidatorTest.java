@@ -111,7 +111,7 @@ class WorkflowValidatorTest {
         route(a, APPROVE, "B");
         route(b, APPROVE, "A");
         route(b, REJECT, "REJECTED");
-        route(a, REJECT, "APPROVED");
+        route(a, REJECT, "REJECTED");
         assertTrue(validate().contains("LOOP"));
     }
 
@@ -308,7 +308,7 @@ class WorkflowValidatorTest {
         route(head, REJECT, "REJECTED");
         route(orphan, APPROVE, "APPROVED");
         route(orphan, REJECT, "REJECTED");
-        assertEquals(List.of("UNREACHABLE_STEP:ORPHAN", "NO_APPROVING_STEP"), validate());
+        assertEquals(List.of("OUTCOME_ROUTE_MISMATCH", "UNREACHABLE_STEP:ORPHAN", "NO_APPROVING_STEP"), validate());
     }
 
     @Test
@@ -356,6 +356,41 @@ class WorkflowValidatorTest {
         step("REJECTED", ApproverType.ROLE);
         step(null, ApproverType.ROLE);
         assertEquals(List.of("BAD_STEP_KEY:APPROVED", "BAD_STEP_KEY:REJECTED", "BAD_STEP_KEY:null"), validate());
+    }
+
+    /** The result comes from the end event reached, so a reject that ends APPROVED would approve the request. */
+    @Test
+    void rejectThatDoesNotEndRejectedIsAMismatch() {
+        for (String target : List.of("APPROVED", "HR")) {
+            steps.clear();
+            routes.clear();
+            defaultV1();
+            routes.removeIf(r -> r.getStep().getStepKey().equals("HEAD") && r.getOutcome() == REJECT);
+            route(steps.get(2), REJECT, target);
+            assertEquals(List.of("OUTCOME_ROUTE_MISMATCH"), validate(), target);
+        }
+    }
+
+    @Test
+    void approveOrForwardThatEndsRejectedIsAMismatch() {
+        defaultV1();
+        routes.removeIf(r -> r.getStep().getStepKey().equals("GM") && r.getOutcome() == APPROVE);
+        route(steps.get(3), APPROVE, "REJECTED");
+        assertTrue(validate().contains("OUTCOME_ROUTE_MISMATCH"));
+
+        steps.clear();
+        routes.clear();
+        defaultV1();
+        routes.removeIf(r -> r.getStep().getStepKey().equals("SECRETARY"));
+        route(steps.get(1), FORWARD, "REJECTED");
+        assertTrue(validate().contains("OUTCOME_ROUTE_MISMATCH"));
+    }
+
+    @Test
+    void routeWithoutPositionIsBadRoutePositionAndNeverThrows() {
+        defaultV1();
+        routes.get(0).setPositionNo(null);
+        assertEquals(List.of("BAD_ROUTE_POSITION"), validate());
     }
 
     @Test

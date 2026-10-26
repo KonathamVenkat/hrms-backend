@@ -38,13 +38,14 @@ class JobDetailsServiceImplTest {
     @Mock com.hrms.employee.service.DepartmentHeadService departmentHeads;
     @Mock com.hrms.employee.service.DepartmentSecretaryService departmentSecretaries;
     @Mock com.hrms.employee.repository.CompanyBranchRepository branchRepository;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
 
     JobDetailsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository);
+            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, events);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -239,6 +240,46 @@ class JobDetailsServiceImplTest {
         verify(jobDetailsRepository).save(captor.capture());
 
         assertNull(captor.getValue().getCompanyBranchId());
+    }
+
+    /** The branch decides who the branch manager of the employee's waiting requests is. */
+    @Test
+    void aNewAssignmentThatChangesTheBranchPublishesOrganisationChanged() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(31L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        when(jobDetailsRepository.findCurrentJobByEmployee(5L)).thenReturn(Optional.of(mock(com.hrms.employee.repository.projection.JobDetailsProjection.class)));
+
+        service.assignJob(5L, request(LocalDate.now()));
+
+        verify(events).publishEvent(any(OrganisationChanged.class));
+    }
+
+    @Test
+    void aNewAssignmentThatKeepsTheBranchPublishesNothing() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        when(jobDetailsRepository.findCurrentJobByEmployee(5L)).thenReturn(Optional.of(mock(com.hrms.employee.repository.projection.JobDetailsProjection.class)));
+
+        service.assignJob(5L, request(LocalDate.now()));
+
+        verify(events, never()).publishEvent(any());
+    }
+
+    @Test
+    void aFirstAssignmentWithABranchPublishesOrganisationChanged() {
+        when(branchRepository.findById(40L)).thenReturn(Optional.of(branch(40L, 30L, true)));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setCompanyBranchId(40L);
+
+        savedJobFor(req);
+
+        verify(events).publishEvent(any(OrganisationChanged.class));
     }
 
     @Test

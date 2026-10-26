@@ -60,7 +60,7 @@ hrms.auth.refresh-cookie.same-site=${HRMS_REFRESH_COOKIE_SAME_SITE:Strict}
 server.forward-headers-strategy=native
 
 # CORS
-hrms.cors.allowed-origins=${HRMS_CORS_ALLOWED_ORIGINS:http://localhost:4200}
+hrms.cors.allowed-origins=${HRMS_CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201}
 
 # Actuator
 management.endpoints.web.exposure.include=health,info,metrics

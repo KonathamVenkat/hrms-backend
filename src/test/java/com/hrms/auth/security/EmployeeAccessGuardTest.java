@@ -2,6 +2,7 @@ package com.hrms.auth.security;
 
 import com.hrms.auth.entity.AuthUser;
 import com.hrms.auth.repository.AuthUserRepository;
+import com.hrms.common.enums.UserRole;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,35 @@ class EmployeeAccessGuardTest {
     @Test
     void unauthenticatedCallerNeverSeesUnmaskedValues() {
         assertFalse(guard.canViewUnmasked(7L));
+    }
+
+    // ── isSoleActiveHolderOf ─────────────────────────────────
+
+    private void linkedLogin(long employeeId, UserRole role, boolean active) {
+        lenient().when(authUserRepository.findByEmployeeId(employeeId)).thenReturn(Optional.of(
+            AuthUser.builder().employeeId(employeeId).role(role).isActive(active).build()));
+    }
+
+    @Test
+    void soleHolderWhenTheEmployeesActiveLoginHasTheRoleAndNoOtherActiveLoginDoes() {
+        linkedLogin(7L, UserRole.GENERAL_MANAGER, true);
+        lenient().when(authUserRepository.countOtherActiveHolders(UserRole.GENERAL_MANAGER, 7L)).thenReturn(0L);
+        assertTrue(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 7L));
+
+        lenient().when(authUserRepository.countOtherActiveHolders(UserRole.GENERAL_MANAGER, 7L)).thenReturn(1L);
+        assertFalse(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 7L), "a second GM");
+    }
+
+    @Test
+    void notSoleHolderWithoutTheRoleAnActiveLoginOrAKnownRole() {
+        lenient().when(authUserRepository.countOtherActiveHolders(org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyLong())).thenReturn(0L);
+        linkedLogin(7L, UserRole.EMPLOYEE, true);
+        assertFalse(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 7L), "other role");
+        linkedLogin(8L, UserRole.GENERAL_MANAGER, false);
+        assertFalse(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 8L), "deactivated login");
+        assertFalse(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 9L), "no login");
+        assertFalse(guard.isSoleActiveHolderOf("NOT_A_ROLE", 7L), "unknown role");
     }
 
     @Test

@@ -9,6 +9,9 @@ import com.hrms.workflow.service.WorkflowRequestAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import org.springframework.data.domain.PageRequest;
+
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -76,8 +79,8 @@ class LeaveWorkflowAccess implements WorkflowRequestAccess {
     }
 
     @Override
-    public List<OpenRequest> openRequests() {
-        return requests.findByCurrentStepKeyIsNotNull().stream()
+    public List<OpenRequest> openRequests(Collection<String> stages, long afterRequestId, int limit) {
+        return requests.findOpenAtStages(stages, afterRequestId, PageRequest.of(0, limit)).stream()
             .map(lr -> new OpenRequest(lr.getLeaveReqId(), lr.getEmployeeId(), lr.getTargetDepartmentId(),
                 lr.getWorkflowDefinitionId(), lr.getCurrentStepKey(), lr.getStage(),
                 lr.getCurrentApproverEmployeeId(), lr.getCurrentApproverRole()))

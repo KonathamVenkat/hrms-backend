@@ -20,4 +20,7 @@ public class CreateLeaveRequest {
     @NotBlank(message = "Reason is required")
     @Size(max = 500)
     private String reason;
+
+    /** Only for a manager or head applying for themselves, when the workflow skips the branch step; else ignored. */
+    private Long targetDepartmentId;
 }

@@ -57,6 +57,7 @@ class OrganisationServiceImplTest {
     @Mock EmployeeRepository employeeRepository;
     @Mock EmployeeJobDetailsRepository jobDetailsRepository;
     @Mock AuditTrail audit;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
 
     @InjectMocks OrganisationServiceImpl service;
 

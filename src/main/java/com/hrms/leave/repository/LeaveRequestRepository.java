@@ -53,6 +53,10 @@ public interface LeaveRequestRepository
 
     Page<LeaveRequest> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
+    /** The old HR approval list: requests that never entered the approval workflow (those are in the Approvals inbox). */
+    Page<LeaveRequest> findByStatusAndWorkflowDefinitionIdIsNullOrderByCreatedAtDesc(
+            LeaveStatus status, Pageable pageable);
+
     // ── Overlap check — prevent double booking ────────────────
 
     @Query("""
@@ -120,6 +124,11 @@ public interface LeaveRequestRepository
 
     long countByStatus(LeaveStatus status);
 
+    long countByStatusAndWorkflowDefinitionIdIsNull(LeaveStatus status);
+
+    /** Requests waiting at a workflow step. */
+    List<LeaveRequest> findByCurrentStepKeyIsNotNull();
+
     // ── Dashboard — distinct employees on approved leave on a date ──
 
     @Query("""
@@ -130,4 +139,15 @@ public interface LeaveRequestRepository
           AND lr.endDate   >= :date
         """)
     long countEmployeesOnApprovedLeave(@Param("date") LocalDate date);
+
+    // ── Approvals inbox: requests waiting for one approver (person or role), never their own ──
+
+    @Query("""
+        SELECT lr FROM LeaveRequest lr
+        WHERE lr.currentStepKey IS NOT NULL
+          AND lr.employeeId <> :employeeId
+          AND (lr.currentApproverEmployeeId = :employeeId OR lr.currentApproverRole IN :roles)
+        """)
+    Page<LeaveRequest> findWaitingFor(@Param("employeeId") Long employeeId,
+                                      @Param("roles") java.util.Collection<String> roles, Pageable pageable);
 }

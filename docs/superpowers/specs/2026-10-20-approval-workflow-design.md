@@ -1,6 +1,7 @@
-# Approval workflow (branch → Head Office HR → final approver): design
+# Approval workflow (branch → department secretary → department head → General Manager → HR): design
 
-Status: DRAFT awaiting final approval, 2026-10-20. Nothing here is built. A throwaway spike proved the engine
+Status: DRAFT awaiting final approval, 2026-10-20; amended 2026-10-25 for the department route (section 17
+lists every change). Nothing here is built. A throwaway spike proved the engine
 choice (see "Spike results"). Items marked **[my call]** are my decisions, not yours; "(decided)" marks answers
 you gave; the four open questions were answered (section 16).
 
@@ -8,9 +9,10 @@ you gave; the four open questions were answered (section 16).
 
 Today every request (leave, attendance correction, overtime, recruitment requisition) is a one-step approval:
 any `HR_ADMIN` or `HR_MANAGER` approves or rejects it. The company works through branches and a Head Office, so
-the approval has to follow the organisation: the employee's own branch manager reviews first, then Head Office
-HR, and HR can approve, reject, or forward to the HR Manager or General Manager, who make the final decision.
-The employee must be told the outcome and keep a history of what happened to each request.
+the approval has to follow the organisation: the employee's own branch manager reviews first and picks the
+department the request is for; that department's secretary at Head Office checks it is complete and forwards it;
+the department head approves or rejects; the General Manager approves or rejects; HR then processes it. The
+employee must be told the outcome and keep a history of what happened to each request.
 
 The flow must **not be hard-coded**: HR admins must be able to change it later from a screen (add, remove and
 reorder steps, set conditions such as "leave over 10 days goes to the General Manager") without a code release.
@@ -54,8 +56,10 @@ reorder steps, set conditions such as "leave over 10 days goes to the General Ma
 
 | Topic | Decision |
 |---|---|
-| Flow | Employee submits at their branch → Branch Manager reviews → Head Office HR reviews request and documents → HR approves, rejects, or forwards to HR Manager or General Manager → employee notified → stored in history. |
-| Final decision | HR Manager or General Manager makes the final decision on a forwarded request. |
+| Flow (amended 2026-10-25) | Branch Manager submits (or reviews an employee's request) and **picks the target department per request** → that department's Secretary (Head Office) checks completeness and documents and **only forwards** → the target department's Head approves or rejects → General Manager approves or rejects → HR processes → employee notified → stored in history. |
+| Target department | The branch manager chooses it for every request: at submit when the requester is a branch manager, otherwise at the branch step's forward action **[my call on the second case]**. |
+| Secretary | Cannot approve or reject, only forward. One secretary per department, stored on the department. |
+| Final decision | The General Manager approves or rejects; HR then processes (the leave/overtime/attendance effects run when HR processes). |
 | Structure | A location can hold several branches; each branch has exactly one Branch Manager. |
 | Head Office | Head Office staff also belong to a branch with a manager. |
 | Branch table | Reuse `COMPANY_BRANCHES` as "branch", linked to `OFFICE_LOCATIONS`. |
@@ -63,7 +67,7 @@ reorder steps, set conditions such as "leave over 10 days goes to the General Ma
 | Flexibility | HR_ADMIN edits steps and conditions from a settings screen, changeable any time. |
 | Who edits | `HR_ADMIN` only, with a setting that lets `SYSTEM_ADMIN` also manage workflows (off by default). |
 | Database | Flowable tables in their own Oracle schema `FLOWABLE`, same database. |
-| Earlier guesses you accepted | Branch managers' own requests skip the branch step; HR covers an absent manager; in-app notifications first; branch managers can reject; roles Branch Manager and General Manager are new. |
+| Earlier guesses you accepted | Branch managers' own requests skip the branch step; HR covers an absent manager (secretary, head or branch manager); in-app notifications first; branch managers can reject; roles Branch Manager and General Manager are new. |
 
 ## 5. Architecture
 
@@ -119,14 +123,22 @@ Organisation
 - `EMPLOYEE_JOB_DETAILS`: add `COMPANY_BRANCH_ID` (FK, nullable). A one-time back-fill assigns every existing
   employee a branch (HR does it through a screen; a CSV import is optional). Index.
 
+Department routing (amended)
+- `DEPARTMENTS`: add `SECRETARY_EMPLOYEE_ID` (FK `EMPLOYEES`, nullable, index). One secretary per department; a
+  person may be secretary of several departments **[my call]**. `HEAD_EMPLOYEE_ID` already exists and is the head.
+- Each request table gets `TARGET_DEPARTMENT_ID` (FK `DEPARTMENTS`, nullable, index), set when the branch
+  manager picks the department. It must be an active department.
+
 Workflow settings
 - `WORKFLOW_DEFINITIONS`: `ID`, `REQUEST_TYPE` (`LEAVE`, `ATTENDANCE_REGULARIZATION`, `OVERTIME`,
   `RECRUITMENT_REQUISITION`), `VERSION_NO`, `STATUS` (`DRAFT`, `ACTIVE`, `RETIRED`), `FLOWABLE_DEPLOYMENT_ID`,
   `FLOWABLE_PROCESS_DEFINITION_ID`, `PUBLISHED_BY`, `PUBLISHED_AT`, audit columns. Exactly one `ACTIVE` per type
   (unique index on the active row).
 - `WORKFLOW_STEPS`: `ID`, `DEFINITION_ID`, `STEP_KEY`, `POSITION`, `LABEL_EN`, `LABEL_AR`, `APPROVER_TYPE`
-  (`BRANCH_MANAGER`, `ROLE`), `APPROVER_ROLE` (`HR_ADMIN`, `HR_MANAGER`, `GENERAL_MANAGER` when type is `ROLE`),
-  `REQUIRES_DOCUMENT_REVIEW` flag.
+  (`BRANCH_MANAGER`, `DEPARTMENT_SECRETARY`, `DEPARTMENT_HEAD`, `ROLE`), `APPROVER_ROLE` (`HR_ADMIN`,
+  `HR_MANAGER`, `GENERAL_MANAGER` when type is `ROLE`), `REQUIRES_DOCUMENT_REVIEW` flag, `PICKS_TARGET_DEPARTMENT`
+  flag (true on the branch step). `DEPARTMENT_SECRETARY` and `DEPARTMENT_HEAD` resolve against the request's
+  `TARGET_DEPARTMENT_ID`, not the requester's department.
 - `WORKFLOW_ROUTES`: `ID`, `STEP_ID`, `OUTCOME` (`FORWARD`, `APPROVE`, `REJECT`), `COND_FIELD`, `COND_OPERATOR`,
   `COND_VALUE` (all null for an unconditional route), `TARGET` (a step key, `APPROVED` or `REJECTED`), `POSITION`.
 - `WORKFLOW_SETTINGS`: key/value for global switches; first key `SYSTEM_ADMIN_CAN_MANAGE_WORKFLOWS`
@@ -146,9 +158,11 @@ Runtime and history
 Roles
 - Add role `GENERAL_MANAGER` (role check constraint, `ROLES` rows, menu rights) **[my call: a real role, like
   `HR_MANAGER`]**.
-- **Branch Manager is a relationship, not a login role [my call]**: a user is a branch manager if their employee
-  is `BRANCH_MANAGER_EMPLOYEE_ID` of an active branch. They keep role `EMPLOYEE`. This avoids the one-role-per-user
-  limit and follows how department heads already work.
+- **Branch Manager, Department Secretary and Department Head are relationships, not login roles [my call]**: a
+  user is a branch manager if their employee is `BRANCH_MANAGER_EMPLOYEE_ID` of an active branch, a secretary if
+  they are `SECRETARY_EMPLOYEE_ID` of an active department, a head if they are `HEAD_EMPLOYEE_ID`. They keep role
+  `EMPLOYEE`. This avoids the one-role-per-user limit and follows how department heads already work. A person who
+  is deactivated stops being secretary of every department (same moment headship is cleared).
 
 ## 7. Request lifecycle
 
@@ -165,21 +179,28 @@ balance logic keep working **[my call]**.
 | Action | Who | Effect |
 |---|---|---|
 | Submit | The employee (JWT employee id) | Validates as today, starts the flow, goes to the first step. |
-| Forward | Current step's approver | Moves to the next step per the routes (and conditions). |
-| Approve / Reject | Current step's approver, if the route allows it | Ends the flow; reject needs a reason. |
+| Forward | Current step's approver | Moves to the next step per the routes (and conditions). The branch step must carry `targetDepartmentId`. The secretary step offers only this action. |
+| Approve / Reject | Current step's approver, if the route allows it | Department head and General Manager approve (moves on) or reject (ends the flow, reason required). HR's step is "process": it completes the flow. |
 | Cancel | The requester, while not decided | Ends the flow as `CANCELLED`, restores any held balance. |
-| Override | `HR_ADMIN` | Acts on a branch step when the branch manager is absent or missing; history shows `OVERRIDDEN` and a mandatory reason. |
+| Override | `HR_ADMIN` | Acts on a branch, secretary or head step when that person is absent or missing; history shows `OVERRIDDEN` and a mandatory reason. |
 
 An approver may act only when (a) the request is currently at a step they are assigned to, (b) for a
-`BRANCH_MANAGER` step: they are the manager of the **requester's** branch, (c) for a `ROLE` step: they hold that
-role, (d) they are not the requester. All of this is enforced on the server in one place
+`BRANCH_MANAGER` step: they are the manager of the **requester's** branch, (b2) for a `DEPARTMENT_SECRETARY` /
+`DEPARTMENT_HEAD` step: they are that person for the request's **target department**, (c) for a `ROLE` step: they
+hold that role, (d) they are not the requester. All of this is enforced on the server in one place
 (`WorkflowAuthorizationService`), not in controllers and not by the UI.
 
 ### 7.3 Edge cases (decided unless marked)
 
 - Requester is the branch manager → the branch step is skipped (`AUTO_ROUTED` in history).
-- Requester has no branch, or the branch has no manager → goes straight to the HR step (`AUTO_ROUTED`, with the
-  reason) **[my call]**.
+- Requester has no branch, or the branch has no manager → the request waits at the branch step for an `HR_ADMIN`
+  override, which also picks the target department (`AUTO_ROUTED` with the reason) **[my call, replaces the old
+  "straight to HR" rule, because HR cannot skip the department]**.
+- Requester is a branch manager → the branch step is skipped and the submit must carry `targetDepartmentId`
+  (400 `TARGET_DEPARTMENT_REQUIRED` otherwise).
+- Target department has no secretary → the secretary step is skipped (`AUTO_ROUTED`) **[my call: a secretary only
+  forwards, so skipping loses no decision]**. No head → waits for an `HR_ADMIN` override. Requester is the head
+  → the head step is skipped to the General Manager.
 - The next approver would be the requester (for example an HR_ADMIN requests leave) → that step is skipped to the
   next eligible one; if there is none, the request goes to `GENERAL_MANAGER` (decided).
 - Legacy requests (section 11, `WORKFLOW_DEFINITION_ID` null) never use this flow; the old endpoints stay for them.
@@ -191,7 +212,9 @@ role, (d) they are not the requester. All of this is enforced on the server in o
 
 ### 7.4 What happens on the final decision
 
-On `APPROVED` the existing downstream logic runs unchanged: leave balance deduction, attendance record
+When the General Manager approves, the stage becomes `PENDING_HR_PROCESS` (the employee is notified; the
+legacy `STATUS` stays `PENDING`, any held balance stays held). When HR processes, the flow ends as `APPROVED` and
+the existing downstream logic runs unchanged **[my call on timing]**: leave balance deduction, attendance record
 adjustment, overtime payable record, recruitment requisition becomes approved. On `REJECTED` and `CANCELLED` any
 pending-days hold is released. These existing methods are reused and called from the workflow completion hook,
 inside the same transaction; this project does not re-implement them.
@@ -251,10 +274,11 @@ requisition approval screens are replaced by the inbox when each request type mo
 1. Run the schema scripts (HRMS additions; FLOWABLE schema and grants, already created for the spike, the spike
    scratch objects removed).
 2. HR assigns a branch to each employee (screen), and a manager to each branch.
-3. Create the default workflow for each request type as the **ACTIVE v1**: branch manager → HR → HR Manager or
-   General Manager. The threshold that sends a request to the General Manager instead of the HR Manager is **not
-   fixed in code**: v1 starts as "HR Manager always" and the client sets the values (for example leave over N days,
-   overtime above N hours) on the workflow settings screen at any time (decided).
+3. Create the default workflow for each request type as the **ACTIVE v1**: branch manager (picks department) →
+   department secretary (forward) → department head → General Manager → HR processes. Whether a small request
+   may skip the General Manager is **not fixed in code**: v1 starts as "General Manager always" and the client
+   sets a rule (for example leave up to N days goes from the head straight to HR) on the workflow settings screen
+   at any time (amended).
 4. Cut over one request type at a time (leave first). **Requests already pending at cut-over finish on the old
    one-step approval (decided).** A request is "legacy" when its `WORKFLOW_DEFINITION_ID` is null; legacy requests
    keep using the existing approve/reject/cancel endpoints and screens until they are decided, and never enter
@@ -280,6 +304,7 @@ unsaved changes on the settings screen, RTL, 360 px.
 ## 13. Build order (each phase ships and is tested on its own)
 
 1. **Organisation structure**: branch ↔ location, branch manager, employee branch, screens, back-fill.
+   (1b, amended: department secretary on the department, set from Job Details like the head.)
 2. **Workflow core** on **leave**: engine configuration, settings tables, generator and validation, history,
    authorization service, actions, completion hooks, inbox and detail screens for leave.
 3. **Notifications** and the **workflow settings screen**.
@@ -314,6 +339,20 @@ Spike code is throwaway and is not reused as-is.
 3. **HR's own requests:** go to the `GENERAL_MANAGER` (section 7.3).
 4. **A branch manager may manage several branches:** yes (section 6).
 
+5. **Target department (2026-10-25):** the branch manager picks it per request.
+6. **Secretary (2026-10-25):** the department secretary only forwards the request to the department head.
+
 No open questions remain for you. The builder-level choices left open are in the plan phase (table names and
 column types follow the existing conventions; the exact REST paths and the screen layouts follow the existing
 screens).
+
+## 17. Amendment 2026-10-25 (department route)
+
+Replaces "Branch Manager → Head Office HR → HR Manager/GM" with "Branch Manager → Department Secretary →
+Department Head → General Manager → HR processes". Sections changed: 1, 4, 6, 7.2, 7.3, 7.4, 11 (step 3), 13, 16.
+New data: `DEPARTMENTS.SECRETARY_EMPLOYEE_ID`, `TARGET_DEPARTMENT_ID` on requests, two new approver types.
+Calls I made for you to check: the branch manager picks the department at the forward action when an employee
+raised the request; a missing secretary is skipped; a missing head or branch manager waits for HR_ADMIN override;
+HR processing (not the General Manager's approval) triggers the balance/attendance effects; the HR step uses
+role `HR_ADMIN` in v1 (HR_MANAGER can be chosen on the settings screen).
+Confirmed by the user 2026-10-25: HR can also reject at the processing step (HR step outcomes: process or reject).

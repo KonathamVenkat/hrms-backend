@@ -36,6 +36,7 @@ class JobDetailsServiceImplTest {
     @Mock OfficeLocationRepository locationRepository;
     @Mock WorkShiftRepository shiftRepository;
     @Mock com.hrms.employee.service.DepartmentHeadService departmentHeads;
+    @Mock com.hrms.employee.service.DepartmentSecretaryService departmentSecretaries;
     @Mock com.hrms.employee.repository.CompanyBranchRepository branchRepository;
 
     JobDetailsServiceImpl service;
@@ -43,7 +44,7 @@ class JobDetailsServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads, branchRepository);
+            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -161,6 +162,7 @@ class JobDetailsServiceImplTest {
             () -> service.assignJob(5L, request(LocalDate.now())));
         verify(jobDetailsRepository).save(any());
         verify(departmentHeads).clearHeadOf(5L, 10L);
+        verify(departmentSecretaries).clearSecretaryOf(5L, 10L);
     }
 
     @Test

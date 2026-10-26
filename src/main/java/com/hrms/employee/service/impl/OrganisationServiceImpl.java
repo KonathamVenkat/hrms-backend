@@ -22,7 +22,9 @@ import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.repository.OfficeLocationRepository;
 import com.hrms.employee.repository.projection.EmployeeBranchGapProjection;
 import com.hrms.employee.service.OrganisationService;
+import com.hrms.employee.service.OrganisationChanged;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -53,6 +55,7 @@ public class OrganisationServiceImpl implements OrganisationService {
     private final EmployeeRepository employeeRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final AuditTrail audit;
+    private final ApplicationEventPublisher events;
 
     @Override
     public List<BranchPlacementResponse> listBranches() {
@@ -102,6 +105,7 @@ public class OrganisationServiceImpl implements OrganisationService {
         branch.setUpdatedAt(LocalDateTime.now());
         branchRepository.save(branch);
         branchRepository.flush(); // so the response carries the incremented version
+        events.publishEvent(new OrganisationChanged());
         audit.record("BRANCH_PLACEMENT_SET", TARGET, branchId,
             "location=" + request.locationId() + ", manager=" + request.managerEmployeeId());
         return toResponse(branch, location, manager);
@@ -161,6 +165,7 @@ public class OrganisationServiceImpl implements OrganisationService {
         if (!Boolean.TRUE.equals(branch.getIsActive())) return "BRANCH_INACTIVE";
         if (!Objects.equals(branch.getLocationId(), job.getLocationId())) return "BRANCH_LOCATION_MISMATCH";
         if (jobDetailsRepository.setBranchOnCurrentJob(employeeId, branchId, auditor) == 0) return "ALREADY_ASSIGNED";
+        events.publishEvent(new OrganisationChanged());
         audit.record("EMPLOYEE_BRANCH_ASSIGNED", "EMPLOYEE", employeeId, "branch=" + branchId);
         return null;
     }
@@ -172,6 +177,7 @@ public class OrganisationServiceImpl implements OrganisationService {
             branch.setBranchManagerEmployeeId(null);
             branch.setUpdatedAt(LocalDateTime.now());
             branchRepository.save(branch);
+            events.publishEvent(new OrganisationChanged());
             audit.record("BRANCH_MANAGER_CLEARED", TARGET, branch.getId(), "manager=" + employeeId);
         }
     }

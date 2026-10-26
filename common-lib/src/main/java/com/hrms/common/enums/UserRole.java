@@ -4,7 +4,8 @@ public enum UserRole {
     HR_ADMIN,
     HR_MANAGER,
     EMPLOYEE,
-    SYSTEM_ADMIN;
+    SYSTEM_ADMIN,
+    GENERAL_MANAGER;
 
     public String asAuthority() {
         return "ROLE_" + this.name();

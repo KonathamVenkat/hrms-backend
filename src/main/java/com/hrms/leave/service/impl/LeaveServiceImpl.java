@@ -20,6 +20,8 @@ import com.hrms.leave.entity.*;
 import com.hrms.leave.repository.*;
 import com.hrms.leave.service.LeaveService;
 import com.hrms.leave.service.WorkCalendar;
+import com.hrms.workflow.enums.RequestType;
+import com.hrms.workflow.service.WorkflowService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -32,6 +34,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -53,6 +56,8 @@ public class LeaveServiceImpl implements LeaveService {
     private final LeaveAttachmentStorage    attachmentStorage;
     private final LeaveRequestAttachmentContentRepository attachmentContentRepository;
     private final AuditTrail audit;
+    private final LeaveBalanceMovements movements;
+    private final WorkflowService workflow;
 
     // ══════════════════════════════════════════════════════════
     // APPLY LEAVE
@@ -183,6 +188,11 @@ public class LeaveServiceImpl implements LeaveService {
         balance.setUpdatedAt(LocalDateTime.now());
         leaveBalanceRepository.save(balance);
 
+        if (workflow.isEnabled(RequestType.LEAVE)) {
+            workflow.submit(RequestType.LEAVE, saved.getLeaveReqId(), employeeId,
+                request.getTargetDepartmentId(), Map.of("totalDays", leaveDays));
+        }
+
         log.info("Leave applied. ID={} days={}", saved.getLeaveReqId(), leaveDays);
         return toResponse(saved, employee, leaveType, balance);
     }
@@ -302,16 +312,12 @@ public class LeaveServiceImpl implements LeaveService {
                 + "Current status: " + lr.getStatus().name());
         }
 
-        int year = lr.getStartDate().getYear();
-        leaveBalanceRepository
-            .findByEmployeeIdAndLeaveTypeCodeAndYear(
-                lr.getEmployeeId(), lr.getLeaveTypeCode(), year)
-            .ifPresent(balance -> {
-                balance.setPendingDays(
-                    Math.max(0, balance.getPendingDays() - lr.getTotalDays()));
-                balance.setUpdatedAt(LocalDateTime.now());
-                leaveBalanceRepository.save(balance);
-            });
+        if (lr.getProcessInstanceId() != null) {
+            workflow.cancel(RequestType.LEAVE, leaveReqId);   // the completion handler releases the days
+            return;
+        }
+
+        movements.releaseIfPresent(lr);
 
         lr.setStatus(LeaveStatus.CANCELLED);
         lr.setUpdatedBy(CurrentAuditor.name());
@@ -360,8 +366,11 @@ public class LeaveServiceImpl implements LeaveService {
                         filter.getEmployeeId(), nativePaging);
             }
         } else if (filter.getStatus() != null && !filter.getStatus().isBlank()) {
-            page = leaveRequestRepository.findByStatusOrderByCreatedAtDesc(
-                LeaveStatus.valueOf(filter.getStatus()), pageable);
+            LeaveStatus status = LeaveStatus.valueOf(filter.getStatus());
+            // Pending requests in the approval workflow are decided in the Approvals inbox, not on this screen.
+            page = status == LeaveStatus.PENDING
+                ? leaveRequestRepository.findByStatusAndWorkflowDefinitionIdIsNullOrderByCreatedAtDesc(status, pageable)
+                : leaveRequestRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
         } else {
             page = leaveRequestRepository.findAllByOrderByCreatedAtDesc(pageable);
         }
@@ -385,6 +394,11 @@ public class LeaveServiceImpl implements LeaveService {
             .orElseThrow(() -> new ResourceNotFoundException(
                 "LeaveRequest", "id", leaveReqId));
 
+        if (lr.getProcessInstanceId() != null) {
+            throw new BusinessRuleException("USE_WORKFLOW",
+                "This request is decided through the approval workflow.");
+        }
+
         if (LeaveStatus.PENDING != lr.getStatus()) {
             throw new BusinessRuleException("INVALID_STATUS",
                 "Only PENDING requests can be processed. "
@@ -397,27 +411,15 @@ public class LeaveServiceImpl implements LeaveService {
                 "You cannot approve or reject your own leave request. Ask an HR administrator.");
         }
 
-        int year = lr.getStartDate().getYear();
-        LeaveBalance balance = leaveBalanceRepository
-            .findByEmployeeIdAndLeaveTypeCodeAndYear(
-                lr.getEmployeeId(), lr.getLeaveTypeCode(), year)
-            .orElseThrow(() -> new ResourceNotFoundException(
-                "LeaveBalance", "employeeId", lr.getEmployeeId()));
-
+        LeaveBalance balance;
         if ("APPROVED".equals(request.getAction())) {
-            balance.setPendingDays(
-                Math.max(0, balance.getPendingDays() - lr.getTotalDays()));
-            balance.setUsedDays(balance.getUsedDays() + lr.getTotalDays());
+            balance = movements.consume(lr);
             lr.setStatus(LeaveStatus.APPROVED);
         } else {
-            balance.setPendingDays(
-                Math.max(0, balance.getPendingDays() - lr.getTotalDays()));
+            balance = movements.release(lr);
             lr.setStatus(LeaveStatus.REJECTED);
             lr.setRejectionReason(request.getRemarks());
         }
-
-        balance.setUpdatedAt(LocalDateTime.now());
-        leaveBalanceRepository.save(balance);
 
         lr.setApprovedBy(approver);
         lr.setApprovedAt(LocalDateTime.now());
@@ -449,7 +451,7 @@ public class LeaveServiceImpl implements LeaveService {
 
     @Override
     public Long getPendingCount() {
-        return leaveRequestRepository.countByStatus(LeaveStatus.PENDING);
+        return leaveRequestRepository.countByStatusAndWorkflowDefinitionIdIsNull(LeaveStatus.PENDING);
     }
 
     // ── Private helpers ───────────────────────────────────────
@@ -533,6 +535,8 @@ public class LeaveServiceImpl implements LeaveService {
             .approvedBy(lr.getApprovedBy())
             .approvedAt(lr.getApprovedAt() != null ? lr.getApprovedAt().toString() : null)
             .remarks(lr.getRejectionReason())
+            .stage(lr.getStage())
+            .targetDepartmentId(lr.getTargetDepartmentId())
             .hasAttachment(lr.getAttachmentName() != null)
             .attachmentName(lr.getAttachmentName())
             .attachmentSize(lr.getAttachmentSize())

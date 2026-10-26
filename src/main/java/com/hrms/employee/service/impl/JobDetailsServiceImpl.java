@@ -17,6 +17,7 @@ import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.employee.repository.projection.JobDetailsProjection;
 import com.hrms.employee.repository.CompanyBranchRepository;
 import com.hrms.employee.service.DepartmentHeadService;
+import com.hrms.employee.service.DepartmentSecretaryService;
 import com.hrms.employee.service.JobDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final OfficeLocationRepository     locationRepository;
     private final WorkShiftRepository          shiftRepository;
     private final DepartmentHeadService        departmentHeads;
+    private final DepartmentSecretaryService   departmentSecretaries;
     private final CompanyBranchRepository      branchRepository;
 
     // ── Get current job ───────────────────────────────────────
@@ -148,8 +150,9 @@ public class JobDetailsServiceImpl implements JobDetailsService {
 
         EmployeeJobDetails saved = jobDetailsRepository.save(newJob);
         log.info("New job assigned. JOB_DETAILS_ID: {}", saved.getJobDetailsId());
-        // Moving to another department ends any headship of the old one.
+        // Moving to another department ends any headship or secretary post of the old one.
         departmentHeads.clearHeadOf(employeeId, request.getDepartmentId());
+        departmentSecretaries.clearSecretaryOf(employeeId, request.getDepartmentId());
 
         return jobDetailsRepository
             .findCurrentJobByEmployee(employeeId)

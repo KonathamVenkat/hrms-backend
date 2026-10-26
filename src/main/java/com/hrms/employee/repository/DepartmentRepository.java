@@ -10,6 +10,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     List<Department> findByIsActiveOrderByNameAsc(Boolean isActive);
     List<Department> findAllByOrderByNameAsc();
     List<Department> findByHeadEmployeeId(Long headEmployeeId);
+    List<Department> findBySecretaryEmployeeId(Long secretaryEmployeeId);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndDeptIdNot(String code, Long deptId);
 }

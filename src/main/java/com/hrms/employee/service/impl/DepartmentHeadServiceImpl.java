@@ -10,7 +10,9 @@ import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.service.DepartmentHeadService;
 import com.hrms.employee.service.EmployeeChecks;
+import com.hrms.employee.service.OrganisationChanged;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,7 @@ public class DepartmentHeadServiceImpl implements DepartmentHeadService {
     private final DepartmentRepository departmentRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final AuditTrail audit;
+    private final ApplicationEventPublisher events;
 
     @Override
     public DepartmentHeadResponse get(Long employeeId) {
@@ -68,6 +71,7 @@ public class DepartmentHeadServiceImpl implements DepartmentHeadService {
         dept.setHeadEmployeeId(newHeadId);
         dept.setUpdatedAt(LocalDateTime.now());
         departmentRepository.saveAndFlush(dept);
+        events.publishEvent(new OrganisationChanged());
         audit.record(action, TARGET, dept.getDeptId(), "head=" + previousHeadId + " -> " + newHeadId);
     }
 

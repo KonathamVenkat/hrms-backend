@@ -28,6 +28,8 @@ import com.hrms.leave.repository.LeaveRequestAttachmentContentRepository;
 import com.hrms.leave.repository.LeaveRequestRepository;
 import com.hrms.leave.dto.response.LeaveBalanceResponse;
 import com.hrms.leave.repository.LeaveTypeRepository;
+import com.hrms.workflow.enums.RequestType;
+import com.hrms.workflow.service.WorkflowService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
@@ -36,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,6 +60,7 @@ class LeaveServiceImplTest {
     EmployeeAccessGuard     guard      = mock(EmployeeAccessGuard.class);
     LeaveAttachmentStorage  storage    = mock(LeaveAttachmentStorage.class);
     LeaveRequestAttachmentContentRepository contents = mock(LeaveRequestAttachmentContentRepository.class);
+    WorkflowService         workflow   = mock(WorkflowService.class);
     LeaveServiceImpl service;
 
     LeaveType annual = LeaveType.builder().code("ANNUAL").nameEn("Annual Leave").isActive(1).isPaid(1)
@@ -76,7 +80,8 @@ class LeaveServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new LeaveServiceImpl(requests, balances, types, employees, new WorkCalendar(holidays), jobDetails, shifts, guard, storage, contents, mock(AuditTrail.class));
+        service = new LeaveServiceImpl(requests, balances, types, employees, new WorkCalendar(holidays), jobDetails, shifts, guard, storage, contents, mock(AuditTrail.class),
+                new LeaveBalanceMovements(balances), workflow);
         when(employees.findById(EMPLOYEE)).thenReturn(Optional.of(
                 Employee.builder().id(EMPLOYEE).employeeCode("EMP-5").firstName("Sara").lastName("Test")
                         .gender(Gender.FEMALE).build()));
@@ -396,6 +401,58 @@ class LeaveServiceImplTest {
 
         r.setStatus(LeaveStatus.APPROVED);
         assertEquals("INVALID_STATUS", refused(() -> service.cancelLeave(501L, EMPLOYEE)).getRuleCode());
+        verify(balances, never()).save(any());
+    }
+
+    // ── Approval workflow ─────────────────────────────────────
+
+    @Test
+    void withTheWorkflowOnApplyingStartsTheFlowAndStillHoldsThePendingDays() {
+        when(workflow.isEnabled(RequestType.LEAVE)).thenReturn(true);
+        CreateLeaveRequest req = apply(monday, friday);
+        req.setTargetDepartmentId(9L);
+
+        service.applyLeave(EMPLOYEE, req, null);
+
+        verify(workflow).submit(RequestType.LEAVE, 501L, EMPLOYEE, 9L, Map.of("totalDays", 5.0));
+        assertEquals(5.0, balance.getPendingDays());
+    }
+
+    @Test
+    void withTheWorkflowOffApplyingNeverTouchesIt() {
+        applyNoFile(monday, friday);
+
+        verify(workflow, never()).submit(any(), anyLong(), anyLong(), any(), any());
+    }
+
+    private LeaveRequest inWorkflow(double days) {
+        LeaveRequest r = pendingRequest(days);
+        r.setProcessInstanceId("pi-1");
+        r.setStage("PENDING_HEAD");
+        return r;
+    }
+
+    @Test
+    void aWorkflowRequestCannotBeDecidedWithTheOldEndpoint() {
+        balance.setPendingDays(5.0);
+        LeaveRequest r = inWorkflow(5.0);
+
+        assertEquals("USE_WORKFLOW",
+                refused(() -> service.processLeave(501L, decision("APPROVED", null), "hr.admin")).getRuleCode());
+        assertEquals(LeaveStatus.PENDING, r.getStatus());
+        assertEquals(5.0, balance.getPendingDays());
+        verify(balances, never()).save(any());
+    }
+
+    @Test
+    void cancellingAWorkflowRequestGoesThroughTheWorkflowAndLeavesTheBalanceToItsHandler() {
+        balance.setPendingDays(5.0);
+        inWorkflow(5.0);
+
+        service.cancelLeave(501L, EMPLOYEE);
+
+        verify(workflow).cancel(RequestType.LEAVE, 501L);
+        assertEquals(5.0, balance.getPendingDays());
         verify(balances, never()).save(any());
     }
 

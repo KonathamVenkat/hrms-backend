@@ -47,7 +47,7 @@ public class EmployeeSalaryController {
         log.info("GET /employee-salary/{}/current", employeeId);
         EmployeeSalaryResponse salary = service.getCurrentSalary(employeeId);
         // An employee reading their own salary is not an HR access worth recording
-        if (auth.getAuthorities().stream().noneMatch(a -> "ROLE_EMPLOYEE".equals(a.getAuthority()))) {
+        if (auth.getAuthorities().stream().noneMatch(a -> "ROLE_EMPLOYEE".equals(a.getAuthority()) || "ROLE_GENERAL_MANAGER".equals(a.getAuthority()))) {
             audit.record("SALARY_VIEWED", "EMPLOYEE", employeeId, null);
         }
         return ResponseEntity.ok(ApiResponse.success("Success", salary));

@@ -43,7 +43,8 @@ class DepartmentHeadServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new DepartmentHeadServiceImpl(employeeRepository, departmentRepository, jobDetailsRepository, audit);
+        service = new DepartmentHeadServiceImpl(employeeRepository, departmentRepository, jobDetailsRepository, audit,
+            mock(org.springframework.context.ApplicationEventPublisher.class));
         dept = Department.builder().deptId(10L).code("IT").name("Information Technology").isActive(true).build();
         employee = mock(Employee.class);
         when(employee.getIsActive()).thenReturn(true);

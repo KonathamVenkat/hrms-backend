@@ -103,6 +103,29 @@ public class LeaveRequest {
     @Column(name = "ATTACHMENT_SIZE")
     private Long attachmentSize;
 
+    // ── Approval workflow (null for legacy requests that never entered it) ──
+
+    @Column(name = "WORKFLOW_DEFINITION_ID")
+    private Long workflowDefinitionId;
+
+    @Column(name = "FLOWABLE_PROCESS_INSTANCE_ID", length = 64)
+    private String processInstanceId;
+
+    @Column(name = "STAGE", length = 40)
+    private String stage;
+
+    @Column(name = "TARGET_DEPARTMENT_ID")
+    private Long targetDepartmentId;
+
+    @Column(name = "CURRENT_STEP_KEY", length = 30)
+    private String currentStepKey;
+
+    @Column(name = "CURRENT_APPROVER_EMPLOYEE_ID")
+    private Long currentApproverEmployeeId;
+
+    @Column(name = "CURRENT_APPROVER_ROLE", length = 30)
+    private String currentApproverRole;
+
     // ── Active flag ───────────────────────────────────────────
 
     /**

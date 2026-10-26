@@ -33,6 +33,9 @@ public class Department {
     @Column(name = "HEAD_EMPLOYEE_ID")
     private Long headEmployeeId;
 
+    @Column(name = "SECRETARY_EMPLOYEE_ID")
+    private Long secretaryEmployeeId;
+
     @Column(name = "COST_CENTER_CODE", length = 50)
     private String costCenterCode;
 

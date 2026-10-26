@@ -19,6 +19,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "com.hrms.payroll",
     "com.hrms.dashboard",
     "com.hrms.recruitment",
+    "com.hrms.workflow",
     "com.hrms.common"
 })
 @EnableJpaRepositories(basePackages = {
@@ -27,7 +28,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 	    "com.hrms.leave.repository",     // ← was invisible before
 	    "com.hrms.attendance.repository",
 	    "com.hrms.payroll.repository",
-	    "com.hrms.recruitment.repository"
+	    "com.hrms.recruitment.repository",
+	    "com.hrms.workflow.repository"
 	})
 	@EntityScan(basePackages = {
 	    "com.hrms.employee.entity",
@@ -35,7 +37,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 	    "com.hrms.leave.entity",           // LeaveRequest, LeaveBalance
 	    "com.hrms.attendance.entity",
 	    "com.hrms.payroll.entity",
-	    "com.hrms.recruitment.entity"
+	    "com.hrms.recruitment.entity",
+	    "com.hrms.workflow.entity"
 	})
 @EnableScheduling
 public class EmployeeApplication {

@@ -1,5 +1,6 @@
 package com.hrms.employee;
 
+import com.hrms.workflow.FlowableTestSchema;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -38,8 +39,11 @@ public abstract class DatabaseTest {
         // The application itself only validates; the test run builds the schema from the scripts.
         @Bean
         @Primary
-        FlywayMigrationStrategy migrateForTests() {
-            return flyway -> flyway.migrate();
+        FlywayMigrationStrategy migrateForTests(OracleContainer oracle) {
+            return flyway -> {
+                FlowableTestSchema.install(oracle);
+                flyway.migrate();
+            };
         }
     }
 }

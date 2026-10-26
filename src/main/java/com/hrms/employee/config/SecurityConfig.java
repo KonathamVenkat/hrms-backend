@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -41,7 +43,7 @@ public class SecurityConfig {
     private final ObjectMapper       objectMapper;
     private final AuthUserRepository authUserRepository;
 
-    @Value("${hrms.cors.allowed-origins:http://localhost:4200}")
+    @Value("${hrms.cors.allowed-origins:http://localhost:4201}")
     private String allowedOrigins;
 
     @Bean
@@ -91,6 +93,17 @@ public class SecurityConfig {
                 JwtAuthenticationFilter.class
             );
         return http.build();
+    }
+
+    /**
+     * A GENERAL_MANAGER is also an employee: the EMPLOYEE self-service endpoints accept them (on their own records,
+     * which the access guard enforces by employee id). Nothing else is inherited: not HR_ADMIN, HR_MANAGER or
+     * SYSTEM_ADMIN. Applies to method security and the request matchers; raw authority reads are unaffected.
+     * Static so method security can pick it up early.
+     */
+    @Bean
+    static RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.fromHierarchy("ROLE_GENERAL_MANAGER > ROLE_EMPLOYEE");
     }
 
     @Bean

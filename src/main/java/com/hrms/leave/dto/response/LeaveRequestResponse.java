@@ -27,6 +27,10 @@ public class LeaveRequestResponse {
     private String  approvedAt;
     private String  remarks;
 
+    // Approval workflow (absent for legacy requests)
+    private String  stage;
+    private Long    targetDepartmentId;
+
     // Supporting document
     private Boolean hasAttachment;
     private String  attachmentName;

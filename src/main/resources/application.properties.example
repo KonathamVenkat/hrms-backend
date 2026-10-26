@@ -107,3 +107,11 @@ spring.servlet.multipart.max-request-size=55MB
 # Flyway: the app only VALIDATES (see FlywayValidateOnly). Scripts in db/migration are run by hand;
 # each existing database is marked once as already at version 1 with db/flyway_history_baseline.sql.
 spring.flyway.baseline-version=1
+
+# Approval workflow engine (Flowable). Schema FLOWABLE is created by hand: db/flowable_schema_setup.sql.
+# Never set flowable.database-schema (it switches the shared connection schema); FlowableConfig sets the table prefix.
+flowable.database-schema-update=false
+flowable.idm.enabled=false
+flowable.eventregistry.enabled=false
+flowable.async-executor-activate=false
+flowable.check-process-definitions=false

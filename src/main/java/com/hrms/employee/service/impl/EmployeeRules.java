@@ -6,6 +6,7 @@ import com.hrms.employee.entity.Employee;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.util.regex.Pattern;
 
 /** Stateless validation rules for employee records, kept apart from the service that applies them. */
 public final class EmployeeRules {
@@ -33,15 +34,19 @@ public final class EmployeeRules {
         }
     }
 
+    /** An http(s) address, or an app-relative path with a single leading slash (never "//host" or "/\host"). */
+    private static final Pattern PHOTO_URL = Pattern.compile("^(https?://\\S+|/(?![/\\\\])\\S+)$");
+
     /**
      * Only accepts URLs the browser can safely load as an image source (http/https or an
      * app-relative path); anything else is rejected rather than stored and rendered later.
-     * Blank clears the photo.
+     * A protocol-relative value such as "//host/x" is not app-relative: the frontend would send
+     * the viewer's session token to that host. Blank clears the photo.
      */
     public static String validatePhotoUrl(String url) {
         if (!StringUtils.hasText(url)) return null;
         String trimmed = url.trim();
-        if (trimmed.length() > 500 || !trimmed.matches("^(https?://|/)\\S+$")) {
+        if (trimmed.length() > 500 || !PHOTO_URL.matcher(trimmed).matches()) {
             throw new BusinessRuleException(
                 "INVALID_PHOTO_URL",
                 "Profile photo must be an http(s) URL or an app-relative path (max 500 characters).");

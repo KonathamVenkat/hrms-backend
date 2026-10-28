@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -51,6 +52,7 @@ public class GradeServiceImpl implements GradeService {
             throw new DuplicateResourceException("Grade", "code", code);
         }
         boolean active = request.getIsActive() == null || request.getIsActive();
+        checkSalaryRange(request);
 
         Grade entity = Grade.builder().build();
         apply(entity, request, code);
@@ -75,6 +77,7 @@ public class GradeServiceImpl implements GradeService {
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Grade", "code", code);
         }
+        checkSalaryRange(request);
 
         String before = summary(existing);
         apply(existing, request, code);
@@ -128,6 +131,7 @@ public class GradeServiceImpl implements GradeService {
 
     private static String summary(Grade e) {
         return "code=" + e.getCode() + ", name=" + e.getName() + ", nameAr=" + e.getNameAr() + ", sortOrder=" + e.getSortOrder()
+            + ", minSalary=" + e.getMinSalary() + ", maxSalary=" + e.getMaxSalary()
             + ", active=" + e.getIsActive();
     }
 
@@ -141,6 +145,17 @@ public class GradeServiceImpl implements GradeService {
         e.setName(r.getName().trim());
         e.setNameAr(r.getNameAr().trim());
         e.setSortOrder(r.getSortOrder());
+        e.setMinSalary(r.getMinSalary());
+        e.setMaxSalary(r.getMaxSalary());
+    }
+
+    /** The database CHECK would catch it, but only as an unreadable constraint error. */
+    private static void checkSalaryRange(GradeRequest r) {
+        BigDecimal min = r.getMinSalary();
+        BigDecimal max = r.getMaxSalary();
+        if (min != null && max != null && max.compareTo(min) < 0) {
+            throw new BadRequestException("Maximum salary cannot be lower than minimum salary");
+        }
     }
 
     private GradeResponse toResponse(Grade e) {
@@ -150,6 +165,8 @@ public class GradeServiceImpl implements GradeService {
             .name(e.getName())
             .nameAr(e.getNameAr())
             .sortOrder(e.getSortOrder())
+            .minSalary(e.getMinSalary())
+            .maxSalary(e.getMaxSalary())
             .isActive(Boolean.TRUE.equals(e.getIsActive()))
             .createdAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null)
             .updatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null)

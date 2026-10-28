@@ -8,7 +8,9 @@ import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.ProfessionRequest;
 import com.hrms.employee.dto.response.ProfessionResponse;
 import com.hrms.employee.entity.Profession;
+import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.ProfessionRepository;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.service.ProfessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +31,16 @@ public class ProfessionServiceImpl implements ProfessionService {
     private static final String TARGET = "PROFESSION";
 
     private final ProfessionRepository repository;
+    private final DesignationRepository designationRepository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream()
+            .map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build())
+            .toList();
+    }
 
     @Override
     public List<ProfessionResponse> getAll() {
@@ -120,6 +130,10 @@ public class ProfessionServiceImpl implements ProfessionService {
 
     private void setActive(Long id, boolean active) {
         Profession e = findById(id);
+        if (!active && designationRepository.existsByProfessionIdAndIsActive(id, true)) {
+            throw new BusinessRuleException("PROFESSION_IN_USE",
+                "Profession " + e.getCode() + " is used by active designations. Deactivate or change them first.");
+        }
         e.setIsActive(active);
         e.setUpdatedAt(LocalDateTime.now());
         repository.save(e);

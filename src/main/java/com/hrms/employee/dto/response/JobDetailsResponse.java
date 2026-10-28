@@ -24,6 +24,11 @@ public class JobDetailsResponse {
     private String  designationTitleAr;
     private String  gradeLevel;
 
+    // Profession (null when the record has none)
+    private Long    professionId;
+    private String  professionName;
+    private String  professionNameAr;
+
     // Job position
     private String  jobPositionId;
 

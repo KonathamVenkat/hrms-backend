@@ -7,6 +7,7 @@ import com.hrms.employee.service.EducationLevelService;
 import com.hrms.employee.service.LanguageLevelService;
 import com.hrms.employee.service.LanguageService;
 import com.hrms.employee.service.NationalityService;
+import com.hrms.employee.service.ProfessionService;
 import com.hrms.employee.service.ProvinceService;
 import com.hrms.employee.service.RelationService;
 import com.hrms.employee.service.ReligionService;
@@ -37,6 +38,7 @@ public class ReferenceLookupController {
     private final LanguageService languages;
     private final LanguageLevelService languageLevels;
     private final EducationLevelService educationLevels;
+    private final ProfessionService professions;
 
     /** Also read by HR_MANAGER: the employee create/edit form picks the nationality from it. */
     @GetMapping("/nationalities")
@@ -70,6 +72,13 @@ public class ReferenceLookupController {
     @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
     public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> cities() {
         return ok("Cities fetched successfully", cities.getActiveLookup());
+    }
+
+    /** The job-details form picks the profession from it. */
+    @GetMapping("/professions")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
+    public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> professions() {
+        return ok("Professions fetched successfully", professions.getActiveLookup());
     }
 
     @GetMapping("/relations")

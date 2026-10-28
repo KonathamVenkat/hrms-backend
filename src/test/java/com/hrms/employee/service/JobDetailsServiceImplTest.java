@@ -33,6 +33,7 @@ class JobDetailsServiceImplTest {
     @Mock EmployeeRepository employeeRepository;
     @Mock DepartmentRepository departmentRepository;
     @Mock DesignationRepository designationRepository;
+    @Mock com.hrms.employee.repository.ProfessionRepository professionRepository;
     @Mock OfficeLocationRepository locationRepository;
     @Mock WorkShiftRepository shiftRepository;
     @Mock com.hrms.employee.service.DepartmentHeadService departmentHeads;
@@ -45,7 +46,7 @@ class JobDetailsServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, events);
+            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, events);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -164,6 +165,93 @@ class JobDetailsServiceImplTest {
         verify(jobDetailsRepository).save(any());
         verify(departmentHeads).clearHeadOf(5L, 10L);
         verify(departmentSecretaries).clearSecretaryOf(5L, 10L);
+    }
+
+    private void designationProfession(Long professionId) {
+        Designation desig = designationRepository.findById(20L).orElseThrow();
+        when(desig.getProfessionId()).thenReturn(professionId);
+    }
+
+    private void profession(Long id, boolean active) {
+        com.hrms.employee.entity.Profession p = mock(com.hrms.employee.entity.Profession.class);
+        when(p.getIsActive()).thenReturn(active);
+        when(professionRepository.findById(id)).thenReturn(Optional.of(p));
+    }
+
+    private EmployeeJobDetails assignAndCapture(JobDetailsRequest req) {
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.empty());
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertThrows(java.util.NoSuchElementException.class, () -> service.assignJob(5L, req));
+        var saved = org.mockito.ArgumentCaptor.forClass(EmployeeJobDetails.class);
+        verify(jobDetailsRepository).save(saved.capture());
+        return saved.getValue();
+    }
+
+    @Test
+    void professionDefaultsToTheDesignationsProfession() {
+        designationProfession(7L);
+
+        assertEquals(7L, assignAndCapture(request(LocalDate.now())).getProfessionId());
+    }
+
+    @Test
+    void professionStaysEmptyWhenNeitherTheRequestNorTheDesignationHasOne() {
+        designationProfession(null);
+
+        assertNull(assignAndCapture(request(LocalDate.now())).getProfessionId());
+    }
+
+    @Test
+    void aProfessionIsAcceptedWhenTheDesignationHasNone_orTheSame() {
+        designationProfession(null);
+        profession(7L, true);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setProfessionId(7L);
+
+        assertEquals(7L, assignAndCapture(req).getProfessionId());
+    }
+
+    @Test
+    void aProfessionDifferentFromTheDesignationsIsRejected() {
+        designationProfession(7L);
+        profession(8L, true);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setProfessionId(8L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("PROFESSION_DESIGNATION_MISMATCH", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void anUnknownOrInactiveProfessionIsRejected() {
+        designationProfession(null);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setProfessionId(9L);
+        when(professionRepository.findById(9L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.assignJob(5L, req));
+
+        profession(9L, false);
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("PROFESSION_INACTIVE", ex.getRuleCode());
+    }
+
+    @Test
+    void changingTheProfessionOfTheCurrentJobNeedsANewAssignment_butOmittingItKeepsIt() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).professionId(7L).workMode("ON_SITE").build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        JobDetailsRequest changed = request(LocalDate.now());
+        changed.setWorkMode("ON_SITE");
+        changed.setProfessionId(8L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, changed));
+        assertEquals("STRUCTURAL_CHANGE_NOT_ALLOWED", ex.getRuleCode());
+
+        JobDetailsRequest omitted = request(LocalDate.now());
+        omitted.setWorkMode("REMOTE");
+        assertThrows(java.util.NoSuchElementException.class, () -> service.updateCurrentJob(5L, omitted));
+        assertEquals("REMOTE", current.getWorkMode());
     }
 
     @Test

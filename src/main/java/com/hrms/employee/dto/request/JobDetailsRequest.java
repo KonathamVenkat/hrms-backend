@@ -17,6 +17,9 @@ public class JobDetailsRequest {
     @NotNull(message = "Designation is required")
     private Long designationId;
 
+    /** Optional: defaults to the designation's profession; when both are set they must be the same. */
+    private Long professionId;
+
     @Size(max = 20, message = "Job position ID max 20 characters")
     private String jobPositionId;
 

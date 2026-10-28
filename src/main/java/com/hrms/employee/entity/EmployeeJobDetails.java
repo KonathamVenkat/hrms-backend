@@ -53,6 +53,10 @@ public class EmployeeJobDetails {
     @Column(name = "DESIGNATION_ID", nullable = false)
     private Long designationId;
 
+    /** Defaults to the designation's profession when the assignment does not name one; null when neither has one. */
+    @Column(name = "PROFESSION_ID")
+    private Long professionId;
+
     @Column(name = "JOB_POSITION_ID", length = 20)
     private String jobPositionId;
 

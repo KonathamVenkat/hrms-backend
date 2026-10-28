@@ -23,6 +23,11 @@ public interface JobDetailsProjection {
     String  getDesignationTitleAr();
     String  getGradeLevel();
 
+    // ── Profession ────────────────────────────────────────────
+    Long    getProfessionId();
+    String  getProfessionName();
+    String  getProfessionNameAr();
+
     // ── Job position ──────────────────────────────────────────
     String  getJobPositionId();
 

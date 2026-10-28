@@ -3,6 +3,8 @@ package com.hrms.employee.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class GradeRequest {
 
@@ -24,6 +26,13 @@ public class GradeRequest {
 
     @Min(0) @Max(9999)
     private Integer sortOrder;
+
+    /** Optional pay range; null clears it. Amounts are 0 or more with at most 3 decimals, and max is not below min. */
+    @DecimalMin("0") @Digits(integer = 9, fraction = 3)
+    private BigDecimal minSalary;
+
+    @DecimalMin("0") @Digits(integer = 9, fraction = 3)
+    private BigDecimal maxSalary;
 
     private Boolean isActive;
 

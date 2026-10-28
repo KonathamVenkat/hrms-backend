@@ -10,6 +10,7 @@ public interface DesignationRepository extends JpaRepository<Designation, Long> 
     List<Designation> findByIsActiveOrderByTitleAsc(Boolean isActive);
     List<Designation> findByDepartmentIdAndIsActiveOrderByTitleAsc(Long departmentId, Boolean isActive);
     boolean existsByDepartmentId(Long departmentId);
+    boolean existsByProfessionIdAndIsActive(Long professionId, Boolean isActive);
     boolean existsByDepartmentIdAndIsActive(Long departmentId, Boolean isActive);
     List<Designation> findAllByOrderByTitleAsc();
     boolean existsByCodeIgnoreCase(String code);

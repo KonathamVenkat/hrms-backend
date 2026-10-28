@@ -9,9 +9,11 @@ import com.hrms.employee.dto.request.DesignationRequest;
 import com.hrms.employee.dto.response.DesignationResponse;
 import com.hrms.employee.entity.Department;
 import com.hrms.employee.entity.Designation;
+import com.hrms.employee.entity.Profession;
 import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
+import com.hrms.employee.repository.ProfessionRepository;
 import com.hrms.employee.service.impl.DesignationServiceImpl;
 import jakarta.persistence.EntityManager;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -34,6 +36,7 @@ class DesignationServiceImplTest {
     @Mock DesignationRepository designationRepository;
     @Mock DepartmentRepository departmentRepository;
     @Mock EmployeeJobDetailsRepository jobDetailsRepository;
+    @Mock ProfessionRepository professionRepository;
     @Mock AuditTrail audit;
     @Mock EntityManager entityManager;
 
@@ -41,7 +44,7 @@ class DesignationServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new DesignationServiceImpl(designationRepository, departmentRepository, jobDetailsRepository, audit, entityManager);
+        service = new DesignationServiceImpl(designationRepository, departmentRepository, jobDetailsRepository, professionRepository, audit, entityManager);
     }
 
     private DesignationRequest request() {
@@ -99,6 +102,65 @@ class DesignationServiceImplTest {
 
         assertNull(out.getDepartmentId());
         assertNull(out.getDepartmentName());
+    }
+
+    @Test
+    void create_keepsTheProfessionAndReturnsItsName() {
+        DesignationRequest r = request();
+        r.setDepartmentId(null);
+        r.setProfessionId(5L);
+        when(designationRepository.existsByCodeIgnoreCase("SR_SWE")).thenReturn(false);
+        when(professionRepository.findById(5L)).thenReturn(Optional.of(
+            Profession.builder().id(5L).code("ENG").name("Engineer").isActive(true).build()));
+        when(designationRepository.save(any(Designation.class))).thenAnswer(i -> i.getArgument(0));
+
+        DesignationResponse out = service.createDesignation(r);
+
+        assertEquals(5L, out.getProfessionId());
+        assertEquals("Engineer", out.getProfessionName());
+    }
+
+    @Test
+    void create_rejectsUnknownProfession() {
+        DesignationRequest r = request();
+        r.setDepartmentId(null);
+        r.setProfessionId(99L);
+        when(designationRepository.existsByCodeIgnoreCase("SR_SWE")).thenReturn(false);
+        when(professionRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.createDesignation(r));
+        verify(designationRepository, never()).save(any());
+    }
+
+    @Test
+    void create_rejectsAnInactiveProfessionForAnActiveDesignation_butAllowsItForAnInactiveOne() {
+        DesignationRequest r = request();
+        r.setDepartmentId(null);
+        r.setProfessionId(5L);
+        when(designationRepository.existsByCodeIgnoreCase("SR_SWE")).thenReturn(false);
+        when(professionRepository.findById(5L)).thenReturn(Optional.of(
+            Profession.builder().id(5L).code("ENG").name("Engineer").isActive(false).build()));
+        when(designationRepository.save(any(Designation.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertEquals("PROFESSION_INACTIVE",
+            assertThrows(BusinessRuleException.class, () -> service.createDesignation(r)).getRuleCode());
+
+        r.setIsActive(false);
+        assertEquals(5L, service.createDesignation(r).getProfessionId());
+    }
+
+    @Test
+    void update_clearsTheProfessionWhenNoneIsSent() {
+        Designation d = existing();
+        d.setProfessionId(5L);
+        when(designationRepository.findById(8L)).thenReturn(Optional.of(d));
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(
+            Department.builder().deptId(100L).name("Information Technology").isActive(true).build()));
+        when(designationRepository.save(any(Designation.class))).thenAnswer(i -> i.getArgument(0));
+        DesignationRequest r = request();
+        r.setVersion(0L);
+
+        assertNull(service.updateDesignation(8L, r).getProfessionId());
     }
 
     @Test

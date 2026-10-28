@@ -1,11 +1,14 @@
 package com.hrms.employee.service;
 
 import com.hrms.employee.dto.request.ProfessionRequest;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.dto.response.ProfessionResponse;
 import java.util.List;
 
 public interface ProfessionService {
     List<ProfessionResponse> getAll();
+    /** Active professions for dropdowns. */
+    List<MasterLookupResponse> getActiveLookup();
     ProfessionResponse getById(Long id);
     ProfessionResponse create(ProfessionRequest request);
     ProfessionResponse update(Long id, ProfessionRequest request);

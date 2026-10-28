@@ -3,6 +3,7 @@ package com.hrms.employee.controller;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.exception.GlobalExceptionHandler;
 import com.hrms.employee.service.EducationLevelService;
+import com.hrms.employee.service.ProfessionService;
 import com.hrms.employee.service.EmployeeDependentService;
 import com.hrms.employee.service.EmployeeEducationService;
 import com.hrms.employee.service.EmployeeExperienceService;
@@ -75,7 +76,8 @@ class EmployeeInfoControllersSecurityTest {
         @Bean ReferenceLookupController lookups() {
             return new ReferenceLookupController(mock(NationalityService.class), mock(ReligionService.class),
                 mock(ProvinceService.class), mock(CityService.class), mock(RelationService.class),
-                mock(LanguageService.class), mock(LanguageLevelService.class), mock(EducationLevelService.class));
+                mock(LanguageService.class), mock(LanguageLevelService.class), mock(EducationLevelService.class),
+                mock(ProfessionService.class));
         }
     }
 
@@ -162,6 +164,24 @@ class EmployeeInfoControllersSecurityTest {
         for (String path : new String[] {"relations", "languages", "language-levels", "education-levels"}) {
             mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void professionsDropdownIsOpenToHrAdmin() throws Exception {
+        mvc.perform(get("/api/v1/lookups/professions")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_MANAGER")
+    void professionsDropdownIsOpenToHrManager() throws Exception {
+        mvc.perform(get("/api/v1/lookups/professions")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void professionsDropdownIsForbiddenToEmployees() throws Exception {
+        mvc.perform(get("/api/v1/lookups/professions")).andExpect(status().isForbidden());
     }
 
     @Test

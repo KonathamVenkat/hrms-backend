@@ -7,9 +7,11 @@ import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.JobDetailsRequest;
 import com.hrms.employee.dto.response.JobDetailsResponse;
+import com.hrms.employee.entity.Designation;
 import com.hrms.employee.entity.EmployeeJobDetails;
 import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
+import com.hrms.employee.repository.ProfessionRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.repository.OfficeLocationRepository;
@@ -42,6 +44,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final EmployeeRepository           employeeRepository;
     private final DepartmentRepository         departmentRepository;
     private final DesignationRepository        designationRepository;
+    private final ProfessionRepository         professionRepository;
     private final OfficeLocationRepository     locationRepository;
     private final WorkShiftRepository          shiftRepository;
     private final DepartmentHeadService        departmentHeads;
@@ -84,6 +87,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         lockEmployee(employeeId);
         requireActiveEmployee(employeeId);
         validateAssignmentReferences(employeeId, request);
+        Long professionId = resolveProfessionId(request);
         String auditor = CurrentAuditor.name();
 
         // ── Validate effective date ───────────────────────────
@@ -136,6 +140,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .employeeId(employeeId)
             .departmentId(request.getDepartmentId())
             .designationId(request.getDesignationId())
+            .professionId(professionId)
             .jobPositionId(request.getJobPositionId())
             .reportingManagerId(request.getReportingManagerId())
             .functionalManagerId(request.getFunctionalManagerId())
@@ -188,6 +193,9 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         // while reporting success. Refuse it explicitly.
         if (!Objects.equals(request.getDepartmentId(), current.getDepartmentId())
                 || !Objects.equals(request.getDesignationId(), current.getDesignationId())
+                // Not sent (null) means "keep"; a different profession is a new assignment, like the designation.
+                || (request.getProfessionId() != null
+                    && !Objects.equals(request.getProfessionId(), current.getProfessionId()))
                 || !Objects.equals(request.getLocationId(), current.getLocationId())
                 || !Objects.equals(request.getCompanyBranchId(), current.getCompanyBranchId())
                 || !Objects.equals(request.getReportingManagerId(), current.getReportingManagerId())
@@ -277,6 +285,27 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         requireValidManager(employeeId, request.getFunctionalManagerId(), "Functional manager");
     }
 
+    /**
+     * The profession of a new assignment: the one asked for, else the designation's own (which may be none).
+     * A profession that is given must exist and be active, and must match the designation's when that has one.
+     */
+    private Long resolveProfessionId(JobDetailsRequest request) {
+        Long designationProfession = designationRepository.findById(request.getDesignationId())
+            .map(Designation::getProfessionId).orElse(null);
+        Long requested = request.getProfessionId();
+        if (requested == null) return designationProfession;
+        var profession = professionRepository.findById(requested)
+            .orElseThrow(() -> new ResourceNotFoundException("Profession", "id", requested));
+        if (!Boolean.TRUE.equals(profession.getIsActive())) {
+            throw new BusinessRuleException("PROFESSION_INACTIVE", "The selected profession is inactive.");
+        }
+        if (designationProfession != null && !designationProfession.equals(requested)) {
+            throw new BusinessRuleException("PROFESSION_DESIGNATION_MISMATCH",
+                "The selected profession does not match the profession of the selected designation.");
+        }
+        return requested;
+    }
+
     /** A branch, when given, must exist, be active and sit in the location chosen for the job. */
     private void requireBranchInLocation(Long branchId, Long locationId) {
         if (branchId == null) return;
@@ -325,6 +354,10 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .designationTitle(p.getDesignationTitle())
             .designationTitleAr(p.getDesignationTitleAr())
             .gradeLevel(p.getGradeLevel())
+            // Profession
+            .professionId(p.getProfessionId())
+            .professionName(p.getProfessionName())
+            .professionNameAr(p.getProfessionNameAr())
             // Position
             .jobPositionId(p.getJobPositionId())
             // Managers

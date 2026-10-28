@@ -11,9 +11,11 @@ import com.hrms.employee.dto.response.DesignationLookupResponse;
 import com.hrms.employee.dto.response.DesignationResponse;
 import com.hrms.employee.entity.Department;
 import com.hrms.employee.entity.Designation;
+import com.hrms.employee.entity.Profession;
 import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
+import com.hrms.employee.repository.ProfessionRepository;
 import com.hrms.employee.service.DesignationService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,7 @@ public class DesignationServiceImpl implements DesignationService {
     private final DesignationRepository designationRepository;
     private final DepartmentRepository departmentRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
+    private final ProfessionRepository professionRepository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
 
@@ -75,6 +78,7 @@ public class DesignationServiceImpl implements DesignationService {
         }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkDepartment(request.getDepartmentId(), active);
+        checkProfession(request.getProfessionId(), active);
 
         Designation entity = Designation.builder().build();
         apply(entity, request, code);
@@ -101,6 +105,7 @@ public class DesignationServiceImpl implements DesignationService {
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkDepartment(request.getDepartmentId(), active);
+        checkProfession(request.getProfessionId(), active);
         // Moving an in-use designation would leave employees holding a department/designation pair that no longer matches.
         if (!Objects.equals(request.getDepartmentId(), existing.getDepartmentId())
                 && jobDetailsRepository.existsByDesignationId(id)) {
@@ -146,7 +151,10 @@ public class DesignationServiceImpl implements DesignationService {
 
     private void setActive(Long id, boolean active) {
         Designation desig = findById(id);
-        if (active) checkDepartment(desig.getDepartmentId(), true);
+        if (active) {
+            checkDepartment(desig.getDepartmentId(), true);
+            checkProfession(desig.getProfessionId(), true);
+        }
         desig.setIsActive(active);
         desig.setUpdatedAt(LocalDateTime.now());
         designationRepository.save(desig);
@@ -155,7 +163,7 @@ public class DesignationServiceImpl implements DesignationService {
 
     private static String summary(Designation d) {
         return "code=" + d.getCode() + ", title=" + d.getTitle() + ", titleAr=" + d.getTitleAr()
-            + ", grade=" + d.getGradeLevel() + ", department=" + d.getDepartmentId()
+            + ", grade=" + d.getGradeLevel() + ", profession=" + d.getProfessionId() + ", department=" + d.getDepartmentId()
             + ", active=" + d.getIsActive();
     }
 
@@ -170,6 +178,17 @@ public class DesignationServiceImpl implements DesignationService {
         }
     }
 
+    /** The profession is optional; when given it must exist, and an active designation needs an active profession. */
+    private void checkProfession(Long professionId, boolean designationActive) {
+        if (professionId == null) return;
+        Profession profession = professionRepository.findById(professionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Profession", "id", professionId));
+        if (designationActive && !Boolean.TRUE.equals(profession.getIsActive())) {
+            throw new BusinessRuleException("PROFESSION_INACTIVE",
+                "Profession " + profession.getCode() + " is inactive, so it cannot hold an active designation.");
+        }
+    }
+
     private Designation findById(Long id) {
         return designationRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Designation", "id", id));
@@ -180,6 +199,7 @@ public class DesignationServiceImpl implements DesignationService {
         d.setTitle(r.getTitle().trim());
         d.setTitleAr(Strings.trimToNull(r.getTitleAr()));
         d.setGradeLevel(Strings.trimToNull(r.getGradeLevel()));
+        d.setProfessionId(r.getProfessionId());
         d.setDepartmentId(r.getDepartmentId());
     }
 
@@ -190,6 +210,7 @@ public class DesignationServiceImpl implements DesignationService {
             .title(d.getTitle())
             .titleAr(d.getTitleAr())
             .gradeLevel(d.getGradeLevel())
+            .professionId(d.getProfessionId())
             .departmentId(d.getDepartmentId())
             .build();
     }
@@ -200,6 +221,11 @@ public class DesignationServiceImpl implements DesignationService {
         return toResponse(d, departmentName);
     }
 
+    private String professionName(Long professionId) {
+        return professionId == null ? null
+            : professionRepository.findById(professionId).map(Profession::getName).orElse(null);
+    }
+
     private DesignationResponse toResponse(Designation d, String departmentName) {
         return DesignationResponse.builder()
             .desigId(d.getDesigId())
@@ -207,6 +233,8 @@ public class DesignationServiceImpl implements DesignationService {
             .title(d.getTitle())
             .titleAr(d.getTitleAr())
             .gradeLevel(d.getGradeLevel())
+            .professionId(d.getProfessionId())
+            .professionName(professionName(d.getProfessionId()))
             .departmentId(d.getDepartmentId())
             .departmentName(departmentName)
             .isActive(Boolean.TRUE.equals(d.getIsActive()))

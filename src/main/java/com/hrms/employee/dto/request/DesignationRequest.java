@@ -25,6 +25,9 @@ public class DesignationRequest {
     @Size(max = 10)
     private String gradeLevel;
 
+    /** Optional; must be an existing, active profession. */
+    private Long professionId;
+
     /** Optional; must be an existing department. */
     private Long departmentId;
 

@@ -30,6 +30,10 @@ public class Designation {
     @Column(name = "GRADE_LEVEL", length = 10)
     private String gradeLevel;
 
+    /** The profession this title belongs to; optional. */
+    @Column(name = "PROFESSION_ID")
+    private Long professionId;
+
     @Column(name = "DEPARTMENT_ID")
     private Long departmentId;
 

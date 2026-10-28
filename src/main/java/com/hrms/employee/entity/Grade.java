@@ -4,6 +4,7 @@ import com.hrms.common.util.BooleanToNumberConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /** Grade master (table GRADES); columns carry the table name as prefix, the Java fields stay plain. */
@@ -29,6 +30,13 @@ public class Grade {
 
     @Column(name = "SORT_ORDER")
     private Integer sortOrder;
+
+    /** Pay range of the grade; both optional. Amounts have 3 decimals. */
+    @Column(name = "MIN_SALARY", precision = 12, scale = 3)
+    private BigDecimal minSalary;
+
+    @Column(name = "MAX_SALARY", precision = 12, scale = 3)
+    private BigDecimal maxSalary;
 
     @Convert(converter = BooleanToNumberConverter.class)
     @Column(name = "IS_ACTIVE", nullable = false)

@@ -5,6 +5,7 @@ import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.employee.dto.request.DirectorateRequest;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.employee.dto.request.GradeRequest;
 import com.hrms.employee.dto.request.WilayaRequest;
 import com.hrms.employee.dto.response.GradeResponse;
@@ -142,6 +143,34 @@ class GeneratedMastersServiceTest {
             Grade.builder().id(1L).code("G01").name("Grade 1").nameAr("x").sortOrder(1).isActive(true).version(0L).build()));
         assertEquals(1, gradeService().getAll().get(0).getSortOrder());
         verify(gradeRepository).findAllByOrderBySortOrderAscNameAsc();
+    }
+
+    @Test
+    void grade_keepsItsSalaryRange_andAnEmptyRangeIsAllowed() {
+        when(gradeRepository.existsByCodeIgnoreCase("G25")).thenReturn(false);
+        when(gradeRepository.save(any(Grade.class))).thenAnswer(i -> i.getArgument(0));
+
+        GradeResponse ranged = gradeService().create(GradeRequest.builder().code("G25").name("Grade 25").nameAr("x")
+            .minSalary(new java.math.BigDecimal("500.000")).maxSalary(new java.math.BigDecimal("500.000")).build());
+        assertEquals(new java.math.BigDecimal("500.000"), ranged.getMinSalary());
+        assertEquals(new java.math.BigDecimal("500.000"), ranged.getMaxSalary());
+
+        GradeResponse open = gradeService().create(GradeRequest.builder().code("G25").name("Grade 25").nameAr("x")
+            .minSalary(new java.math.BigDecimal("500.000")).build());
+        assertNull(open.getMaxSalary());
+    }
+
+    @Test
+    void grade_rejectsAMaximumBelowTheMinimum_onCreateAndUpdate() {
+        GradeRequest bad = GradeRequest.builder().code("G25").name("Grade 25").nameAr("x").version(0L)
+            .minSalary(new java.math.BigDecimal("600.000")).maxSalary(new java.math.BigDecimal("599.999")).build();
+        when(gradeRepository.existsByCodeIgnoreCase("G25")).thenReturn(false);
+        assertThrows(BadRequestException.class, () -> gradeService().create(bad));
+
+        when(gradeRepository.findById(3L)).thenReturn(Optional.of(
+            Grade.builder().id(3L).code("G03").name("Grade 3").nameAr("x").isActive(true).version(0L).build()));
+        assertThrows(BadRequestException.class, () -> gradeService().update(3L, bad));
+        verify(gradeRepository, never()).save(any());
     }
 
     @Test

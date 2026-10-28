@@ -89,6 +89,9 @@ public interface EmployeeJobDetailsRepository
             ds.TITLE                  AS designationTitle,
             ds.TITLE_AR               AS designationTitleAr,
             ds.GRADE_LEVEL            AS gradeLevel,
+            ejd.PROFESSION_ID         AS professionId,
+            pf.PROFESSIONS_NAME       AS professionName,
+            pf.PROFESSIONS_NAME_AR    AS professionNameAr,
             ejd.JOB_POSITION_ID       AS jobPositionId,
             ejd.REPORTING_MANAGER_ID  AS reportingManagerId,
             rm.FIRST_NAME || ' ' || rm.LAST_NAME AS reportingManagerName,
@@ -120,6 +123,7 @@ public interface EmployeeJobDetailsRepository
         FROM HRMS.EMPLOYEE_JOB_DETAILS ejd
         LEFT JOIN HRMS.DEPARTMENTS     d   ON d.DEPT_ID       = ejd.DEPARTMENT_ID
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
+        LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
         LEFT JOIN HRMS.EMPLOYEES       rm  ON rm.EMPLOYEE_ID  = ejd.REPORTING_MANAGER_ID
         LEFT JOIN HRMS.EMPLOYEES       fm  ON fm.EMPLOYEE_ID  = ejd.FUNCTIONAL_MANAGER_ID
         LEFT JOIN HRMS.OFFICE_LOCATIONS loc ON loc.LOCATION_ID = ejd.LOCATION_ID
@@ -145,6 +149,9 @@ public interface EmployeeJobDetailsRepository
             ds.TITLE                  AS designationTitle,
             ds.TITLE_AR               AS designationTitleAr,
             ds.GRADE_LEVEL            AS gradeLevel,
+            ejd.PROFESSION_ID         AS professionId,
+            pf.PROFESSIONS_NAME       AS professionName,
+            pf.PROFESSIONS_NAME_AR    AS professionNameAr,
             ejd.JOB_POSITION_ID       AS jobPositionId,
             ejd.REPORTING_MANAGER_ID  AS reportingManagerId,
             rm.FIRST_NAME || ' ' || rm.LAST_NAME AS reportingManagerName,
@@ -176,6 +183,7 @@ public interface EmployeeJobDetailsRepository
         FROM HRMS.EMPLOYEE_JOB_DETAILS ejd
         LEFT JOIN HRMS.DEPARTMENTS     d   ON d.DEPT_ID       = ejd.DEPARTMENT_ID
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
+        LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
         LEFT JOIN HRMS.EMPLOYEES       rm  ON rm.EMPLOYEE_ID  = ejd.REPORTING_MANAGER_ID
         LEFT JOIN HRMS.EMPLOYEES       fm  ON fm.EMPLOYEE_ID  = ejd.FUNCTIONAL_MANAGER_ID
         LEFT JOIN HRMS.OFFICE_LOCATIONS loc ON loc.LOCATION_ID = ejd.LOCATION_ID

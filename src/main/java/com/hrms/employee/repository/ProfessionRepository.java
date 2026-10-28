@@ -8,6 +8,7 @@ import java.util.List;
 @Repository
 public interface ProfessionRepository extends JpaRepository<Profession, Long> {
     List<Profession> findAllByOrderByNameAsc();
+    List<Profession> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
 }

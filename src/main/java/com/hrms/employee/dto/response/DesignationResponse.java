@@ -9,6 +9,8 @@ public class DesignationResponse {
     private String  title;
     private String  titleAr;
     private String  gradeLevel;
+    private Long    professionId;
+    private String  professionName;
     private Long    departmentId;
     private String  departmentName;
     private Boolean isActive;

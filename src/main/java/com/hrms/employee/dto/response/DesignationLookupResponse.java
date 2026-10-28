@@ -10,5 +10,6 @@ public class DesignationLookupResponse {
     private String title;
     private String titleAr;
     private String gradeLevel;
+    private Long   professionId;
     private Long   departmentId;
 }

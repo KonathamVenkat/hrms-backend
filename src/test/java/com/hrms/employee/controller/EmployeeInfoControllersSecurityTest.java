@@ -11,7 +11,11 @@ import com.hrms.employee.service.EmployeeReferenceService;
 import com.hrms.employee.service.EmployeeTrainingService;
 import com.hrms.employee.service.LanguageLevelService;
 import com.hrms.employee.service.LanguageService;
+import com.hrms.employee.service.CityService;
+import com.hrms.employee.service.NationalityService;
+import com.hrms.employee.service.ProvinceService;
 import com.hrms.employee.service.RelationService;
+import com.hrms.employee.service.ReligionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,8 +73,9 @@ class EmployeeInfoControllersSecurityTest {
         @Bean EmployeeExperienceController c5(EmployeeExperienceService s, EmployeeAccessGuard g) { return new EmployeeExperienceController(s, g); }
         @Bean EmployeeReferenceController c6(EmployeeReferenceService s, EmployeeAccessGuard g) { return new EmployeeReferenceController(s, g); }
         @Bean ReferenceLookupController lookups() {
-            return new ReferenceLookupController(mock(RelationService.class), mock(LanguageService.class),
-                mock(LanguageLevelService.class), mock(EducationLevelService.class));
+            return new ReferenceLookupController(mock(NationalityService.class), mock(ReligionService.class),
+                mock(ProvinceService.class), mock(CityService.class), mock(RelationService.class),
+                mock(LanguageService.class), mock(LanguageLevelService.class), mock(EducationLevelService.class));
         }
     }
 
@@ -163,5 +168,32 @@ class EmployeeInfoControllersSecurityTest {
     @WithMockUser(roles = "EMPLOYEE")
     void dropdownsAreForbiddenToEmployees() throws Exception {
         mvc.perform(get("/api/v1/lookups/relations")).andExpect(status().isForbidden());
+    }
+
+    /** The employee and address forms read these: HR_MANAGER as well as HR_ADMIN, nobody else. */
+    private static final String[] FORM_LOOKUPS = {"nationalities", "religions", "countries", "provinces", "cities"};
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void formLookupsAreOpenToHrAdmin() throws Exception {
+        for (String path : FORM_LOOKUPS) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_MANAGER")
+    void formLookupsAreOpenToHrManager() throws Exception {
+        for (String path : FORM_LOOKUPS) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void formLookupsAreForbiddenToEmployees() throws Exception {
+        for (String path : FORM_LOOKUPS) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isForbidden());
+        }
     }
 }

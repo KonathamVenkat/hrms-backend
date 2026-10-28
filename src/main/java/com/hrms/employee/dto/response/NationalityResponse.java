@@ -8,6 +8,8 @@ public class NationalityResponse {
     private String  code;
     private String  name;
     private String  nameAr;
+    private String  countryName;
+    private String  countryNameAr;
     private Boolean isActive;
     private String  createdAt;
     private String  updatedAt;

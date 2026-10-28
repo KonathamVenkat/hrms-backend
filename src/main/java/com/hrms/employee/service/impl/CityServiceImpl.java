@@ -7,6 +7,7 @@ import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.CityRequest;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.dto.response.CityResponse;
 import com.hrms.employee.entity.City;
 import com.hrms.employee.repository.CityRepository;
@@ -40,6 +41,13 @@ public class CityServiceImpl implements CityService {
     private final ProvinceRepository provinceRepository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream()
+            .map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).parentId(e.getProvinceId()).build())
+            .toList();
+    }
 
     @Override
     public List<CityResponse> getAll() {

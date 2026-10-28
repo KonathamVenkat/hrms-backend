@@ -8,6 +8,7 @@ import java.util.List;
 @Repository
 public interface ReligionRepository extends JpaRepository<Religion, Long> {
     List<Religion> findAllByOrderByNameAsc();
+    List<Religion> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
 }

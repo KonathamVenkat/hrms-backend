@@ -1,10 +1,12 @@
 package com.hrms.employee.service;
 
 import com.hrms.employee.dto.request.ReligionRequest;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.dto.response.ReligionResponse;
 import java.util.List;
 
 public interface ReligionService {
+    List<MasterLookupResponse> getActiveLookup();
     List<ReligionResponse> getAll();
     ReligionResponse getById(Long id);
     ReligionResponse create(ReligionRequest request);

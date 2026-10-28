@@ -6,6 +6,7 @@ import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.ProvinceRequest;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.dto.response.ProvinceResponse;
 import com.hrms.employee.entity.Province;
 import com.hrms.employee.repository.ProvinceRepository;
@@ -36,6 +37,13 @@ public class ProvinceServiceImpl implements ProvinceService {
     private final CityRepository cityRepository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream()
+            .map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).parentId(e.getWilayaId()).build())
+            .toList();
+    }
 
     @Override
     public List<ProvinceResponse> getAll() {

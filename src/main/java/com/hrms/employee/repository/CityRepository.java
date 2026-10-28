@@ -9,6 +9,7 @@ import java.util.List;
 @Repository
 public interface CityRepository extends JpaRepository<City, Long>, JpaSpecificationExecutor<City> {
     List<City> findAllByOrderByNameAsc();
+    List<City> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
     boolean existsByProvinceId(Long provinceId);

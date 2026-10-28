@@ -8,6 +8,8 @@ import java.util.List;
 @Repository
 public interface NationalityRepository extends JpaRepository<Nationality, Long> {
     List<Nationality> findAllByOrderByNameAsc();
+    List<Nationality> findByIsActiveOrderByNameAsc(Boolean isActive);
+    List<Nationality> findByIsActiveAndCountryNameIsNotNullOrderByCountryNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
 }

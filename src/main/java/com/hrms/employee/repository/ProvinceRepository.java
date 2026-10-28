@@ -8,6 +8,7 @@ import java.util.List;
 @Repository
 public interface ProvinceRepository extends JpaRepository<Province, Long> {
     List<Province> findAllByOrderByNameAsc();
+    List<Province> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
     boolean existsByWilayaId(Long wilayaId);

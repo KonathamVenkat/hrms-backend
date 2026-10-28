@@ -10,4 +10,6 @@ public class MasterLookupResponse {
     private String code;
     private String name;
     private String nameAr;
+    /** The parent row's id for a dependent master (a city's province); omitted otherwise. */
+    private Long   parentId;
 }

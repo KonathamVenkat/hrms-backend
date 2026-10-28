@@ -1,10 +1,12 @@
 package com.hrms.employee.service;
 
 import com.hrms.employee.dto.request.ProvinceRequest;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.dto.response.ProvinceResponse;
 import java.util.List;
 
 public interface ProvinceService {
+    List<MasterLookupResponse> getActiveLookup();
     List<ProvinceResponse> getAll();
     ProvinceResponse getById(Long id);
     ProvinceResponse create(ProvinceRequest request);

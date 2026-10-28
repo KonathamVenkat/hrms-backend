@@ -6,6 +6,7 @@ import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.NationalityRequest;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.dto.response.NationalityResponse;
 import com.hrms.employee.entity.Nationality;
 import com.hrms.employee.repository.NationalityRepository;
@@ -31,6 +32,20 @@ public class NationalityServiceImpl implements NationalityService {
     private final NationalityRepository repository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream()
+            .map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build())
+            .toList();
+    }
+
+    @Override
+    public List<MasterLookupResponse> getActiveCountryLookup() {
+        return repository.findByIsActiveAndCountryNameIsNotNullOrderByCountryNameAsc(true).stream()
+            .map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getCountryName()).nameAr(e.getCountryNameAr()).build())
+            .toList();
+    }
 
     @Override
     public List<NationalityResponse> getAll() {
@@ -128,6 +143,7 @@ public class NationalityServiceImpl implements NationalityService {
 
     private static String summary(Nationality e) {
         return "code=" + e.getCode() + ", name=" + e.getName() + ", nameAr=" + e.getNameAr()
+            + ", country=" + e.getCountryName()
             + ", active=" + e.getIsActive();
     }
 
@@ -140,6 +156,13 @@ public class NationalityServiceImpl implements NationalityService {
         e.setCode(code);
         e.setName(r.getName().trim());
         e.setNameAr(r.getNameAr().trim());
+        if (r.getCountryName() != null) e.setCountryName(blankToNull(r.getCountryName()));
+        if (r.getCountryNameAr() != null) e.setCountryNameAr(blankToNull(r.getCountryNameAr()));
+    }
+
+    private static String blankToNull(String value) {
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private NationalityResponse toResponse(Nationality e) {
@@ -148,6 +171,8 @@ public class NationalityServiceImpl implements NationalityService {
             .code(e.getCode())
             .name(e.getName())
             .nameAr(e.getNameAr())
+            .countryName(e.getCountryName())
+            .countryNameAr(e.getCountryNameAr())
             .isActive(Boolean.TRUE.equals(e.getIsActive()))
             .createdAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null)
             .updatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null)

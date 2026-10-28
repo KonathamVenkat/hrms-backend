@@ -27,6 +27,13 @@ public class Nationality {
     @Column(name = "NATIONALITIES_NAME_AR", nullable = false, columnDefinition = "NVARCHAR2(200)")
     private String nameAr;
 
+    /** The country behind the nationality (South Sudanese -> South Sudan); null = not offered as a country. */
+    @Column(name = "COUNTRY_NAME", length = 200)
+    private String countryName;
+
+    @Column(name = "COUNTRY_NAME_AR", columnDefinition = "NVARCHAR2(200)")
+    private String countryNameAr;
+
     @Convert(converter = BooleanToNumberConverter.class)
     @Column(name = "IS_ACTIVE", nullable = false)
     private Boolean isActive;

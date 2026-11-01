@@ -53,7 +53,8 @@ public class EmployeeSpecification {
                     cb.like(cb.lower(root.get("lastName")),     pattern),
                     cb.like(cb.lower(root.get("employeeCode")), pattern),
                     cb.like(cb.lower(root.get("workEmail")),    pattern),
-                    cb.like(cb.lower(root.get("middleName")),   pattern)
+                    cb.like(cb.lower(root.get("middleName")),   pattern),
+                    cb.like(cb.lower(root.get("fourthName")),   pattern)
                 );
                 predicates.add(keywordPredicate);
             }

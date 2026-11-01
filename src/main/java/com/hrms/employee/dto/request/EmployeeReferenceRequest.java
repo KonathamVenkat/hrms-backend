@@ -30,6 +30,14 @@ public class EmployeeReferenceRequest {
     @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic middle name contains control or invisible characters")
     private String middleNameAr;
 
+    @Size(max = 100)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Fourth name contains control or invisible characters")
+    private String fourthName;
+
+    @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic fourth name contains control or invisible characters")
+    private String fourthNameAr;
+
     @Size(max = 200)
     @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic last name contains control or invisible characters")
     private String lastNameAr;

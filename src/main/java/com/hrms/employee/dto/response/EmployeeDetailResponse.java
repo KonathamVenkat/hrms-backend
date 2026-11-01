@@ -22,6 +22,8 @@ public class EmployeeDetailResponse {
     private String firstNameAr;
     private String middleName;
     private String middleNameAr;
+    private String fourthName;
+    private String fourthNameAr;
     private String lastName;
     private String lastNameAr;
     private String fullNameEn;

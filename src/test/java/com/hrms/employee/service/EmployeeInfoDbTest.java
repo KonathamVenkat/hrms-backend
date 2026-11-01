@@ -80,13 +80,15 @@ class EmployeeInfoDbTest extends DatabaseTest {
         fresh();
 
         EmployeeDependentResponse added = dependants.add(emp, EmployeeDependentRequest.builder()
-            .relationId(relationId).firstName("Nyadak").lastName("Lado").firstNameAr("نياداك").gender(Gender.FEMALE)
+            .relationId(relationId).firstName("Nyadak").lastName("Lado").fourthName("Okello").fourthNameAr("أوكيلو").firstNameAr("نياداك").gender(Gender.FEMALE)
             .dateOfBirth(LocalDate.of(2016, 3, 12)).phone("+211 912 000 000").build());
         fresh();
 
         EmployeeDependentResponse read = dependants.getAll(emp).get(0);
         assertEquals(added.getId(), read.getId());
         assertEquals("نياداك", read.getFirstNameAr());
+        assertEquals("Okello", read.getFourthName());
+        assertEquals("أوكيلو", read.getFourthNameAr());
         assertEquals(Gender.FEMALE, read.getGender());
         assertEquals(LocalDate.of(2016, 3, 12), read.getDateOfBirth());
         assertTrue(read.getIsAlive());                 // IS_ALIVE defaults to 1
@@ -108,7 +110,7 @@ class EmployeeInfoDbTest extends DatabaseTest {
             .provider("Petroleum Training Centre").startDate(LocalDate.of(2025, 3, 3)).endDate(LocalDate.of(2025, 3, 7)).build());
         experience.add(emp, EmployeeExperienceRequest.builder().employerName("Ministry of Petroleum").jobTitle("Accountant")
             .place("Juba").startDate(LocalDate.of(2012, 7, 1)).build());
-        references.add(emp, EmployeeReferenceRequest.builder().firstName("John").lastName("Deng").jobTitle("Director")
+        references.add(emp, EmployeeReferenceRequest.builder().firstName("John").lastName("Deng").fourthName("Majok").jobTitle("Director")
             .email("john.deng@example.test").phone("+211 912 111 111").build());
         fresh();
 
@@ -120,6 +122,7 @@ class EmployeeInfoDbTest extends DatabaseTest {
         assertEquals("Juba", experience.getAll(emp).get(0).getPlace());
         assertNull(experience.getAll(emp).get(0).getEndDate());         // still employed there
         assertEquals("john.deng@example.test", references.getAll(emp).get(0).getEmail());
+        assertEquals("Majok", references.getAll(emp).get(0).getFourthName());
 
         // a bad date range is refused by the service before the database constraint would be hit
         assertThrows(BusinessRuleException.class, () -> education.add(emp, EmployeeEducationRequest.builder()

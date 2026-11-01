@@ -48,7 +48,7 @@ import jakarta.persistence.Convert;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = {"firstNameAr", "middleNameAr", "lastNameAr"})
+@ToString(exclude = {"firstNameAr", "middleNameAr", "lastNameAr", "fourthNameAr"})
 @EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 public class Employee extends Auditable {
 
@@ -111,6 +111,14 @@ public class Employee extends Auditable {
      */
     @Column(name = "MIDDLE_NAME_AR", columnDefinition = "NVARCHAR2(200)")
     private String middleNameAr;
+
+    /** Fourth name (family name), English. Maps to Oracle: FOURTH_NAME VARCHAR2(100 CHAR), nullable (V15). */
+    @Column(name = "FOURTH_NAME", length = 100)
+    private String fourthName;
+
+    /** Fourth name (family name), Arabic. Maps to Oracle: FOURTH_NAME_AR NVARCHAR2(200), nullable (V15). */
+    @Column(name = "FOURTH_NAME_AR", columnDefinition = "NVARCHAR2(200)")
+    private String fourthNameAr;
 
     /**
      * Maps to Oracle: LAST_NAME VARCHAR2(100) NOT NULL
@@ -281,7 +289,7 @@ public class Employee extends Auditable {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Returns the employee's full English name (First [Middle] Last).
+     * Returns the employee's full English name (First [Middle] Last [Fourth]).
      */
     @Transient
     public String getFullName() {
@@ -289,11 +297,15 @@ public class Employee extends Auditable {
         if (middleName != null && !middleName.isBlank()) {
             sb.append(" ").append(middleName);
         }
-        return sb.append(" ").append(lastName).toString();
+        sb.append(" ").append(lastName);
+        if (fourthName != null && !fourthName.isBlank()) {
+            sb.append(" ").append(fourthName);
+        }
+        return sb.toString();
     }
 
     /**
-     * Returns the employee's full Arabic name (First [Middle] Last).
+     * Returns the employee's full Arabic name (First [Middle] Last [Fourth]).
      */
     @Transient
     public String getFullNameAr() {
@@ -301,6 +313,10 @@ public class Employee extends Auditable {
         if (middleNameAr != null && !middleNameAr.isBlank()) {
             sb.append(" ").append(middleNameAr);
         }
-        return sb.append(" ").append(lastNameAr).toString();
+        sb.append(" ").append(lastNameAr);
+        if (fourthNameAr != null && !fourthNameAr.isBlank()) {
+            sb.append(" ").append(fourthNameAr);
+        }
+        return sb.toString();
     }
 }

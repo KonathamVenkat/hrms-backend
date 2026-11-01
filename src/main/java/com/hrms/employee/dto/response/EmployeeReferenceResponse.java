@@ -14,6 +14,8 @@ public class EmployeeReferenceResponse {
     private String lastName;
     private String firstNameAr;
     private String middleNameAr;
+    private String fourthName;
+    private String fourthNameAr;
     private String lastNameAr;
     private String jobTitle;
     private String address;

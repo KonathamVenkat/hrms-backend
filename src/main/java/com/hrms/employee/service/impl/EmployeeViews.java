@@ -14,7 +14,7 @@ public final class EmployeeViews {
         return EmployeeSummaryResponse.builder()
             .employeeId(p.getEmployeeId())
             .employeeCode(p.getEmployeeCode())
-            .fullNameEn(fullName(p.getFirstName(), p.getMiddleName(), p.getLastName()))
+            .fullNameEn(fullName(p.getFirstName(), p.getMiddleName(), p.getLastName(), p.getFourthName()))
             .firstNameAr(p.getFirstNameAr())
             .lastNameAr(p.getLastNameAr())
             .gender(p.getGender())
@@ -43,10 +43,12 @@ public final class EmployeeViews {
             .firstNameAr(p.getFirstNameAr())
             .middleName(p.getMiddleName())
             .middleNameAr(p.getMiddleNameAr())
+            .fourthName(p.getFourthName())
+            .fourthNameAr(p.getFourthNameAr())
             .lastName(p.getLastName())
             .lastNameAr(p.getLastNameAr())
-            .fullNameEn(fullName(p.getFirstName(), p.getMiddleName(), p.getLastName()))
-            .fullNameAr(fullName(p.getFirstNameAr(), p.getMiddleNameAr(), p.getLastNameAr()))
+            .fullNameEn(fullName(p.getFirstName(), p.getMiddleName(), p.getLastName(), p.getFourthName()))
+            .fullNameAr(fullName(p.getFirstNameAr(), p.getMiddleNameAr(), p.getLastNameAr(), p.getFourthNameAr()))
             .dateOfBirth(p.getDateOfBirth())
             .gender(p.getGender())
             .bloodGroup(p.getBloodGroup())
@@ -81,11 +83,12 @@ public final class EmployeeViews {
             .build();
     }
 
-    private static String fullName(String first, String middle, String last) {
+    private static String fullName(String first, String middle, String last, String fourth) {
         StringBuilder name = new StringBuilder();
         if (first != null) name.append(first.trim());
         if (middle != null && !middle.isBlank()) name.append(" ").append(middle.trim());
         if (last != null) name.append(" ").append(last.trim());
+        if (fourth != null && !fourth.isBlank()) name.append(" ").append(fourth.trim());
         return name.toString().trim();
     }
 }

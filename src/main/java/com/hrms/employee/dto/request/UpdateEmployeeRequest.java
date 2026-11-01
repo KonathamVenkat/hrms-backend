@@ -31,6 +31,14 @@ public class UpdateEmployeeRequest {
     @Size(max = 200)
     private String middleNameAr;
 
+    @Size(max = 100)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Fourth name contains control or invisible characters")
+    private String fourthName;
+
+    @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic fourth name contains control or invisible characters")
+    private String fourthNameAr;
+
     @NotBlank(message = "Last name is required")
     @Size(max = 100)
     private String lastName;

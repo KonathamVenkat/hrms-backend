@@ -8,6 +8,7 @@ public interface EmployeeListProjection {
     String  getFirstName();
     String  getLastName();
     String  getMiddleName();
+    String  getFourthName();
     String  getFirstNameAr();
     String  getLastNameAr();
     String  getGender();

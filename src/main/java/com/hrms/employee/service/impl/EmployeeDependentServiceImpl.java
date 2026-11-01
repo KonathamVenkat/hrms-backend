@@ -129,6 +129,8 @@ public class EmployeeDependentServiceImpl implements EmployeeDependentService {
         e.setLastName(Strings.trimToNull(r.getLastName()));
         e.setFirstNameAr(Strings.trimToNull(r.getFirstNameAr()));
         e.setMiddleNameAr(Strings.trimToNull(r.getMiddleNameAr()));
+        e.setFourthName(Strings.trimToNull(r.getFourthName()));
+        e.setFourthNameAr(Strings.trimToNull(r.getFourthNameAr()));
         e.setLastNameAr(Strings.trimToNull(r.getLastNameAr()));
         e.setGender(r.getGender());
         e.setDateOfBirth(r.getDateOfBirth());
@@ -187,6 +189,8 @@ public class EmployeeDependentServiceImpl implements EmployeeDependentService {
             .lastName(e.getLastName())
             .firstNameAr(e.getFirstNameAr())
             .middleNameAr(e.getMiddleNameAr())
+            .fourthName(e.getFourthName())
+            .fourthNameAr(e.getFourthNameAr())
             .lastNameAr(e.getLastNameAr())
             .gender(e.getGender())
             .dateOfBirth(e.getDateOfBirth())

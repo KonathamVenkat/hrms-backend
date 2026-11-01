@@ -120,6 +120,8 @@ public class EmployeeReferenceServiceImpl implements EmployeeReferenceService {
         e.setLastName(Strings.trimToNull(r.getLastName()));
         e.setFirstNameAr(Strings.trimToNull(r.getFirstNameAr()));
         e.setMiddleNameAr(Strings.trimToNull(r.getMiddleNameAr()));
+        e.setFourthName(Strings.trimToNull(r.getFourthName()));
+        e.setFourthNameAr(Strings.trimToNull(r.getFourthNameAr()));
         e.setLastNameAr(Strings.trimToNull(r.getLastNameAr()));
         e.setJobTitle(Strings.trimToNull(r.getJobTitle()));
         e.setAddress(Strings.trimToNull(r.getAddress()));
@@ -141,6 +143,8 @@ public class EmployeeReferenceServiceImpl implements EmployeeReferenceService {
             .lastName(e.getLastName())
             .firstNameAr(e.getFirstNameAr())
             .middleNameAr(e.getMiddleNameAr())
+            .fourthName(e.getFourthName())
+            .fourthNameAr(e.getFourthNameAr())
             .lastNameAr(e.getLastNameAr())
             .jobTitle(e.getJobTitle())
             .address(e.getAddress())

@@ -17,6 +17,8 @@ public class EmployeeDependentResponse {
     private String lastName;
     private String firstNameAr;
     private String middleNameAr;
+    private String fourthName;
+    private String fourthNameAr;
     private String lastNameAr;
     private Gender gender;
     private LocalDate dateOfBirth;

@@ -148,6 +148,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             .firstNameAr(request.getFirstNameAr().trim())
             .middleName(request.getMiddleName())
             .middleNameAr(request.getMiddleNameAr())
+            .fourthName(request.getFourthName())
+            .fourthNameAr(request.getFourthNameAr())
             .lastName(request.getLastName().trim())
             .lastNameAr(request.getLastNameAr().trim())
             .dateOfBirth(request.getDateOfBirth())
@@ -292,6 +294,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setFirstNameAr(request.getFirstNameAr().trim());
         employee.setMiddleName(request.getMiddleName());
         employee.setMiddleNameAr(request.getMiddleNameAr());
+        employee.setFourthName(request.getFourthName());
+        employee.setFourthNameAr(request.getFourthNameAr());
         employee.setLastName(request.getLastName().trim());
         employee.setLastNameAr(request.getLastNameAr().trim());
         employee.setDateOfBirth(request.getDateOfBirth());

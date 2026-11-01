@@ -44,6 +44,12 @@ public class EmployeeDependent extends Auditable {
     @Column(name = "MIDDLE_NAME_AR", columnDefinition = "NVARCHAR2(200)")
     private String middleNameAr;
 
+    @Column(name = "FOURTH_NAME", length = 100)
+    private String fourthName;
+
+    @Column(name = "FOURTH_NAME_AR", columnDefinition = "NVARCHAR2(200)")
+    private String fourthNameAr;
+
     @Column(name = "LAST_NAME_AR", columnDefinition = "NVARCHAR2(200)")
     private String lastNameAr;
 

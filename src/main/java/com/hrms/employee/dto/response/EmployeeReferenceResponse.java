@@ -20,6 +20,7 @@ public class EmployeeReferenceResponse {
     private String jobTitle;
     private String address;
     private String phone;
+    private LocalDate dateOfBirth;
     private String email;
     private Boolean isActive;
     private Long version;

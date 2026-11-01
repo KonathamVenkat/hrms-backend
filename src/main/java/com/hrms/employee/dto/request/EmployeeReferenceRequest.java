@@ -54,6 +54,9 @@ public class EmployeeReferenceRequest {
     @Pattern(regexp = "^[0-9+() -]*$", message = "Phone may contain only digits, + ( ) - and spaces")
     private String phone;
 
+    @PastOrPresent(message = "Date of birth cannot be in the future")
+    private LocalDate dateOfBirth;
+
     @Size(max = 200)
     @Email(message = "E-mail address is not valid")
     private String email;

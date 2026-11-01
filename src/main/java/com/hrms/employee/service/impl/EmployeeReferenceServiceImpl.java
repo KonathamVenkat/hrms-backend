@@ -126,6 +126,7 @@ public class EmployeeReferenceServiceImpl implements EmployeeReferenceService {
         e.setJobTitle(Strings.trimToNull(r.getJobTitle()));
         e.setAddress(Strings.trimToNull(r.getAddress()));
         e.setPhone(Strings.trimToNull(r.getPhone()));
+        e.setDateOfBirth(r.getDateOfBirth());
         e.setEmail(Strings.trimToNull(r.getEmail()));
     }
 
@@ -149,6 +150,7 @@ public class EmployeeReferenceServiceImpl implements EmployeeReferenceService {
             .jobTitle(e.getJobTitle())
             .address(e.getAddress())
             .phone(e.getPhone())
+            .dateOfBirth(e.getDateOfBirth())
             .email(e.getEmail())
             .isActive(e.getIsActive())
             .version(e.getVersion())

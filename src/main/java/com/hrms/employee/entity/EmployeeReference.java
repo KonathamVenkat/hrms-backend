@@ -59,6 +59,9 @@ public class EmployeeReference extends Auditable {
     @Column(name = "PHONE", length = 30)
     private String phone;
 
+    @Column(name = "DATE_OF_BIRTH")
+    private LocalDate dateOfBirth;
+
     @Column(name = "EMAIL", length = 200)
     private String email;
 

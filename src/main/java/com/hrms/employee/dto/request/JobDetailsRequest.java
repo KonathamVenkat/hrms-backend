@@ -20,6 +20,9 @@ public class JobDetailsRequest {
     /** Optional: defaults to the designation's profession; when both are set they must be the same. */
     private Long professionId;
 
+    /** Optional: the section of the chosen department the employee works in. */
+    private Long sectionId;
+
     @Size(max = 20, message = "Job position ID max 20 characters")
     private String jobPositionId;
 

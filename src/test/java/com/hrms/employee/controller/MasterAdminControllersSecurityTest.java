@@ -8,6 +8,7 @@ import com.hrms.employee.service.CompanyBranchService;
 import com.hrms.employee.service.CompanyService;
 import com.hrms.employee.service.ContractTypeService;
 import com.hrms.employee.service.DirectorateService;
+import com.hrms.employee.service.SectionService;
 import com.hrms.employee.service.EducationLevelService;
 import com.hrms.employee.service.GradeService;
 import com.hrms.employee.service.HouseTypeService;
@@ -77,6 +78,7 @@ class MasterAdminControllersSecurityTest {
         @Bean RelationTypeAdminController relationType() { return new RelationTypeAdminController(mock(RelationTypeService.class)); }
         @Bean RelationAdminController relation() { return new RelationAdminController(mock(RelationService.class)); }
         @Bean DirectorateAdminController directorate() { return new DirectorateAdminController(mock(DirectorateService.class)); }
+        @Bean SectionAdminController section() { return new SectionAdminController(mock(SectionService.class)); }
         @Bean GradeAdminController grade() { return new GradeAdminController(mock(GradeService.class)); }
     }
 
@@ -85,12 +87,12 @@ class MasterAdminControllersSecurityTest {
             "regions", "wilayas", "provinces", "cities",
             "religions", "nationalities", "contract-types", "professions", "education-levels",
             "languages", "language-levels", "house-types", "relation-types", "relations",
-            "directorates", "grades");
+            "directorates", "sections", "grades");
     }
 
     /** One body that satisfies every master's validation (each ignores the parent ids it does not have). */
     private static final String BODY = "{\"code\":\"A1\",\"name\":\"n\",\"nameAr\":\"n\",\"version\":0,\"sortOrder\":1,"
-        + "\"bankId\":1,\"companyId\":1,\"regionId\":1,\"wilayaId\":1,\"provinceId\":1,\"relationTypeId\":1,\"companyBranchId\":1}";
+        + "\"bankId\":1,\"companyId\":1,\"regionId\":1,\"wilayaId\":1,\"provinceId\":1,\"relationTypeId\":1,\"companyBranchId\":1,\"departmentId\":1}";
 
     @Autowired WebApplicationContext context;
     MockMvc mvc;

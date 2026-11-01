@@ -74,6 +74,10 @@ public class EmployeeJobDetails {
     @Column(name = "SHIFT_ID")
     private Long shiftId;
 
+    /** The section of the department the employee works in; optional (V14). */
+    @Column(name = "SECTION_ID")
+    private Long sectionId;
+
     /** The branch the employee belongs to; null until HR assigns one (V8). */
     @Column(name = "COMPANY_BRANCH_ID")
     private Long companyBranchId;

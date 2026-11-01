@@ -50,6 +50,8 @@ class GeneratedMastersDbTest extends DatabaseTest {
     @Autowired CompanyService companies;
     @Autowired CompanyBranchService companyBranches;
     @Autowired DirectorateService directorates;
+    @Autowired SectionService sections;
+    @Autowired DepartmentService departments;
     @PersistenceContext EntityManager em;
 
     private void fresh() {
@@ -184,5 +186,27 @@ class GeneratedMastersDbTest extends DatabaseTest {
         directorates.deactivate(directorateId);
         fresh();
         companyBranches.deactivate(branch.getId());   // now allowed
+    }
+
+    @Test
+    void sectionBelongsToADepartment_keepsArabicText_andItsDepartmentCannotBeSwitchedOffWhileItIsActive() {
+        Long departmentId = departments.createDepartment(com.hrms.employee.dto.request.DepartmentRequest.builder()
+            .code("T_SECDEP").name("Dept").nameAr("إدارة").build()).getDeptId();
+        fresh();
+        Long sectionId = sections.create(com.hrms.employee.dto.request.SectionRequest.builder()
+            .departmentId(departmentId).code("T-SEC-1").name("Geology").nameAr("الجيولوجيا").build()).getId();
+        fresh();
+
+        var section = sections.getById(sectionId);
+        assertEquals(departmentId, section.getDepartmentId());
+        assertEquals("الجيولوجيا", section.getNameAr());
+        assertEquals(1, sections.getActiveLookupByDepartment(departmentId).size());
+        assertEquals("DEPARTMENT_HAS_ACTIVE_SECTIONS",
+            assertThrows(BusinessRuleException.class, () -> departments.deactivateDepartment(departmentId)).getRuleCode());
+
+        sections.deactivate(sectionId);
+        fresh();
+        assertEquals(0, sections.getActiveLookupByDepartment(departmentId).size());
+        departments.deactivateDepartment(departmentId);   // now allowed
     }
 }

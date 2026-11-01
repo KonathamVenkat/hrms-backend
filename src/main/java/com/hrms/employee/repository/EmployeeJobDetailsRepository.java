@@ -21,6 +21,7 @@ public interface EmployeeJobDetailsRepository
         extends JpaRepository<EmployeeJobDetails, Long> {
 
     boolean existsByDepartmentId(Long departmentId);
+    boolean existsBySectionId(Long sectionId);
     boolean existsByDesignationId(Long designationId);
 
     /** Active employees whose current job row names this person as reporting or functional manager. */
@@ -89,6 +90,10 @@ public interface EmployeeJobDetailsRepository
             ds.TITLE                  AS designationTitle,
             ds.TITLE_AR               AS designationTitleAr,
             ds.GRADE_LEVEL            AS gradeLevel,
+            ejd.SECTION_ID            AS sectionId,
+            sec.SECTION_CODE          AS sectionCode,
+            sec.SECTION_NAME          AS sectionName,
+            sec.SECTION_NAME_AR       AS sectionNameAr,
             ejd.PROFESSION_ID         AS professionId,
             pf.PROFESSIONS_NAME       AS professionName,
             pf.PROFESSIONS_NAME_AR    AS professionNameAr,
@@ -123,6 +128,7 @@ public interface EmployeeJobDetailsRepository
         FROM HRMS.EMPLOYEE_JOB_DETAILS ejd
         LEFT JOIN HRMS.DEPARTMENTS     d   ON d.DEPT_ID       = ejd.DEPARTMENT_ID
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
+        LEFT JOIN HRMS.SECTIONS        sec ON sec.SECTION_ID  = ejd.SECTION_ID
         LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
         LEFT JOIN HRMS.EMPLOYEES       rm  ON rm.EMPLOYEE_ID  = ejd.REPORTING_MANAGER_ID
         LEFT JOIN HRMS.EMPLOYEES       fm  ON fm.EMPLOYEE_ID  = ejd.FUNCTIONAL_MANAGER_ID
@@ -149,6 +155,10 @@ public interface EmployeeJobDetailsRepository
             ds.TITLE                  AS designationTitle,
             ds.TITLE_AR               AS designationTitleAr,
             ds.GRADE_LEVEL            AS gradeLevel,
+            ejd.SECTION_ID            AS sectionId,
+            sec.SECTION_CODE          AS sectionCode,
+            sec.SECTION_NAME          AS sectionName,
+            sec.SECTION_NAME_AR       AS sectionNameAr,
             ejd.PROFESSION_ID         AS professionId,
             pf.PROFESSIONS_NAME       AS professionName,
             pf.PROFESSIONS_NAME_AR    AS professionNameAr,
@@ -183,6 +193,7 @@ public interface EmployeeJobDetailsRepository
         FROM HRMS.EMPLOYEE_JOB_DETAILS ejd
         LEFT JOIN HRMS.DEPARTMENTS     d   ON d.DEPT_ID       = ejd.DEPARTMENT_ID
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
+        LEFT JOIN HRMS.SECTIONS        sec ON sec.SECTION_ID  = ejd.SECTION_ID
         LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
         LEFT JOIN HRMS.EMPLOYEES       rm  ON rm.EMPLOYEE_ID  = ejd.REPORTING_MANAGER_ID
         LEFT JOIN HRMS.EMPLOYEES       fm  ON fm.EMPLOYEE_ID  = ejd.FUNCTIONAL_MANAGER_ID

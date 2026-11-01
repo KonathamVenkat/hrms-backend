@@ -13,6 +13,7 @@ import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.employee.repository.SectionRepository;
 import com.hrms.employee.service.impl.DepartmentServiceImpl;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +37,7 @@ class DepartmentServiceImplTest {
 
     @Mock DepartmentRepository departmentRepository;
     @Mock DesignationRepository designationRepository;
+    @Mock SectionRepository sectionRepository;
     @Mock EmployeeJobDetailsRepository jobDetailsRepository;
     @Mock EmployeeRepository employeeRepository;
     @Mock AuditTrail audit;
@@ -46,7 +48,7 @@ class DepartmentServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new DepartmentServiceImpl(departmentRepository, designationRepository,
+        service = new DepartmentServiceImpl(departmentRepository, designationRepository, sectionRepository,
             jobDetailsRepository, employeeRepository, audit, entityManager, events);
     }
 
@@ -246,6 +248,18 @@ class DepartmentServiceImplTest {
 
         BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.deactivateDepartment(100L));
         assertEquals("DEPARTMENT_HAS_ACTIVE_DESIGNATIONS", ex.getRuleCode());
+        assertTrue(d.getIsActive());
+        verify(departmentRepository, never()).save(any());
+    }
+
+    @Test
+    void deactivate_blockedWhileActiveSectionsExist() {
+        Department d = existing();
+        when(departmentRepository.findById(100L)).thenReturn(Optional.of(d));
+        when(sectionRepository.existsByDepartmentIdAndIsActive(100L, true)).thenReturn(true);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.deactivateDepartment(100L));
+        assertEquals("DEPARTMENT_HAS_ACTIVE_SECTIONS", ex.getRuleCode());
         assertTrue(d.getIsActive());
         verify(departmentRepository, never()).save(any());
     }

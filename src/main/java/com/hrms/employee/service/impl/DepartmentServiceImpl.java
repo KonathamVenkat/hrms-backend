@@ -13,6 +13,7 @@ import com.hrms.employee.dto.response.ManagerLookupResponse;
 import com.hrms.employee.entity.Department;
 import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
+import com.hrms.employee.repository.SectionRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.service.DepartmentService;
@@ -41,6 +42,7 @@ public class DepartmentServiceImpl implements DepartmentService {
 
     private final DepartmentRepository departmentRepository;
     private final DesignationRepository designationRepository;
+    private final SectionRepository sectionRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final EmployeeRepository employeeRepository;
     private final AuditTrail audit;
@@ -143,7 +145,8 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Transactional
     public void deleteDepartment(Long id) {
         Department dept = findById(id);
-        if (designationRepository.existsByDepartmentId(id) || jobDetailsRepository.existsByDepartmentId(id)) {
+        if (designationRepository.existsByDepartmentId(id) || sectionRepository.existsByDepartmentId(id)
+                || jobDetailsRepository.existsByDepartmentId(id)) {
             throw inUse(dept);
         }
         departmentRepository.delete(dept);
@@ -159,7 +162,7 @@ public class DepartmentServiceImpl implements DepartmentService {
 
     private BusinessRuleException inUse(Department dept) {
         return new BusinessRuleException("DEPARTMENT_IN_USE",
-            "Department " + dept.getCode() + " is used by designations or employee job records. "
+            "Department " + dept.getCode() + " is used by designations, sections or employee job records. "
                 + "Deactivate it instead of deleting it.");
     }
 
@@ -177,6 +180,10 @@ public class DepartmentServiceImpl implements DepartmentService {
     }
 
     private void checkNoActiveDesignations(Department dept) {
+        if (sectionRepository.existsByDepartmentIdAndIsActive(dept.getDeptId(), true)) {
+            throw new BusinessRuleException("DEPARTMENT_HAS_ACTIVE_SECTIONS",
+                "Department " + dept.getCode() + " still has active sections. Deactivate them first.");
+        }
         if (designationRepository.existsByDepartmentIdAndIsActive(dept.getDeptId(), true)) {
             throw new BusinessRuleException("DEPARTMENT_HAS_ACTIVE_DESIGNATIONS",
                 "Department " + dept.getCode() + " still has active designations. Deactivate them first.");
@@ -232,6 +239,7 @@ public class DepartmentServiceImpl implements DepartmentService {
             .name(d.getName())
             .nameAr(d.getNameAr())
             .description(d.getDescription())
+            .directorateId(d.getDirectorateId())
             .headEmployeeId(d.getHeadEmployeeId())
             .headEmployeeName(d.getHeadEmployeeId() == null ? null : headNames.get(d.getHeadEmployeeId()))
             .costCenterCode(d.getCostCenterCode())

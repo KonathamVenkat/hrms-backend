@@ -18,6 +18,7 @@ import com.hrms.employee.repository.OfficeLocationRepository;
 import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.employee.repository.projection.JobDetailsProjection;
 import com.hrms.employee.repository.CompanyBranchRepository;
+import com.hrms.employee.repository.SectionRepository;
 import com.hrms.employee.service.DepartmentHeadService;
 import com.hrms.employee.service.DepartmentSecretaryService;
 import com.hrms.employee.service.JobDetailsService;
@@ -50,6 +51,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final DepartmentHeadService        departmentHeads;
     private final DepartmentSecretaryService   departmentSecretaries;
     private final CompanyBranchRepository      branchRepository;
+    private final SectionRepository            sectionRepository;
     private final ApplicationEventPublisher    events;
 
     // ── Get current job ───────────────────────────────────────
@@ -141,6 +143,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .departmentId(request.getDepartmentId())
             .designationId(request.getDesignationId())
             .professionId(professionId)
+            .sectionId(request.getSectionId())
             .jobPositionId(request.getJobPositionId())
             .reportingManagerId(request.getReportingManagerId())
             .functionalManagerId(request.getFunctionalManagerId())
@@ -193,10 +196,12 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         // while reporting success. Refuse it explicitly.
         if (!Objects.equals(request.getDepartmentId(), current.getDepartmentId())
                 || !Objects.equals(request.getDesignationId(), current.getDesignationId())
-                // Not sent (null) means "keep"; a different profession is a new assignment, like the designation.
-                || (request.getProfessionId() != null
+                // Not sent (null) means "keep"; changing a profession that is set is a new assignment, like the designation.
+                || (request.getProfessionId() != null && current.getProfessionId() != null
                     && !Objects.equals(request.getProfessionId(), current.getProfessionId()))
                 || !Objects.equals(request.getLocationId(), current.getLocationId())
+                // A record without a section may be given one (nothing recorded is rewritten); changing a set one is a new assignment.
+                || (current.getSectionId() != null && !Objects.equals(request.getSectionId(), current.getSectionId()))
                 || !Objects.equals(request.getCompanyBranchId(), current.getCompanyBranchId())
                 || !Objects.equals(request.getReportingManagerId(), current.getReportingManagerId())
                 || !Objects.equals(request.getFunctionalManagerId(), current.getFunctionalManagerId())
@@ -204,11 +209,20 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                                    Strings.trimToNull(current.getJobPositionId()))) {
             throw new BusinessRuleException(
                 "STRUCTURAL_CHANGE_NOT_ALLOWED",
-                "Department, designation, position, location, branch and managers can only be changed "
+                "Department, section, designation, position, location, branch and managers can only be changed "
                     + "with a new assignment. This update may change shift, work mode and remarks only.");
         }
         if (request.getShiftId() != null) {
             requireActiveShift(request.getShiftId());
+        }
+        // A record without a profession may be given one: nothing recorded is rewritten, the value was just unknown.
+        if (current.getProfessionId() == null && request.getProfessionId() != null) {
+            current.setProfessionId(resolveProfessionId(request));
+        }
+
+        if (current.getSectionId() == null && request.getSectionId() != null) {
+            requireSectionInDepartment(request.getSectionId(), current.getDepartmentId());
+            current.setSectionId(request.getSectionId());
         }
 
         // Update only non-structural fields (no new SCD record)
@@ -270,6 +284,8 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 "The selected designation does not belong to the selected department.");
         }
 
+        requireSectionInDepartment(request.getSectionId(), request.getDepartmentId());
+
         var location = locationRepository.findById(request.getLocationId())
             .orElseThrow(() -> new ResourceNotFoundException("OfficeLocation", "id", request.getLocationId()));
         if (Integer.valueOf(0).equals(location.getIsActive())) {
@@ -304,6 +320,20 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 "The selected profession does not match the profession of the selected designation.");
         }
         return requested;
+    }
+
+    /** A section is optional; when given it must exist, be active and belong to the chosen department. */
+    private void requireSectionInDepartment(Long sectionId, Long departmentId) {
+        if (sectionId == null) return;
+        var section = sectionRepository.findById(sectionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Section", "id", sectionId));
+        if (!Boolean.TRUE.equals(section.getIsActive())) {
+            throw new BusinessRuleException("SECTION_INACTIVE", "The selected section is inactive.");
+        }
+        if (!section.getDepartmentId().equals(departmentId)) {
+            throw new BusinessRuleException("SECTION_DEPARTMENT_MISMATCH",
+                "The selected section does not belong to the selected department.");
+        }
     }
 
     /** A branch, when given, must exist, be active and sit in the location chosen for the job. */
@@ -355,6 +385,10 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .designationTitleAr(p.getDesignationTitleAr())
             .gradeLevel(p.getGradeLevel())
             // Profession
+            .sectionId(p.getSectionId())
+            .sectionCode(p.getSectionCode())
+            .sectionName(p.getSectionName())
+            .sectionNameAr(p.getSectionNameAr())
             .professionId(p.getProfessionId())
             .professionName(p.getProfessionName())
             .professionNameAr(p.getProfessionNameAr())

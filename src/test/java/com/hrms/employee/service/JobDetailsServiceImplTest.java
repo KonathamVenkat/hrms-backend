@@ -39,6 +39,7 @@ class JobDetailsServiceImplTest {
     @Mock com.hrms.employee.service.DepartmentHeadService departmentHeads;
     @Mock com.hrms.employee.service.DepartmentSecretaryService departmentSecretaries;
     @Mock com.hrms.employee.repository.CompanyBranchRepository branchRepository;
+    @Mock SectionRepository sectionRepository;
     @Mock org.springframework.context.ApplicationEventPublisher events;
 
     JobDetailsServiceImpl service;
@@ -46,7 +47,7 @@ class JobDetailsServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, events);
+            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, sectionRepository, events);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -254,6 +255,40 @@ class JobDetailsServiceImplTest {
         assertEquals("REMOTE", current.getWorkMode());
     }
 
+    private EmployeeJobDetails currentWithoutProfession() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        return current;
+    }
+
+    @Test
+    void aCurrentJobWithoutAProfessionCanBeGivenOne() {
+        EmployeeJobDetails current = currentWithoutProfession();
+        designationProfession(null);
+        profession(7L, true);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setWorkMode("ON_SITE");
+        req.setProfessionId(7L);
+
+        assertThrows(java.util.NoSuchElementException.class, () -> service.updateCurrentJob(5L, req));
+        assertEquals(7L, current.getProfessionId());
+    }
+
+    @Test
+    void aProfessionGivenToACurrentJobMustMatchTheDesignation() {
+        EmployeeJobDetails current = currentWithoutProfession();
+        designationProfession(7L);
+        profession(8L, true);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setWorkMode("ON_SITE");
+        req.setProfessionId(8L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
+        assertEquals("PROFESSION_DESIGNATION_MISMATCH", ex.getRuleCode());
+        assertNull(current.getProfessionId());
+    }
+
     @Test
     void jobChangesLockTheEmployeeRowFirst() {
         JobDetailsRequest req = request(LocalDate.now().plusDays(30));
@@ -426,5 +461,69 @@ class JobDetailsServiceImplTest {
         BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
         assertEquals("STRUCTURAL_CHANGE_NOT_ALLOWED", ex.getRuleCode());
         verify(jobDetailsRepository, never()).save(any());
+    }
+
+    // ── Section ───────────────────────────────────────────────
+
+    private void section(Long id, Long departmentId, boolean active) {
+        com.hrms.employee.entity.Section s = com.hrms.employee.entity.Section.builder()
+            .id(id).departmentId(departmentId).isActive(active).build();
+        when(sectionRepository.findById(id)).thenReturn(Optional.of(s));
+    }
+
+    @Test
+    void aSectionOfTheChosenDepartmentIsSaved_andNoSectionIsAllowed() {
+        section(50L, 10L, true);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setSectionId(50L);
+
+        assertEquals(50L, savedJobFor(req).getSectionId());
+    }
+
+    @Test
+    void noSectionStoresNull() {
+        assertNull(savedJobFor(request(LocalDate.now())).getSectionId());
+        verifyNoInteractions(sectionRepository);
+    }
+
+    @Test
+    void aSectionOfAnotherDepartmentIsRejected() {
+        section(50L, 99L, true);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setSectionId(50L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("SECTION_DEPARTMENT_MISMATCH", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void anUnknownOrInactiveSectionIsRejected() {
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setSectionId(51L);
+        when(sectionRepository.findById(51L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.assignJob(5L, req));
+
+        section(51L, 10L, false);
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("SECTION_INACTIVE", ex.getRuleCode());
+    }
+
+    @Test
+    void aCurrentJobWithoutASectionMayBeGivenOne_butASetSectionNeedsANewAssignment() {
+        section(50L, 10L, true);
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setWorkMode("ON_SITE");
+        req.setSectionId(50L);
+
+        assertThrows(java.util.NoSuchElementException.class, () -> service.updateCurrentJob(5L, req));
+        assertEquals(50L, current.getSectionId());
+
+        req.setSectionId(null);
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
+        assertEquals("STRUCTURAL_CHANGE_NOT_ALLOWED", ex.getRuleCode());
     }
 }

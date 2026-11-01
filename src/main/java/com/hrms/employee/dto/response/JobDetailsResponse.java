@@ -24,6 +24,12 @@ public class JobDetailsResponse {
     private String  designationTitleAr;
     private String  gradeLevel;
 
+    // Section (null when the record has none)
+    private Long    sectionId;
+    private String  sectionCode;
+    private String  sectionName;
+    private String  sectionNameAr;
+
     // Profession (null when the record has none)
     private Long    professionId;
     private String  professionName;

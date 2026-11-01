@@ -9,6 +9,8 @@ public class DepartmentResponse {
     private String  name;
     private String  nameAr;
     private String  description;
+    /** Read-only; the directorate the department sits under. */
+    private Long    directorateId;
     private Long    headEmployeeId;
     /** Read-only; the head is set from the employee's job details. */
     private String  headEmployeeName;

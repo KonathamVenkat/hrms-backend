@@ -30,6 +30,10 @@ public class Department {
     @Column(name = "DESCRIPTION", length = 500)
     private String description;
 
+    /** The directorate this department belongs to (V5); read-only here, never written by a department save. */
+    @Column(name = "DIRECTORATE_ID", insertable = false, updatable = false)
+    private Long directorateId;
+
     @Column(name = "HEAD_EMPLOYEE_ID")
     private Long headEmployeeId;
 

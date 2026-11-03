@@ -9,6 +9,9 @@ public class BankBranchResponse {
     private String  code;
     private String  name;
     private String  nameAr;
+    private String  address;
+    private String  phone;
+    private String  email;
     private Boolean isActive;
     private String  createdAt;
     private String  updatedAt;

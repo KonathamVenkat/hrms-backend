@@ -1,6 +1,7 @@
 package com.hrms.employee.service.impl;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.util.Strings;
 import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
@@ -170,6 +171,11 @@ public class CompanyBranchServiceImpl implements CompanyBranchService {
         e.setCode(code);
         e.setName(r.getName().trim());
         e.setNameAr(r.getNameAr().trim());
+        // The edit form sends all three, so an empty value clears one.
+        e.setAddress(Strings.trimToNull(r.getAddress()));
+        e.setPhone(Strings.trimToNull(r.getPhone()));
+        String email = Strings.trimToNull(r.getEmail());
+        e.setEmail(email == null ? null : email.toLowerCase());
     }
 
     private CompanyBranchResponse toResponse(CompanyBranch e) {
@@ -179,6 +185,9 @@ public class CompanyBranchServiceImpl implements CompanyBranchService {
             .code(e.getCode())
             .name(e.getName())
             .nameAr(e.getNameAr())
+            .address(e.getAddress())
+            .phone(e.getPhone())
+            .email(e.getEmail())
             .isActive(Boolean.TRUE.equals(e.getIsActive()))
             .createdAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null)
             .updatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null)

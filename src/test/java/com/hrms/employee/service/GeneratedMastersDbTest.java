@@ -235,12 +235,14 @@ class GeneratedMastersDbTest extends DatabaseTest {
     }
 
     @Test
-    void v17AndV18LeaveExactlyTheColumnsTheAppMaps() {
+    void v17ToV20LeaveExactlyTheColumnsTheAppMaps() {
         assertEquals(2, columnCount("EMPLOYEES", "'PLACE_OF_BIRTH','NOTES'"));
         assertEquals(7, columnCount("EMPLOYEE_JOB_DETAILS",
             "'SPECIALIZATION_ID','FORM_REQUEST_NO','APPOINTMENT_REQUEST_NO','AFE','COMPANY_ID_CARD_NO','CURRENT_WORK_ADDRESS','CURRENT_WORK_PHONE'"));
         assertEquals(2, columnCount("EMPLOYEE_EXPERIENCE", "'WORK_ADDRESS','WORK_PHONE'"));
         assertEquals(1, columnCount("EMPLOYEE_IDENTITY_INFO", "'RESIDENCE_VALID_UNTIL'"));
+        assertEquals(3, columnCount("BANK_BRANCHES", "'BANK_BRANCHES_ADDRESS','BANK_BRANCHES_PHONE','BANK_BRANCHES_EMAIL'"));   // V19
+        assertEquals(3, columnCount("COMPANY_BRANCHES", "'COMPANY_BRANCHES_ADDRESS','COMPANY_BRANCHES_PHONE','COMPANY_BRANCHES_EMAIL'"));   // V20
         // V18 removed the five document columns again; they duplicated the Upload Document screen
         assertEquals(0, columnCount("EMPLOYEE_IDENTITY_INFO",
             "'DOCUMENT_TYPE','DOCUMENT_NO','DOCUMENT_ISSUE_DATE','DOCUMENT_ISSUE_PLACE','DOCUMENT_VALID_UNTIL'"));

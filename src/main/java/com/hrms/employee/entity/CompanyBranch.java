@@ -38,6 +38,16 @@ public class CompanyBranch {
     @Column(name = "BRANCH_MANAGER_EMPLOYEE_ID")
     private Long branchManagerEmployeeId;
 
+    /** Contact details of the branch (V20); all optional. */
+    @Column(name = "COMPANY_BRANCHES_ADDRESS", columnDefinition = "NVARCHAR2(300)")
+    private String address;
+
+    @Column(name = "COMPANY_BRANCHES_PHONE", length = 30)
+    private String phone;
+
+    @Column(name = "COMPANY_BRANCHES_EMAIL", length = 200)
+    private String email;
+
     @Convert(converter = BooleanToNumberConverter.class)
     @Column(name = "IS_ACTIVE", nullable = false)
     private Boolean isActive;

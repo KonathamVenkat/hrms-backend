@@ -251,4 +251,54 @@ class IdentityInfoServiceImplTest {
             assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req));
         assertEquals("INVALID_NATIONAL_ID_DATES", ex.getRuleCode());
     }
+
+    // ── An empty first save is refused ──────────────────────
+
+    @Test
+    void aFirstSaveWithNothingInItIsRefused_andNothingIsStored() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
+
+        BusinessRuleException ex =
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, new IdentityInfoRequest()));
+
+        assertEquals("EMPTY_IDENTITY", ex.getRuleCode());
+        verify(identityRepository, never()).save(any());
+    }
+
+    @Test
+    void aFirstSaveWithOnlyBlankTextIsRefusedToo() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setNationalId("   ");
+        req.setVisaType("");
+
+        assertEquals("EMPTY_IDENTITY",
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req)).getRuleCode());
+    }
+
+    @Test
+    void aFirstSaveWithOnlyADateIsAccepted() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
+        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setWorkPermitExpiry(LocalDate.of(2030, 1, 1));
+
+        assertDoesNotThrow(() -> service.saveIdentityInfo(5L, req));
+    }
+
+    @Test
+    void clearingEverythingOnASavedRecordStaysAllowed() {
+        EmployeeIdentityInfo existing = EmployeeIdentityInfo.builder().employeeId(5L).version(2L).nationalId("123456789").build();
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.of(existing));
+        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setVersion(2L);
+
+        assertDoesNotThrow(() -> service.saveIdentityInfo(5L, req));
+        assertNull(existing.getNationalId());
+    }
 }

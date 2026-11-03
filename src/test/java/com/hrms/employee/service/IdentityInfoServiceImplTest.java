@@ -177,4 +177,78 @@ class IdentityInfoServiceImplTest {
             assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req));
         assertEquals("INVALID_VISA_DATES", ex.getRuleCode());
     }
+
+    // ── National-ID details and residence (V5 columns now mapped, V17 residence valid-until) ──
+
+    @Test
+    void nationalIdDetailsAndResidenceAreStoredTrimmed_andReturnedToTheAdmin() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
+        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setNationalIdType(" By birth ");
+        req.setNationalIdIssueDate(LocalDate.of(1986, 9, 22));
+        req.setNationalIdIssuePlace(" Omdurman ");
+        req.setResidenceDate(LocalDate.of(2020, 1, 1));
+        req.setResidencePlace(" Wad Balal ");
+        req.setResidenceValidUntil(LocalDate.of(2030, 1, 1));
+
+        IdentityInfoResponse r = service.saveIdentityInfo(5L, req);
+
+        assertEquals("By birth", r.getNationalIdType());
+        assertEquals(LocalDate.of(1986, 9, 22), r.getNationalIdIssueDate());
+        assertEquals("Omdurman", r.getNationalIdIssuePlace());
+        assertEquals("Wad Balal", r.getResidencePlace());
+        assertEquals(LocalDate.of(2030, 1, 1), r.getResidenceValidUntil());
+    }
+
+    @Test
+    void updatingAnExistingRecordOverwritesTheResidenceFields_andEmptyClearsThem() {
+        EmployeeIdentityInfo existing = EmployeeIdentityInfo.builder().employeeId(5L).version(3L)
+            .nationalIdType("Old").residencePlace("Old place").residenceValidUntil(LocalDate.of(2025, 1, 1)).build();
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.of(existing));
+        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setVersion(3L);
+        req.setNationalIdType(" New ");
+        req.setResidencePlace("  ");
+
+        service.saveIdentityInfo(5L, req);
+
+        assertEquals("New", existing.getNationalIdType());
+        assertNull(existing.getResidencePlace());
+        assertNull(existing.getResidenceValidUntil());
+    }
+
+    @Test
+    void residenceValidUntilBeforeTheResidenceDateIsRejected_butTheSameDayIsFine() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        IdentityInfoRequest backwards = new IdentityInfoRequest();
+        backwards.setResidenceDate(LocalDate.of(2026, 5, 2));
+        backwards.setResidenceValidUntil(LocalDate.of(2026, 5, 1));
+
+        BusinessRuleException ex =
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, backwards));
+        assertEquals("INVALID_RESIDENCE_DATES", ex.getRuleCode());
+        verify(identityRepository, never()).save(any());
+
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
+        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest sameDay = new IdentityInfoRequest();
+        sameDay.setResidenceDate(LocalDate.of(2026, 5, 1));
+        sameDay.setResidenceValidUntil(LocalDate.of(2026, 5, 1));
+        assertDoesNotThrow(() -> service.saveIdentityInfo(5L, sameDay));
+    }
+
+    @Test
+    void aNationalIdIssuedInTheFutureIsRejected() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setNationalIdIssueDate(LocalDate.now().plusDays(1));
+
+        BusinessRuleException ex =
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req));
+        assertEquals("INVALID_NATIONAL_ID_DATES", ex.getRuleCode());
+    }
 }

@@ -51,6 +51,7 @@ class GeneratedMastersDbTest extends DatabaseTest {
     @Autowired CompanyBranchService companyBranches;
     @Autowired DirectorateService directorates;
     @Autowired SectionService sections;
+    @Autowired SpecializationService specializations;
     @Autowired DepartmentService departments;
     @PersistenceContext EntityManager em;
 
@@ -208,5 +209,45 @@ class GeneratedMastersDbTest extends DatabaseTest {
         fresh();
         assertEquals(0, sections.getActiveLookupByDepartment(departmentId).size());
         departments.deactivateDepartment(departmentId);   // now allowed
+    }
+
+    @Test
+    void specializationKeepsLongAccentedAndArabicNames_hasAUniqueCode_andOnlyActiveOnesAreOffered() {
+        String longAccented = "é".repeat(200);   // 200 characters are 400 bytes: needs CHAR semantics, not BYTE
+        Long id = specializations.create(com.hrms.employee.dto.request.SpecializationRequest.builder()
+            .code("T_SPEC_1").name(longAccented).nameAr("محاسبة تكاليف").build()).getId();
+        fresh();
+
+        var found = specializations.getById(id);
+        assertEquals(longAccented, found.getName());
+        assertEquals("محاسبة تكاليف", found.getNameAr());
+        assertThrows(DuplicateResourceException.class, () -> specializations.create(
+            com.hrms.employee.dto.request.SpecializationRequest.builder().code("t_spec_1").name("x").nameAr("x").build()));
+
+        assertTrue(specializations.getActiveLookup().stream().anyMatch(l -> l.getId().equals(id)));
+        specializations.deactivate(id);
+        fresh();
+        assertTrue(specializations.getActiveLookup().stream().noneMatch(l -> l.getId().equals(id)));
+
+        specializations.delete(id);   // nothing refers to it
+        fresh();
+        assertThrows(com.hrms.common.exception.ResourceNotFoundException.class, () -> specializations.getById(id));
+    }
+
+    @Test
+    void v17AndV18LeaveExactlyTheColumnsTheAppMaps() {
+        assertEquals(2, columnCount("EMPLOYEES", "'PLACE_OF_BIRTH','NOTES'"));
+        assertEquals(7, columnCount("EMPLOYEE_JOB_DETAILS",
+            "'SPECIALIZATION_ID','FORM_REQUEST_NO','APPOINTMENT_REQUEST_NO','AFE','COMPANY_ID_CARD_NO','CURRENT_WORK_ADDRESS','CURRENT_WORK_PHONE'"));
+        assertEquals(2, columnCount("EMPLOYEE_EXPERIENCE", "'WORK_ADDRESS','WORK_PHONE'"));
+        assertEquals(1, columnCount("EMPLOYEE_IDENTITY_INFO", "'RESIDENCE_VALID_UNTIL'"));
+        // V18 removed the five document columns again; they duplicated the Upload Document screen
+        assertEquals(0, columnCount("EMPLOYEE_IDENTITY_INFO",
+            "'DOCUMENT_TYPE','DOCUMENT_NO','DOCUMENT_ISSUE_DATE','DOCUMENT_ISSUE_PLACE','DOCUMENT_VALID_UNTIL'"));
+    }
+
+    private int columnCount(String table, String quotedColumns) {
+        return ((Number) em.createNativeQuery("select count(*) from all_tab_columns where owner = 'HRMS' and table_name = '"
+            + table + "' and column_name in (" + quotedColumns + ")").getSingleResult()).intValue();
     }
 }

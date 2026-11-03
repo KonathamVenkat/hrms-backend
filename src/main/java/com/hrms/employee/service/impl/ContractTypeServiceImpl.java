@@ -7,6 +7,7 @@ import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.ContractTypeRequest;
 import com.hrms.employee.dto.response.ContractTypeResponse;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.entity.ContractType;
 import com.hrms.employee.repository.ContractTypeRepository;
 import com.hrms.employee.service.ContractTypeService;
@@ -31,6 +32,13 @@ public class ContractTypeServiceImpl implements ContractTypeService {
     private final ContractTypeRepository repository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
+
+    @Override
+    public List<MasterLookupResponse> getActiveLookup() {
+        return repository.findByIsActiveOrderByNameAsc(true).stream()
+            .map(e -> MasterLookupResponse.builder().id(e.getId()).code(e.getCode()).name(e.getName()).nameAr(e.getNameAr()).build())
+            .toList();
+    }
 
     @Override
     public List<ContractTypeResponse> getAll() {

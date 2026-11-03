@@ -50,6 +50,8 @@ public final class EmployeeViews {
             .fullNameEn(fullName(p.getFirstName(), p.getMiddleName(), p.getLastName(), p.getFourthName()))
             .fullNameAr(fullName(p.getFirstNameAr(), p.getMiddleNameAr(), p.getLastNameAr(), p.getFourthNameAr()))
             .dateOfBirth(p.getDateOfBirth())
+            .placeOfBirth(p.getPlaceOfBirth())
+            .notes(p.getNotes())
             .gender(p.getGender())
             .bloodGroup(p.getBloodGroup())
             .maritalStatus(p.getMaritalStatus())

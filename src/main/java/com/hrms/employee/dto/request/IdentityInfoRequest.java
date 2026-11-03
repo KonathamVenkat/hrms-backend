@@ -10,6 +10,24 @@ public class IdentityInfoRequest {
     @Size(max = 200, message = "National ID max 200 characters")
     private String nationalId;
 
+    @Size(max = 40, message = "National ID type max 40 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "National ID type contains control or invisible characters")
+    private String nationalIdType;
+
+    private LocalDate nationalIdIssueDate;
+
+    @Size(max = 80, message = "National ID issue place max 80 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "National ID issue place contains control or invisible characters")
+    private String nationalIdIssuePlace;
+
+    private LocalDate residenceDate;
+
+    @Size(max = 80, message = "Place of residence max 80 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Place of residence contains control or invisible characters")
+    private String residencePlace;
+
+    private LocalDate residenceValidUntil;
+
     @Size(max = 200, message = "Passport number max 200 characters")
     private String passportNumber;
 

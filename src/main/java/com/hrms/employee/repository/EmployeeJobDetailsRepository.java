@@ -97,6 +97,20 @@ public interface EmployeeJobDetailsRepository
             ejd.PROFESSION_ID         AS professionId,
             pf.PROFESSIONS_NAME       AS professionName,
             pf.PROFESSIONS_NAME_AR    AS professionNameAr,
+            ejd.SPECIALIZATION_ID     AS specializationId,
+            sp.SPECIALIZATIONS_NAME   AS specializationName,
+            sp.SPECIALIZATIONS_NAME_AR AS specializationNameAr,
+            ejd.CONTRACT_TYPE_ID      AS contractTypeId,
+            ct.CONTRACT_TYPES_NAME    AS contractTypeName,
+            ct.CONTRACT_TYPES_NAME_AR AS contractTypeNameAr,
+            TO_CHAR(ejd.CONTRACT_START_DATE,'YYYY-MM-DD') AS contractStartDate,
+            TO_CHAR(ejd.CONTRACT_END_DATE,'YYYY-MM-DD')   AS contractEndDate,
+            ejd.FORM_REQUEST_NO       AS formRequestNo,
+            ejd.APPOINTMENT_REQUEST_NO AS appointmentRequestNo,
+            ejd.AFE                   AS afe,
+            ejd.COMPANY_ID_CARD_NO    AS companyIdCardNo,
+            ejd.CURRENT_WORK_ADDRESS  AS currentWorkAddress,
+            ejd.CURRENT_WORK_PHONE    AS currentWorkPhone,
             ejd.JOB_POSITION_ID       AS jobPositionId,
             ejd.REPORTING_MANAGER_ID  AS reportingManagerId,
             rm.FIRST_NAME || ' ' || rm.LAST_NAME AS reportingManagerName,
@@ -130,6 +144,8 @@ public interface EmployeeJobDetailsRepository
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
         LEFT JOIN HRMS.SECTIONS        sec ON sec.SECTION_ID  = ejd.SECTION_ID
         LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
+        LEFT JOIN HRMS.SPECIALIZATIONS sp  ON sp.SPECIALIZATION_ID = ejd.SPECIALIZATION_ID
+        LEFT JOIN HRMS.CONTRACT_TYPES  ct  ON ct.CONTRACT_TYPE_ID = ejd.CONTRACT_TYPE_ID
         LEFT JOIN HRMS.EMPLOYEES       rm  ON rm.EMPLOYEE_ID  = ejd.REPORTING_MANAGER_ID
         LEFT JOIN HRMS.EMPLOYEES       fm  ON fm.EMPLOYEE_ID  = ejd.FUNCTIONAL_MANAGER_ID
         LEFT JOIN HRMS.OFFICE_LOCATIONS loc ON loc.LOCATION_ID = ejd.LOCATION_ID
@@ -162,6 +178,20 @@ public interface EmployeeJobDetailsRepository
             ejd.PROFESSION_ID         AS professionId,
             pf.PROFESSIONS_NAME       AS professionName,
             pf.PROFESSIONS_NAME_AR    AS professionNameAr,
+            ejd.SPECIALIZATION_ID     AS specializationId,
+            sp.SPECIALIZATIONS_NAME   AS specializationName,
+            sp.SPECIALIZATIONS_NAME_AR AS specializationNameAr,
+            ejd.CONTRACT_TYPE_ID      AS contractTypeId,
+            ct.CONTRACT_TYPES_NAME    AS contractTypeName,
+            ct.CONTRACT_TYPES_NAME_AR AS contractTypeNameAr,
+            TO_CHAR(ejd.CONTRACT_START_DATE,'YYYY-MM-DD') AS contractStartDate,
+            TO_CHAR(ejd.CONTRACT_END_DATE,'YYYY-MM-DD')   AS contractEndDate,
+            ejd.FORM_REQUEST_NO       AS formRequestNo,
+            ejd.APPOINTMENT_REQUEST_NO AS appointmentRequestNo,
+            ejd.AFE                   AS afe,
+            ejd.COMPANY_ID_CARD_NO    AS companyIdCardNo,
+            ejd.CURRENT_WORK_ADDRESS  AS currentWorkAddress,
+            ejd.CURRENT_WORK_PHONE    AS currentWorkPhone,
             ejd.JOB_POSITION_ID       AS jobPositionId,
             ejd.REPORTING_MANAGER_ID  AS reportingManagerId,
             rm.FIRST_NAME || ' ' || rm.LAST_NAME AS reportingManagerName,
@@ -195,6 +225,8 @@ public interface EmployeeJobDetailsRepository
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
         LEFT JOIN HRMS.SECTIONS        sec ON sec.SECTION_ID  = ejd.SECTION_ID
         LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
+        LEFT JOIN HRMS.SPECIALIZATIONS sp  ON sp.SPECIALIZATION_ID = ejd.SPECIALIZATION_ID
+        LEFT JOIN HRMS.CONTRACT_TYPES  ct  ON ct.CONTRACT_TYPE_ID = ejd.CONTRACT_TYPE_ID
         LEFT JOIN HRMS.EMPLOYEES       rm  ON rm.EMPLOYEE_ID  = ejd.REPORTING_MANAGER_ID
         LEFT JOIN HRMS.EMPLOYEES       fm  ON fm.EMPLOYEE_ID  = ejd.FUNCTIONAL_MANAGER_ID
         LEFT JOIN HRMS.OFFICE_LOCATIONS loc ON loc.LOCATION_ID = ejd.LOCATION_ID

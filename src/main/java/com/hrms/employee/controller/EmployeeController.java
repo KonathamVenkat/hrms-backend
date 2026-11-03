@@ -121,6 +121,9 @@ public class EmployeeController {
         accessGuard.assertSelfOrPrivileged(id);
 
         EmployeeDetailResponse detail = employeeService.getEmployeeById(id);
+        if (!accessGuard.isHrStaff()) {
+            detail.setNotes(null);   // HR notes are for HR only, also on the employee's own record
+        }
  
         return ResponseEntity.ok(
             ApiResponse.<EmployeeDetailResponse>builder()

@@ -62,6 +62,11 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             }
         }
 
+        requireOrderedDates(request.getNationalIdIssueDate(), null, "INVALID_NATIONAL_ID_DATES",
+            "The national ID issue date cannot be in the future.");
+        requireOrderedDates(request.getResidenceDate(), request.getResidenceValidUntil(), "INVALID_RESIDENCE_DATES",
+            "The residence valid-until date cannot be before the residence date.");
+
         Optional<EmployeeIdentityInfo> existing =
             identityRepository.findByEmployeeId(employeeId);
 
@@ -72,6 +77,7 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             entity = existing.get();
             Versions.requireCurrent(request.getVersion(), entity.getVersion());
             entity.setNationalId(Strings.trimToNull(request.getNationalId()));
+            applyDocumentsAndResidence(entity, request);
             entity.setPassportNumber(Strings.trimToNull(request.getPassportNumber()));
             entity.setTaxId(Strings.trimToNull(request.getTaxId()));
             entity.setSocialSecurityNumber(Strings.trimToNull(request.getSocialSecurityNumber()));
@@ -90,6 +96,12 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             entity = EmployeeIdentityInfo.builder()
                 .employeeId(employeeId)
                 .nationalId(Strings.trimToNull(request.getNationalId()))
+                .nationalIdType(Strings.trimToNull(request.getNationalIdType()))
+                .nationalIdIssueDate(request.getNationalIdIssueDate())
+                .nationalIdIssuePlace(Strings.trimToNull(request.getNationalIdIssuePlace()))
+                .residenceDate(request.getResidenceDate())
+                .residencePlace(Strings.trimToNull(request.getResidencePlace()))
+                .residenceValidUntil(request.getResidenceValidUntil())
                 .passportNumber(Strings.trimToNull(request.getPassportNumber()))
                 .taxId(Strings.trimToNull(request.getTaxId()))
                 .socialSecurityNumber(Strings.trimToNull(request.getSocialSecurityNumber()))
@@ -109,6 +121,22 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
     }
 
     // ── Private helpers ───────────────────────────────────────
+
+    private static void applyDocumentsAndResidence(EmployeeIdentityInfo entity, IdentityInfoRequest request) {
+        entity.setNationalIdType(Strings.trimToNull(request.getNationalIdType()));
+        entity.setNationalIdIssueDate(request.getNationalIdIssueDate());
+        entity.setNationalIdIssuePlace(Strings.trimToNull(request.getNationalIdIssuePlace()));
+        entity.setResidenceDate(request.getResidenceDate());
+        entity.setResidencePlace(Strings.trimToNull(request.getResidencePlace()));
+        entity.setResidenceValidUntil(request.getResidenceValidUntil());
+    }
+
+    /** With an end date: it cannot precede the start. Without one: the start cannot be in the future. */
+    private static void requireOrderedDates(LocalDate start, LocalDate end, String rule, String message) {
+        if (start == null) return;
+        boolean wrong = end != null ? end.isBefore(start) : start.isAfter(LocalDate.now());
+        if (wrong) throw new BusinessRuleException(rule, message);
+    }
 
     private void validateUniqueFields(Long employeeId, IdentityInfoRequest req) {
         if (hasValue(req.getNationalId()) &&
@@ -157,6 +185,12 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             .employeeIdentityId(info.getEmployeeIdentityId())
             .employeeId(info.getEmployeeId())
             .nationalId(show(info.getNationalId(), masked))
+            .nationalIdType(info.getNationalIdType())
+            .nationalIdIssueDate(info.getNationalIdIssueDate())
+            .nationalIdIssuePlace(info.getNationalIdIssuePlace())
+            .residenceDate(info.getResidenceDate())
+            .residencePlace(info.getResidencePlace())
+            .residenceValidUntil(info.getResidenceValidUntil())
             .passportNumber(show(info.getPassportNumber(), masked))
             .taxId(show(info.getTaxId(), masked))
             .socialSecurityNumber(show(info.getSocialSecurityNumber(), masked))

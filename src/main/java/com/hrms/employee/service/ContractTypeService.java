@@ -2,10 +2,13 @@ package com.hrms.employee.service;
 
 import com.hrms.employee.dto.request.ContractTypeRequest;
 import com.hrms.employee.dto.response.ContractTypeResponse;
+import com.hrms.employee.dto.response.MasterLookupResponse;
 import java.util.List;
 
 public interface ContractTypeService {
     List<ContractTypeResponse> getAll();
+    /** Active contract types for dropdowns. */
+    List<MasterLookupResponse> getActiveLookup();
     ContractTypeResponse getById(Long id);
     ContractTypeResponse create(ContractTypeRequest request);
     ContractTypeResponse update(Long id, ContractTypeRequest request);

@@ -49,6 +49,14 @@ public class CreateEmployeeRequest {
     @Size(max = 200)
     private String lastNameAr;
 
+    @Size(max = 200, message = "Place of birth max 200 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Place of birth contains control or invisible characters")
+    private String placeOfBirth;
+
+    @Size(max = 1000, message = "Notes max 1000 characters")
+    @Pattern(regexp = "^[\\p{L}\\p{M}\\p{N}\\p{P}\\p{S}\\p{Zs}\\n\\r]*$", message = "Notes contains control or invisible characters")
+    private String notes;
+
     @NotNull(message = "Date of birth is required")
     @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;

@@ -39,6 +39,26 @@ public class EmployeeIdentityInfo extends Auditable {
     @Column(name = "NATIONAL_ID", length = 200)
     private String nationalId;
 
+    /** How the national ID was obtained (free text, e.g. by birth); with its issue date and place. V5 columns. */
+    @Column(name = "NATIONAL_ID_TYPE", length = 40)
+    private String nationalIdType;
+
+    @Column(name = "NATIONAL_ID_ISSUE_DATE")
+    private LocalDate nationalIdIssueDate;
+
+    @Column(name = "NATIONAL_ID_ISSUE_PLACE", length = 80)
+    private String nationalIdIssuePlace;
+
+    // ── Residence (foreigners) ───────────────────────────────
+    @Column(name = "RESIDENCE_DATE")
+    private LocalDate residenceDate;
+
+    @Column(name = "RESIDENCE_PLACE", length = 80)
+    private String residencePlace;
+
+    @Column(name = "RESIDENCE_VALID_UNTIL")
+    private LocalDate residenceValidUntil;
+
     // ── Passport ─────────────────────────────────────────────
     @Column(name = "PASSPORT_NUMBER", length = 200)
     private String passportNumber;

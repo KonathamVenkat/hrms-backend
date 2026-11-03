@@ -38,6 +38,13 @@ public class EmployeeExperience extends Auditable {
     @Column(name = "PLACE", length = 100)
     private String place;
 
+    /** Address and phone of the previous workplace (V17), both optional. */
+    @Column(name = "WORK_ADDRESS", columnDefinition = "NVARCHAR2(300)")
+    private String workAddress;
+
+    @Column(name = "WORK_PHONE", length = 30)
+    private String workPhone;
+
     @Column(name = "START_DATE")
     private LocalDate startDate;
 

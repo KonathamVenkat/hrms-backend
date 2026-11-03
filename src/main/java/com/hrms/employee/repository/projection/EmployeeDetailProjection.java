@@ -19,6 +19,8 @@ public interface EmployeeDetailProjection {
     String getLastName();
     String getLastNameAr();
     String getDateOfBirth();
+    String getPlaceOfBirth();
+    String getNotes();
     String getGender();
     String getBloodGroup();
     String getMaritalStatus();

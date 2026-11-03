@@ -34,6 +34,24 @@ public interface JobDetailsProjection {
     String  getProfessionName();
     String  getProfessionNameAr();
 
+    // ── Specialization and contract ───────────────────────────
+    Long    getSpecializationId();
+    String  getSpecializationName();
+    String  getSpecializationNameAr();
+    Long    getContractTypeId();
+    String  getContractTypeName();
+    String  getContractTypeNameAr();
+    String  getContractStartDate();
+    String  getContractEndDate();
+
+    // ── Appointment references, current work address ──────────
+    String  getFormRequestNo();
+    String  getAppointmentRequestNo();
+    String  getAfe();
+    String  getCompanyIdCardNo();
+    String  getCurrentWorkAddress();
+    String  getCurrentWorkPhone();
+
     // ── Job position ──────────────────────────────────────────
     String  getJobPositionId();
 

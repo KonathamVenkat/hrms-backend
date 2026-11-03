@@ -12,6 +12,15 @@ public class IdentityInfoResponse {
     // National identity
     private String    nationalId;
 
+    private String    nationalIdType;
+    private LocalDate nationalIdIssueDate;
+    private String    nationalIdIssuePlace;
+
+    // Residence
+    private LocalDate residenceDate;
+    private String    residencePlace;
+    private LocalDate residenceValidUntil;
+
     // Passport
     private String    passportNumber;
 

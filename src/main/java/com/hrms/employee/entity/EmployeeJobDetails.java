@@ -78,6 +78,37 @@ public class EmployeeJobDetails {
     @Column(name = "SECTION_ID")
     private Long sectionId;
 
+    /** Optional details of the appointment (V5 contract columns, V17 the rest); changed in place, not history-bearing. */
+    @Column(name = "CONTRACT_TYPE_ID")
+    private Long contractTypeId;
+
+    @Column(name = "CONTRACT_START_DATE")
+    private LocalDate contractStartDate;
+
+    @Column(name = "CONTRACT_END_DATE")
+    private LocalDate contractEndDate;
+
+    @Column(name = "SPECIALIZATION_ID")
+    private Long specializationId;
+
+    @Column(name = "FORM_REQUEST_NO", length = 30)
+    private String formRequestNo;
+
+    @Column(name = "APPOINTMENT_REQUEST_NO", length = 30)
+    private String appointmentRequestNo;
+
+    @Column(name = "AFE", length = 30)
+    private String afe;
+
+    @Column(name = "COMPANY_ID_CARD_NO", length = 30)
+    private String companyIdCardNo;
+
+    @Column(name = "CURRENT_WORK_ADDRESS", columnDefinition = "NVARCHAR2(300)")
+    private String currentWorkAddress;
+
+    @Column(name = "CURRENT_WORK_PHONE", length = 30)
+    private String currentWorkPhone;
+
     /** The branch the employee belongs to; null until HR assigns one (V8). */
     @Column(name = "COMPANY_BRANCH_ID")
     private Long companyBranchId;

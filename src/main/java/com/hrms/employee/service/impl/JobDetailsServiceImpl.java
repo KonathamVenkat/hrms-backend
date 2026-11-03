@@ -19,6 +19,8 @@ import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.employee.repository.projection.JobDetailsProjection;
 import com.hrms.employee.repository.CompanyBranchRepository;
 import com.hrms.employee.repository.SectionRepository;
+import com.hrms.employee.repository.ContractTypeRepository;
+import com.hrms.employee.repository.SpecializationRepository;
 import com.hrms.employee.service.DepartmentHeadService;
 import com.hrms.employee.service.DepartmentSecretaryService;
 import com.hrms.employee.service.JobDetailsService;
@@ -33,6 +35,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -52,6 +55,8 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final DepartmentSecretaryService   departmentSecretaries;
     private final CompanyBranchRepository      branchRepository;
     private final SectionRepository            sectionRepository;
+    private final SpecializationRepository     specializationRepository;
+    private final ContractTypeRepository       contractTypeRepository;
     private final ApplicationEventPublisher    events;
 
     // ── Get current job ───────────────────────────────────────
@@ -130,6 +135,8 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 closed, employeeId);
         }
 
+        EmployeeJobDetails prev = currentRecord.orElse(null);
+
         // A new assignment in the same location keeps the employee's branch unless another one is chosen.
         Long branchId = request.getCompanyBranchId();
         if (branchId == null && currentRecord.isPresent()
@@ -150,6 +157,16 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .locationId(request.getLocationId())
             .shiftId(request.getShiftId())
             .companyBranchId(branchId)
+            .contractTypeId(keep(request.getContractTypeId(), prev, EmployeeJobDetails::getContractTypeId))
+            .contractStartDate(keep(request.getContractStartDate(), prev, EmployeeJobDetails::getContractStartDate))
+            .contractEndDate(keep(request.getContractEndDate(), prev, EmployeeJobDetails::getContractEndDate))
+            .specializationId(keep(request.getSpecializationId(), prev, EmployeeJobDetails::getSpecializationId))
+            .formRequestNo(keep(Strings.trimToNull(request.getFormRequestNo()), prev, EmployeeJobDetails::getFormRequestNo))
+            .appointmentRequestNo(keep(Strings.trimToNull(request.getAppointmentRequestNo()), prev, EmployeeJobDetails::getAppointmentRequestNo))
+            .afe(keep(Strings.trimToNull(request.getAfe()), prev, EmployeeJobDetails::getAfe))
+            .companyIdCardNo(keep(Strings.trimToNull(request.getCompanyIdCardNo()), prev, EmployeeJobDetails::getCompanyIdCardNo))
+            .currentWorkAddress(keep(Strings.trimToNull(request.getCurrentWorkAddress()), prev, EmployeeJobDetails::getCurrentWorkAddress))
+            .currentWorkPhone(keep(Strings.trimToNull(request.getCurrentWorkPhone()), prev, EmployeeJobDetails::getCurrentWorkPhone))
             .workMode(request.getWorkMode())
             .effectiveFrom(request.getEffectiveFrom())
             .effectiveTo(null)              // null = still active
@@ -210,7 +227,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             throw new BusinessRuleException(
                 "STRUCTURAL_CHANGE_NOT_ALLOWED",
                 "Department, section, designation, position, location, branch and managers can only be changed "
-                    + "with a new assignment. This update may change shift, work mode and remarks only.");
+                    + "with a new assignment. This update may change shift, work mode, remarks, contract, specialization and the appointment references only.");
         }
         if (request.getShiftId() != null) {
             requireActiveShift(request.getShiftId());
@@ -225,7 +242,19 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             current.setSectionId(request.getSectionId());
         }
 
-        // Update only non-structural fields (no new SCD record)
+        requireAppointmentReferences(request);
+
+        // Update only non-structural fields (no new SCD record). The form sends all of them, so a value left empty clears it.
+        current.setContractTypeId(request.getContractTypeId());
+        current.setContractStartDate(request.getContractStartDate());
+        current.setContractEndDate(request.getContractEndDate());
+        current.setSpecializationId(request.getSpecializationId());
+        current.setFormRequestNo(Strings.trimToNull(request.getFormRequestNo()));
+        current.setAppointmentRequestNo(Strings.trimToNull(request.getAppointmentRequestNo()));
+        current.setAfe(Strings.trimToNull(request.getAfe()));
+        current.setCompanyIdCardNo(Strings.trimToNull(request.getCompanyIdCardNo()));
+        current.setCurrentWorkAddress(Strings.trimToNull(request.getCurrentWorkAddress()));
+        current.setCurrentWorkPhone(Strings.trimToNull(request.getCurrentWorkPhone()));
         current.setShiftId(request.getShiftId());
         current.setWorkMode(request.getWorkMode());
         current.setRemarks(request.getRemarks());
@@ -285,6 +314,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         }
 
         requireSectionInDepartment(request.getSectionId(), request.getDepartmentId());
+        requireAppointmentReferences(request);
 
         var location = locationRepository.findById(request.getLocationId())
             .orElseThrow(() -> new ResourceNotFoundException("OfficeLocation", "id", request.getLocationId()));
@@ -320,6 +350,33 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 "The selected profession does not match the profession of the selected designation.");
         }
         return requested;
+    }
+
+    /** The value asked for, else the one on the record being replaced (null when there is none). */
+    private static <T> T keep(T requested, EmployeeJobDetails previous, Function<EmployeeJobDetails, T> getter) {
+        return requested != null ? requested : previous == null ? null : getter.apply(previous);
+    }
+
+    /** Specialization and contract type are optional; when given they must exist and be active, and the contract end cannot precede its start. */
+    private void requireAppointmentReferences(JobDetailsRequest request) {
+        if (request.getSpecializationId() != null) {
+            var specialization = specializationRepository.findById(request.getSpecializationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Specialization", "id", request.getSpecializationId()));
+            if (!Boolean.TRUE.equals(specialization.getIsActive())) {
+                throw new BusinessRuleException("SPECIALIZATION_INACTIVE", "The selected specialization is inactive.");
+            }
+        }
+        if (request.getContractTypeId() != null) {
+            var contractType = contractTypeRepository.findById(request.getContractTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("ContractType", "id", request.getContractTypeId()));
+            if (!Boolean.TRUE.equals(contractType.getIsActive())) {
+                throw new BusinessRuleException("CONTRACT_TYPE_INACTIVE", "The selected contract type is inactive.");
+            }
+        }
+        if (request.getContractStartDate() != null && request.getContractEndDate() != null
+                && request.getContractEndDate().isBefore(request.getContractStartDate())) {
+            throw new BusinessRuleException("INVALID_CONTRACT_DATES", "The contract end date cannot be before its start date.");
+        }
     }
 
     /** A section is optional; when given it must exist, be active and belong to the chosen department. */
@@ -392,6 +449,22 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .professionId(p.getProfessionId())
             .professionName(p.getProfessionName())
             .professionNameAr(p.getProfessionNameAr())
+            // Specialization and contract
+            .specializationId(p.getSpecializationId())
+            .specializationName(p.getSpecializationName())
+            .specializationNameAr(p.getSpecializationNameAr())
+            .contractTypeId(p.getContractTypeId())
+            .contractTypeName(p.getContractTypeName())
+            .contractTypeNameAr(p.getContractTypeNameAr())
+            .contractStartDate(p.getContractStartDate())
+            .contractEndDate(p.getContractEndDate())
+            // Appointment references, current work address
+            .formRequestNo(p.getFormRequestNo())
+            .appointmentRequestNo(p.getAppointmentRequestNo())
+            .afe(p.getAfe())
+            .companyIdCardNo(p.getCompanyIdCardNo())
+            .currentWorkAddress(p.getCurrentWorkAddress())
+            .currentWorkPhone(p.getCurrentWorkPhone())
             // Position
             .jobPositionId(p.getJobPositionId())
             // Managers

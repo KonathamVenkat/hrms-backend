@@ -3,6 +3,7 @@ package com.hrms.employee.controller;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.employee.dto.response.MasterLookupResponse;
 import com.hrms.employee.service.CityService;
+import com.hrms.employee.service.ContractTypeService;
 import com.hrms.employee.service.EducationLevelService;
 import com.hrms.employee.service.LanguageLevelService;
 import com.hrms.employee.service.LanguageService;
@@ -11,6 +12,7 @@ import com.hrms.employee.service.ProfessionService;
 import com.hrms.employee.service.ProvinceService;
 import com.hrms.employee.service.RelationService;
 import com.hrms.employee.service.ReligionService;
+import com.hrms.employee.service.SpecializationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,6 +41,8 @@ public class ReferenceLookupController {
     private final LanguageLevelService languageLevels;
     private final EducationLevelService educationLevels;
     private final ProfessionService professions;
+    private final SpecializationService specializations;
+    private final ContractTypeService contractTypes;
 
     /** Also read by HR_MANAGER: the employee create/edit form picks the nationality from it. */
     @GetMapping("/nationalities")
@@ -79,6 +83,20 @@ public class ReferenceLookupController {
     @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
     public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> professions() {
         return ok("Professions fetched successfully", professions.getActiveLookup());
+    }
+
+    /** The job-details form picks the specialization from it. */
+    @GetMapping("/specializations")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
+    public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> specializations() {
+        return ok("Specializations fetched successfully", specializations.getActiveLookup());
+    }
+
+    /** The job-details form picks the contract type from it. */
+    @GetMapping("/contract-types")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER')")
+    public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> contractTypes() {
+        return ok("Contract types fetched successfully", contractTypes.getActiveLookup());
     }
 
     @GetMapping("/relations")

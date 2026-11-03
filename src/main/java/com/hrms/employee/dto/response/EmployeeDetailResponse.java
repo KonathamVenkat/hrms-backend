@@ -31,6 +31,9 @@ public class EmployeeDetailResponse {
 
     // ── Personal ──────────────────────────────────────────────
     private String    dateOfBirth;
+    private String    placeOfBirth;
+    /** HR notes; left out of the response when the employee reads their own record. */
+    private String    notes;
     private String    gender;
     private String    bloodGroup;
     private String    maritalStatus;

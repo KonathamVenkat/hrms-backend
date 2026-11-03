@@ -13,6 +13,8 @@ public class EmployeeExperienceResponse {
     private String employerNameAr;
     private String jobTitle;
     private String place;
+    private String workAddress;
+    private String workPhone;
     private LocalDate startDate;
     private LocalDate endDate;
     private Boolean isActive;

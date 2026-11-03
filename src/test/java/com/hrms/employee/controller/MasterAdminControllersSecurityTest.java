@@ -16,6 +16,7 @@ import com.hrms.employee.service.LanguageLevelService;
 import com.hrms.employee.service.LanguageService;
 import com.hrms.employee.service.NationalityService;
 import com.hrms.employee.service.ProfessionService;
+import com.hrms.employee.service.SpecializationService;
 import com.hrms.employee.service.ProvinceService;
 import com.hrms.employee.service.RegionService;
 import com.hrms.employee.service.RelationService;
@@ -78,6 +79,7 @@ class MasterAdminControllersSecurityTest {
         @Bean RelationTypeAdminController relationType() { return new RelationTypeAdminController(mock(RelationTypeService.class)); }
         @Bean RelationAdminController relation() { return new RelationAdminController(mock(RelationService.class)); }
         @Bean DirectorateAdminController directorate() { return new DirectorateAdminController(mock(DirectorateService.class)); }
+        @Bean SpecializationAdminController specialization() { return new SpecializationAdminController(mock(SpecializationService.class)); }
         @Bean SectionAdminController section() { return new SectionAdminController(mock(SectionService.class)); }
         @Bean GradeAdminController grade() { return new GradeAdminController(mock(GradeService.class)); }
     }
@@ -87,7 +89,7 @@ class MasterAdminControllersSecurityTest {
             "regions", "wilayas", "provinces", "cities",
             "religions", "nationalities", "contract-types", "professions", "education-levels",
             "languages", "language-levels", "house-types", "relation-types", "relations",
-            "directorates", "sections", "grades");
+            "directorates", "sections", "grades", "specializations");
     }
 
     /** One body that satisfies every master's validation (each ignores the parent ids it does not have). */

@@ -8,6 +8,7 @@ import java.util.List;
 @Repository
 public interface ContractTypeRepository extends JpaRepository<ContractType, Long> {
     List<ContractType> findAllByOrderByNameAsc();
+    List<ContractType> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
 }

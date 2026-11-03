@@ -23,6 +23,38 @@ public class JobDetailsRequest {
     /** Optional: the section of the chosen department the employee works in. */
     private Long sectionId;
 
+    /** Optional: the specialization (a master) of the employee; it must be active when it is set. */
+    private Long specializationId;
+
+    /** Optional: contract type (a master) and the contract period; the end cannot be before the start. */
+    private Long contractTypeId;
+    private LocalDate contractStartDate;
+    private LocalDate contractEndDate;
+
+    @Size(max = 30, message = "Form request no. max 30 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Form request no. contains control or invisible characters")
+    private String formRequestNo;
+
+    @Size(max = 30, message = "Appointment request no. max 30 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Appointment request no. contains control or invisible characters")
+    private String appointmentRequestNo;
+
+    @Size(max = 30, message = "AFE max 30 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "AFE contains control or invisible characters")
+    private String afe;
+
+    @Size(max = 30, message = "Company ID card no. max 30 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Company ID card no. contains control or invisible characters")
+    private String companyIdCardNo;
+
+    @Size(max = 300, message = "Current work address max 300 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Current work address contains control or invisible characters")
+    private String currentWorkAddress;
+
+    @Size(max = 30, message = "Current work phone max 30 characters")
+    @Pattern(regexp = "^[0-9+()\\- ]*$", message = "Current work phone may only hold digits, spaces and + ( ) -")
+    private String currentWorkPhone;
+
     @Size(max = 20, message = "Job position ID max 20 characters")
     private String jobPositionId;
 

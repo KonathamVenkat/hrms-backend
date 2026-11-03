@@ -120,6 +120,14 @@ public class Employee extends Auditable {
     @Column(name = "FOURTH_NAME_AR", columnDefinition = "NVARCHAR2(200)")
     private String fourthNameAr;
 
+    /** Place of birth, any script. Maps to Oracle: PLACE_OF_BIRTH NVARCHAR2(200), nullable (V17). */
+    @Column(name = "PLACE_OF_BIRTH", columnDefinition = "NVARCHAR2(200)")
+    private String placeOfBirth;
+
+    /** HR notes about the employee; never shown to the employee. Maps to Oracle: NOTES NVARCHAR2(1000), nullable (V17). */
+    @Column(name = "NOTES", columnDefinition = "NVARCHAR2(1000)")
+    private String notes;
+
     /**
      * Maps to Oracle: LAST_NAME VARCHAR2(100) NOT NULL
      */

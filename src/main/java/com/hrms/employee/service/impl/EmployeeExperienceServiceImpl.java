@@ -122,6 +122,8 @@ public class EmployeeExperienceServiceImpl implements EmployeeExperienceService 
         e.setEmployerNameAr(Strings.trimToNull(r.getEmployerNameAr()));
         e.setJobTitle(Strings.trimToNull(r.getJobTitle()));
         e.setPlace(Strings.trimToNull(r.getPlace()));
+        e.setWorkAddress(Strings.trimToNull(r.getWorkAddress()));
+        e.setWorkPhone(Strings.trimToNull(r.getWorkPhone()));
         e.setStartDate(r.getStartDate());
         e.setEndDate(r.getEndDate());
     }
@@ -139,6 +141,8 @@ public class EmployeeExperienceServiceImpl implements EmployeeExperienceService 
             .employerNameAr(e.getEmployerNameAr())
             .jobTitle(e.getJobTitle())
             .place(e.getPlace())
+            .workAddress(e.getWorkAddress())
+            .workPhone(e.getWorkPhone())
             .startDate(e.getStartDate())
             .endDate(e.getEndDate())
             .isActive(e.getIsActive())

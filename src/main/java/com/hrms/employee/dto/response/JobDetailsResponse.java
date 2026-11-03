@@ -35,6 +35,24 @@ public class JobDetailsResponse {
     private String  professionName;
     private String  professionNameAr;
 
+    // Specialization and contract (null when the record has none)
+    private Long    specializationId;
+    private String  specializationName;
+    private String  specializationNameAr;
+    private Long    contractTypeId;
+    private String  contractTypeName;
+    private String  contractTypeNameAr;
+    private String  contractStartDate;
+    private String  contractEndDate;
+
+    // Appointment references and the current work address
+    private String  formRequestNo;
+    private String  appointmentRequestNo;
+    private String  afe;
+    private String  companyIdCardNo;
+    private String  currentWorkAddress;
+    private String  currentWorkPhone;
+
     // Job position
     private String  jobPositionId;
 

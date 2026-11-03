@@ -7,6 +7,7 @@ import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.enums.EmploymentStatus;
 import com.hrms.common.enums.UserRole;
+import com.hrms.common.util.Strings;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -153,6 +154,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             .lastName(request.getLastName().trim())
             .lastNameAr(request.getLastNameAr().trim())
             .dateOfBirth(request.getDateOfBirth())
+            .placeOfBirth(Strings.trimToNull(request.getPlaceOfBirth()))
+            .notes(Strings.trimToNull(request.getNotes()))
             .gender(request.getGender())
             .bloodGroup(request.getBloodGroup())
             .maritalStatus(request.getMaritalStatus())
@@ -299,6 +302,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setLastName(request.getLastName().trim());
         employee.setLastNameAr(request.getLastNameAr().trim());
         employee.setDateOfBirth(request.getDateOfBirth());
+        employee.setPlaceOfBirth(Strings.trimToNull(request.getPlaceOfBirth()));
+        employee.setNotes(Strings.trimToNull(request.getNotes()));
         employee.setGender(request.getGender());
         employee.setBloodGroup(request.getBloodGroup());
         employee.setMaritalStatus(request.getMaritalStatus());

@@ -40,6 +40,8 @@ class JobDetailsServiceImplTest {
     @Mock com.hrms.employee.service.DepartmentSecretaryService departmentSecretaries;
     @Mock com.hrms.employee.repository.CompanyBranchRepository branchRepository;
     @Mock SectionRepository sectionRepository;
+    @Mock SpecializationRepository specializationRepository;
+    @Mock ContractTypeRepository contractTypeRepository;
     @Mock org.springframework.context.ApplicationEventPublisher events;
 
     JobDetailsServiceImpl service;
@@ -47,7 +49,7 @@ class JobDetailsServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, sectionRepository, events);
+            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, sectionRepository, specializationRepository, contractTypeRepository, events);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -525,5 +527,139 @@ class JobDetailsServiceImplTest {
         req.setSectionId(null);
         BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
         assertEquals("STRUCTURAL_CHANGE_NOT_ALLOWED", ex.getRuleCode());
+    }
+
+    // ---- appointment fields: specialization, contract, request numbers, work address (V17)
+
+    private void specialization(Long id, boolean active) {
+        com.hrms.employee.entity.Specialization sp = mock(com.hrms.employee.entity.Specialization.class);
+        when(sp.getIsActive()).thenReturn(active);
+        when(specializationRepository.findById(id)).thenReturn(Optional.of(sp));
+    }
+
+    private void contractType(Long id, boolean active) {
+        com.hrms.employee.entity.ContractType ct = mock(com.hrms.employee.entity.ContractType.class);
+        when(ct.getIsActive()).thenReturn(active);
+        when(contractTypeRepository.findById(id)).thenReturn(Optional.of(ct));
+    }
+
+    @Test
+    void aNewAssignmentStoresTheAppointmentFieldsTrimmed() {
+        specialization(3L, true);
+        contractType(4L, true);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setSpecializationId(3L);
+        req.setContractTypeId(4L);
+        req.setContractStartDate(LocalDate.of(2026, 1, 1));
+        req.setContractEndDate(LocalDate.of(2026, 12, 31));
+        req.setFormRequestNo(" F-1 ");
+        req.setAppointmentRequestNo("A-2");
+        req.setAfe("AFE9");
+        req.setCompanyIdCardNo("C77");
+        req.setCurrentWorkAddress("  Block 3, Khartoum ");
+        req.setCurrentWorkPhone("+249 123");
+
+        EmployeeJobDetails saved = assignAndCapture(req);
+
+        assertEquals(3L, saved.getSpecializationId());
+        assertEquals(4L, saved.getContractTypeId());
+        assertEquals(LocalDate.of(2026, 12, 31), saved.getContractEndDate());
+        assertEquals("F-1", saved.getFormRequestNo());
+        assertEquals("A-2", saved.getAppointmentRequestNo());
+        assertEquals("AFE9", saved.getAfe());
+        assertEquals("C77", saved.getCompanyIdCardNo());
+        assertEquals("Block 3, Khartoum", saved.getCurrentWorkAddress());
+        assertEquals("+249 123", saved.getCurrentWorkPhone());
+    }
+
+    @Test
+    void anUnknownOrInactiveSpecializationIsRejected() {
+        JobDetailsRequest unknown = request(LocalDate.now());
+        unknown.setSpecializationId(99L);
+        when(specializationRepository.findById(99L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.assignJob(5L, unknown));
+
+        specialization(3L, false);
+        JobDetailsRequest inactive = request(LocalDate.now());
+        inactive.setSpecializationId(3L);
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, inactive));
+        assertEquals("SPECIALIZATION_INACTIVE", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void anInactiveContractTypeIsRejected() {
+        contractType(4L, false);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setContractTypeId(4L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("CONTRACT_TYPE_INACTIVE", ex.getRuleCode());
+    }
+
+    @Test
+    void aContractEndingBeforeItStartsIsRejected_butTheSameDayIsFine() {
+        JobDetailsRequest backwards = request(LocalDate.now());
+        backwards.setContractStartDate(LocalDate.of(2026, 5, 2));
+        backwards.setContractEndDate(LocalDate.of(2026, 5, 1));
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, backwards));
+        assertEquals("INVALID_CONTRACT_DATES", ex.getRuleCode());
+
+        JobDetailsRequest sameDay = request(LocalDate.now());
+        sameDay.setContractStartDate(LocalDate.of(2026, 5, 1));
+        sameDay.setContractEndDate(LocalDate.of(2026, 5, 1));
+        assertEquals(LocalDate.of(2026, 5, 1), assignAndCapture(sameDay).getContractEndDate());
+    }
+
+    @Test
+    void aNewAssignmentKeepsTheAppointmentFieldsItWasNotGiven() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").effectiveFrom(LocalDate.now().minusDays(5))
+            .afe("OLD-AFE").specializationId(3L).contractTypeId(4L).currentWorkAddress("Old address").build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setAfe("NEW-AFE");
+
+        assertThrows(java.util.NoSuchElementException.class, () -> service.assignJob(5L, req));
+
+        var saved = org.mockito.ArgumentCaptor.forClass(EmployeeJobDetails.class);
+        verify(jobDetailsRepository).save(saved.capture());
+        assertEquals("NEW-AFE", saved.getValue().getAfe());
+        assertEquals(3L, saved.getValue().getSpecializationId());
+        assertEquals(4L, saved.getValue().getContractTypeId());
+        assertEquals("Old address", saved.getValue().getCurrentWorkAddress());
+    }
+
+    @Test
+    void updatingTheCurrentJobSetsTheAppointmentFields_andAnEmptyValueClearsOne() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").afe("OLD").formRequestNo("F1").specializationId(3L).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setWorkMode("ON_SITE");
+        req.setAfe(" NEW ");
+        req.setFormRequestNo("   ");
+
+        assertThrows(java.util.NoSuchElementException.class, () -> service.updateCurrentJob(5L, req));
+
+        assertEquals("NEW", current.getAfe());
+        assertNull(current.getFormRequestNo());
+        assertNull(current.getSpecializationId());
+    }
+
+    @Test
+    void updatingTheCurrentJobRejectsAnInactiveSpecialization_andSavesNothing() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        specialization(3L, false);
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setWorkMode("ON_SITE");
+        req.setSpecializationId(3L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
+        assertEquals("SPECIALIZATION_INACTIVE", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).save(any());
     }
 }

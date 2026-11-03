@@ -77,7 +77,8 @@ class EmployeeInfoControllersSecurityTest {
             return new ReferenceLookupController(mock(NationalityService.class), mock(ReligionService.class),
                 mock(ProvinceService.class), mock(CityService.class), mock(RelationService.class),
                 mock(LanguageService.class), mock(LanguageLevelService.class), mock(EducationLevelService.class),
-                mock(ProfessionService.class));
+                mock(ProfessionService.class), mock(com.hrms.employee.service.SpecializationService.class),
+                mock(com.hrms.employee.service.ContractTypeService.class));
         }
     }
 
@@ -182,6 +183,33 @@ class EmployeeInfoControllersSecurityTest {
     @WithMockUser(roles = "EMPLOYEE")
     void professionsDropdownIsForbiddenToEmployees() throws Exception {
         mvc.perform(get("/api/v1/lookups/professions")).andExpect(status().isForbidden());
+    }
+
+    /** The job-details form picks these: HR_ADMIN and HR_MANAGER, nobody else. */
+    private static final String[] JOB_FORM_LOOKUPS = {"specializations", "contract-types"};
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void jobFormLookupsAreOpenToHrAdmin() throws Exception {
+        for (String path : JOB_FORM_LOOKUPS) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_MANAGER")
+    void jobFormLookupsAreOpenToHrManager() throws Exception {
+        for (String path : JOB_FORM_LOOKUPS) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void jobFormLookupsAreForbiddenToEmployees() throws Exception {
+        for (String path : JOB_FORM_LOOKUPS) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isForbidden());
+        }
     }
 
     @Test

@@ -7,6 +7,7 @@ import java.time.LocalDate;
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class IdentityInfoRequest {
 
+    @NotBlank(message = "National ID is required")
     @Size(max = 200, message = "National ID max 200 characters")
     private String nationalId;
 
@@ -28,6 +29,7 @@ public class IdentityInfoRequest {
 
     private LocalDate residenceValidUntil;
 
+    @NotBlank(message = "Passport number is required")
     @Size(max = 200, message = "Passport number max 200 characters")
     private String passportNumber;
 

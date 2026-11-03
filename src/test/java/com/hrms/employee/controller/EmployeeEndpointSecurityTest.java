@@ -71,7 +71,7 @@ class EmployeeEndpointSecurityTest {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
     }
 
-    private static final String IDENTITY_BODY = "{\"nationalId\":\"123456789\"}";
+    private static final String IDENTITY_BODY = "{\"nationalId\":\"123456789\",\"passportNumber\":\"P1234567\"}";
 
     // ── Identity: read ──────────────────────────────────────
 
@@ -140,6 +140,17 @@ class EmployeeEndpointSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON).content(IDENTITY_BODY))
             .andExpect(status().isOk());
         verify(identityService).saveIdentityInfo(anyLong(), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void identityWithoutTheNationalIdOrThePassportNumberIsRefusedAndNothingIsSaved() throws Exception {
+        for (String body : new String[] {"{}", "{\"nationalId\":\"123456789\"}", "{\"passportNumber\":\"P1234567\"}",
+                "{\"nationalId\":\"   \",\"passportNumber\":\"P1234567\"}"}) {
+            mvc.perform(put("/api/v1/employees/7/identity").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        }
+        verify(identityService, never()).saveIdentityInfo(anyLong(), any());
     }
 
     // ── Employee endpoints: role rules ──────────────────────

@@ -18,9 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -51,13 +49,6 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
                                                   IdentityInfoRequest request) {
         log.info("Saving identity info for employee {}", employeeId);
         EmployeeChecks.requireExists(employeeRepository, employeeId);
-
-        // A first save needs at least one detail; clearing a saved record stays possible.
-        if (isEmpty(request) && identityRepository.findByEmployeeId(employeeId).isEmpty()) {
-            throw new BusinessRuleException(
-                "EMPTY_IDENTITY",
-                "Enter at least one identity detail before saving.");
-        }
 
         // ── Uniqueness validations ────────────────────────────
         validateUniqueFields(employeeId, request);
@@ -130,17 +121,6 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
     }
 
     // ── Private helpers ───────────────────────────────────────
-
-    /** Nothing in the request: every text is blank and every date is missing. */
-    private static boolean isEmpty(IdentityInfoRequest r) {
-        return Stream.of(r.getNationalId(), r.getNationalIdType(), r.getNationalIdIssuePlace(), r.getResidencePlace(),
-                r.getPassportNumber(), r.getTaxId(), r.getSocialSecurityNumber(), r.getDrivingLicenseNumber(),
-                r.getVisaNumber(), r.getVisaType(), r.getWorkPermitNumber(), r.getBiometricId())
-            .allMatch(v -> v == null || v.isBlank())
-            && Stream.of(r.getNationalIdIssueDate(), r.getResidenceDate(), r.getResidenceValidUntil(),
-                r.getVisaIssueDate(), r.getVisaExpiryDate(), r.getWorkPermitExpiry())
-            .allMatch(Objects::isNull);
-    }
 
     private static void applyDocumentsAndResidence(EmployeeIdentityInfo entity, IdentityInfoRequest request) {
         entity.setNationalIdType(Strings.trimToNull(request.getNationalIdType()));

@@ -36,38 +36,34 @@ public class EmployeeReferenceController {
     }
 
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<EmployeeReferenceResponse>> add(
             @PathVariable Long employeeId, @Valid @RequestBody EmployeeReferenceRequest request) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<EmployeeReferenceResponse>builder()
             .success(true).message("Reference added successfully")
             .data(service.add(employeeId, request)).statusCode(201).build());
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<EmployeeReferenceResponse>> update(
             @PathVariable Long employeeId, @PathVariable Long id, @Valid @RequestBody EmployeeReferenceRequest request) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         return ResponseEntity.ok(ApiResponse.<EmployeeReferenceResponse>builder()
             .success(true).message("Reference updated successfully")
             .data(service.update(employeeId, id, request)).statusCode(200).build());
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long employeeId, @PathVariable Long id) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         service.deactivate(employeeId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
             .success(true).message("Reference deactivated").statusCode(200).build());
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<Void>> activate(@PathVariable Long employeeId, @PathVariable Long id) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         service.activate(employeeId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
             .success(true).message("Reference activated").statusCode(200).build());

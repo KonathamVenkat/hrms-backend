@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
@@ -22,10 +21,11 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -48,12 +48,12 @@ class EmployeeAddressDocumentSecurityTest {
     @EnableMethodSecurity
     static class TestConfig {
         @Bean GlobalExceptionHandler globalExceptionHandler() { return new GlobalExceptionHandler(); }
-        @Bean EmployeeAccessGuard accessGuard() { return mock(EmployeeAccessGuard.class); }
+        @Bean("employeeAccessGuard") EmployeeAccessGuard accessGuard() { return mock(EmployeeAccessGuard.class); }
         @Bean EmployeeAddressService addresses() { return mock(EmployeeAddressService.class); }
         @Bean EmployeeDocumentService documents() { return mock(EmployeeDocumentService.class); }
         @Bean AuditTrail audit() { return mock(AuditTrail.class); }
-        @Bean EmployeeAddressController addressController(EmployeeAccessGuard g, EmployeeAddressService s) {
-            return new EmployeeAddressController(g, s);
+        @Bean EmployeeAddressController addressController(EmployeeAddressService s) {
+            return new EmployeeAddressController(s);
         }
         @Bean EmployeeDocumentController documentController(EmployeeDocumentService s, AuditTrail a) {
             return new EmployeeDocumentController(s, a);
@@ -74,6 +74,8 @@ class EmployeeAddressDocumentSecurityTest {
     @BeforeEach
     void setUp() {
         reset(accessGuard, addressService, documentService);
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(true);
+        when(accessGuard.isSelfOrPrivileged(anyLong())).thenReturn(true);
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
     }
 
@@ -90,14 +92,14 @@ class EmployeeAddressDocumentSecurityTest {
     void employeeAddsChangesAndReadsTheirOwnAddresses() throws Exception {
         addressWrites(200);
         mvc.perform(get(ADDRESS)).andExpect(status().isOk());
-        verify(accessGuard).assertSelfOrPrivileged(10L);
+        verify(accessGuard, atLeastOnce()).isSelfOrPrivileged(10L);
     }
 
     @Test
     @WithMockUser(roles = "EMPLOYEE")
     void employeeCannotTouchAnotherEmployeesAddresses() throws Exception {
-        doThrow(new AccessDeniedException("own records only")).when(accessGuard).assertSelfOrAdmin(anyLong());
-        doThrow(new AccessDeniedException("own records only")).when(accessGuard).assertSelfOrPrivileged(anyLong());
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(false);
+        when(accessGuard.isSelfOrPrivileged(anyLong())).thenReturn(false);
 
         addressWrites(403);
         mvc.perform(get(ADDRESS)).andExpect(status().isForbidden());
@@ -108,7 +110,7 @@ class EmployeeAddressDocumentSecurityTest {
     @WithMockUser(roles = "HR_MANAGER")
     void hrManagerReadsAnyAddressButChangesOnlyTheirOwn() throws Exception {
         mvc.perform(get(ADDRESS)).andExpect(status().isOk());
-        doThrow(new AccessDeniedException("own records or HR_ADMIN only")).when(accessGuard).assertSelfOrAdmin(anyLong());
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(false);
         addressWrites(403);
     }
 

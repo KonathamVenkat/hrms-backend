@@ -36,38 +36,34 @@ public class EmployeeLanguageController {
     }
 
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<EmployeeLanguageResponse>> add(
             @PathVariable Long employeeId, @Valid @RequestBody EmployeeLanguageRequest request) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<EmployeeLanguageResponse>builder()
             .success(true).message("Language record added successfully")
             .data(service.add(employeeId, request)).statusCode(201).build());
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<EmployeeLanguageResponse>> update(
             @PathVariable Long employeeId, @PathVariable Long id, @Valid @RequestBody EmployeeLanguageRequest request) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         return ResponseEntity.ok(ApiResponse.<EmployeeLanguageResponse>builder()
             .success(true).message("Language record updated successfully")
             .data(service.update(employeeId, id, request)).statusCode(200).build());
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long employeeId, @PathVariable Long id) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         service.deactivate(employeeId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
             .success(true).message("Language record deactivated").statusCode(200).build());
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<Void>> activate(@PathVariable Long employeeId, @PathVariable Long id) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         service.activate(employeeId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
             .success(true).message("Language record activated").statusCode(200).build());

@@ -78,37 +78,49 @@ class EmployeeAccessGuardTest {
         assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrPrivileged(7L));
     }
 
-    // ── assertSelfOrAdmin ───────────────────────────────────
+    // ── isSelfOrAdmin / isSelfOrPrivileged (used in @PreAuthorize) ──
 
     @Test
     void hrAdminMayChangeAnyEmployeesRecords() {
         loginAs("admin", "HR_ADMIN", 1L);
-        assertDoesNotThrow(() -> guard.assertSelfOrAdmin(99L));
+        assertTrue(guard.isSelfOrAdmin(99L));
     }
 
     @Test
     void anEmployeeMayChangeOnlyTheirOwnRecords() {
         loginAs("emp", "EMPLOYEE", 7L);
-        assertDoesNotThrow(() -> guard.assertSelfOrAdmin(7L));
-        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(8L));
+        assertTrue(guard.isSelfOrAdmin(7L));
+        assertFalse(guard.isSelfOrAdmin(8L));
     }
 
     @Test
     void anHrManagerMayChangeTheirOwnRecordsButNotSomeoneElses() {
         loginAs("manager", "HR_MANAGER", 2L);
-        assertDoesNotThrow(() -> guard.assertSelfOrAdmin(2L));
-        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(99L));
+        assertTrue(guard.isSelfOrAdmin(2L));
+        assertFalse(guard.isSelfOrAdmin(99L));
     }
 
     @Test
     void anAccountNotLinkedToAnEmployeeMayChangeNothing() {
         loginAs("ghost", "EMPLOYEE", null);
-        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(7L));
+        assertFalse(guard.isSelfOrAdmin(7L));
+        assertFalse(guard.isSelfOrPrivileged(7L));
     }
 
     @Test
-    void changingRecordsWithoutAuthenticationIsDenied() {
-        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(7L));
+    void withoutAuthenticationNothingIsAllowed() {
+        assertFalse(guard.isSelfOrAdmin(7L));
+        assertFalse(guard.isSelfOrPrivileged(7L));
+    }
+
+    @Test
+    void hrStaffMayReadAnyRecordAndAnEmployeeOnlyTheirOwn() {
+        loginAs("manager", "HR_MANAGER", 2L);
+        assertTrue(guard.isSelfOrPrivileged(99L));
+
+        loginAs("emp", "EMPLOYEE", 7L);
+        assertTrue(guard.isSelfOrPrivileged(7L));
+        assertFalse(guard.isSelfOrPrivileged(8L));
     }
 
     // ── canViewUnmasked ─────────────────────────────────────

@@ -22,11 +22,11 @@ public class EmployeeCompletenessController {
     private final EmployeeAccessGuard accessGuard;
 
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrPrivileged(#employeeId)")
     public ResponseEntity<ApiResponse<EmployeeCompletenessResponse>> getCompleteness(@PathVariable Long employeeId) {
-        accessGuard.assertSelfOrPrivileged(employeeId);
+        EmployeeCompletenessResponse answer = service.getCompleteness(employeeId);
         return ResponseEntity.ok(ApiResponse.<EmployeeCompletenessResponse>builder()
             .success(true).message("Completeness fetched successfully")
-            .data(service.getCompleteness(employeeId)).statusCode(200).build());
+            .data(accessGuard.isHrAdmin() ? answer : answer.withoutHrOnlyTabs()).statusCode(200).build());
     }
 }

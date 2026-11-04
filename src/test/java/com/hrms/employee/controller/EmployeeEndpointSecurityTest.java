@@ -47,7 +47,7 @@ class EmployeeEndpointSecurityTest {
     static class TestConfig {
         @Bean EmployeeService employeeService() { return mock(EmployeeService.class); }
         @Bean IdentityInfoService identityInfoService() { return mock(IdentityInfoService.class); }
-        @Bean EmployeeAccessGuard accessGuard() { return mock(EmployeeAccessGuard.class); }
+        @Bean("employeeAccessGuard") EmployeeAccessGuard accessGuard() { return mock(EmployeeAccessGuard.class); }
         @Bean GlobalExceptionHandler globalExceptionHandler() { return new GlobalExceptionHandler(); }
 
         @Bean EmployeeController employeeController(EmployeeService s, EmployeeAccessGuard g) {
@@ -68,6 +68,7 @@ class EmployeeEndpointSecurityTest {
     @BeforeEach
     void setUp() {
         reset(employeeService, identityService, accessGuard);
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(true); // a caller on their own record, or HR_ADMIN
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
     }
 
@@ -115,7 +116,7 @@ class EmployeeEndpointSecurityTest {
     @Test
     @WithMockUser(roles = "HR_MANAGER")
     void hrManagerCannotWriteAnotherEmployeesIdentityData() throws Exception {
-        doThrow(new AccessDeniedException("own records or HR_ADMIN only")).when(accessGuard).assertSelfOrAdmin(anyLong());
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(false);
         mvc.perform(put("/api/v1/employees/7/identity")
                 .contentType(MediaType.APPLICATION_JSON).content(IDENTITY_BODY))
             .andExpect(status().isForbidden());
@@ -125,7 +126,7 @@ class EmployeeEndpointSecurityTest {
     @Test
     @WithMockUser(roles = "EMPLOYEE")
     void employeeCannotWriteSomeoneElsesIdentityData() throws Exception {
-        doThrow(new AccessDeniedException("own records only")).when(accessGuard).assertSelfOrAdmin(anyLong());
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(false);
         mvc.perform(put("/api/v1/employees/7/identity")
                 .contentType(MediaType.APPLICATION_JSON).content(IDENTITY_BODY))
             .andExpect(status().isForbidden());
@@ -140,7 +141,7 @@ class EmployeeEndpointSecurityTest {
         mvc.perform(put("/api/v1/employees/7/identity")
                 .contentType(MediaType.APPLICATION_JSON).content(IDENTITY_BODY))
             .andExpect(status().isOk());
-        verify(accessGuard).assertSelfOrAdmin(7L);
+        verify(accessGuard).isSelfOrAdmin(7L);
     }
 
     @Test

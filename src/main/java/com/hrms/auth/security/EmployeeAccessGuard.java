@@ -47,21 +47,30 @@ public class EmployeeAccessGuard {
     }
 
     /**
-     * Throws {@link AccessDeniedException} unless the caller is HR_ADMIN or is the employee identified by
-     * {@code employeeId} themself. Used by the endpoints where an employee fills in and edits their own details.
+     * True when the caller is HR_ADMIN, or is the employee identified by {@code employeeId} themself. Used in
+     * {@code @PreAuthorize} by the endpoints where an employee fills in and edits their own details, so the rule is
+     * written on the endpoint and cannot be forgotten: {@code @employeeAccessGuard.isSelfOrAdmin(#employeeId)}.
      */
-    public void assertSelfOrAdmin(Long employeeId) {
+    public boolean isSelfOrAdmin(Long employeeId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            throw new AccessDeniedException("Authentication required.");
+            return false;
         }
-        if (isHrAdmin()) {
-            return;
+        return isHrAdmin() || isCaller(auth, employeeId);
+    }
+
+    /** True when the caller is HR_ADMIN or HR_MANAGER, or is the employee identified by {@code employeeId} themself. */
+    public boolean isSelfOrPrivileged(Long employeeId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
         }
+        return isPrivileged(auth) || isCaller(auth, employeeId);
+    }
+
+    private boolean isCaller(Authentication auth, Long employeeId) {
         Long callerEmployeeId = currentEmployeeId(auth);
-        if (callerEmployeeId == null || !callerEmployeeId.equals(employeeId)) {
-            throw new AccessDeniedException("You can only change your own records.");
-        }
+        return callerEmployeeId != null && callerEmployeeId.equals(employeeId);
     }
 
     /**

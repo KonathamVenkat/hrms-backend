@@ -48,6 +48,4 @@ public interface EmployeeAddressRepository
 
     // ── Count active addresses ─────────────────────────────────
     long countByEmployeeIdAndIsActive(Long employeeId, Integer isActive);
-
-    boolean existsByEmployeeId(Long employeeId);
 }

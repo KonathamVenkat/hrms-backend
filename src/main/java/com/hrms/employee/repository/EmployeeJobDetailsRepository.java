@@ -354,6 +354,4 @@ public interface EmployeeJobDetailsRepository
 
     // ── Count historical records ───────────────────────────────
     long countByEmployeeId(Long employeeId);
-
-    boolean existsByEmployeeIdAndIsCurrent(Long employeeId, Integer isCurrent);
 }

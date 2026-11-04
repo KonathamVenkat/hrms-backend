@@ -24,6 +24,4 @@ public interface EmployeeBankAccountRepository extends JpaRepository<EmployeeBan
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE EmployeeBankAccount a SET a.isPrimary = false WHERE a.employeeId = :employeeId AND a.isPrimary = true")
     int unsetAllPrimary(@Param("employeeId") Long employeeId);
-
-    boolean existsByEmployeeId(Long employeeId);
 }

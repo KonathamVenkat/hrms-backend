@@ -88,7 +88,4 @@ public interface EmployeeDocumentRepository
     // ── Count by type ─────────────────────────────────────────
     long countByEmployeeIdAndDocTypeIdAndIsActive(
             Long employeeId, Long docTypeId, Integer isActive);
-
-    /** An active (not removed) document; the Documents tab lists only these. */
-    boolean existsByEmployeeIdAndIsActive(Long employeeId, Integer isActive);
 }

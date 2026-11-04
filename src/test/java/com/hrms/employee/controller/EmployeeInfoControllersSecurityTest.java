@@ -42,6 +42,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,7 +61,7 @@ class EmployeeInfoControllersSecurityTest {
     @EnableMethodSecurity
     static class TestConfig {
         @Bean GlobalExceptionHandler globalExceptionHandler() { return new GlobalExceptionHandler(); }
-        @Bean EmployeeAccessGuard accessGuard() { return mock(EmployeeAccessGuard.class); }
+        @Bean("employeeAccessGuard") EmployeeAccessGuard accessGuard() { return mock(EmployeeAccessGuard.class); }
         @Bean EmployeeDependentService dependants() { return mock(EmployeeDependentService.class); }
         @Bean EmployeeEducationService education() { return mock(EmployeeEducationService.class); }
         @Bean EmployeeTrainingService training() { return mock(EmployeeTrainingService.class); }
@@ -98,6 +99,7 @@ class EmployeeInfoControllersSecurityTest {
     @BeforeEach
     void setUp() {
         reset(accessGuard, dependants);
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(true); // a caller on their own record, or HR_ADMIN
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
     }
 
@@ -126,7 +128,7 @@ class EmployeeInfoControllersSecurityTest {
     @MethodSource("sections")
     @WithMockUser(roles = "HR_MANAGER")
     void hrManagerMayReadButNotChangeAnotherEmployeesRecord(String section) throws Exception {
-        doThrow(new AccessDeniedException("own records or HR_ADMIN only")).when(accessGuard).assertSelfOrAdmin(anyLong());
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(false);
         writes(section, 403);
         mvc.perform(get(base(section))).andExpect(status().isOk());
     }
@@ -137,7 +139,7 @@ class EmployeeInfoControllersSecurityTest {
     void employeeChangesAndReadsOnlyTheirOwn(String section) throws Exception {
         writes(section, 200); // the guard lets their own record through
 
-        doThrow(new AccessDeniedException("own records only")).when(accessGuard).assertSelfOrAdmin(anyLong());
+        when(accessGuard.isSelfOrAdmin(anyLong())).thenReturn(false);
         writes(section, 403);
 
         mvc.perform(get(base(section))).andExpect(status().isOk()); // the guard lets their own record through

@@ -9,6 +9,4 @@ import java.util.List;
 @Repository
 public interface EmployeeDependentRepository extends JpaRepository<EmployeeDependent, Long> {
     List<EmployeeDependent> findByEmployeeIdOrderByIdAsc(Long employeeId);
-
-    boolean existsByEmployeeId(Long employeeId);
 }

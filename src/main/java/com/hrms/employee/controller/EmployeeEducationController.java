@@ -36,38 +36,34 @@ public class EmployeeEducationController {
     }
 
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<EmployeeEducationResponse>> add(
             @PathVariable Long employeeId, @Valid @RequestBody EmployeeEducationRequest request) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<EmployeeEducationResponse>builder()
             .success(true).message("Education record added successfully")
             .data(service.add(employeeId, request)).statusCode(201).build());
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<EmployeeEducationResponse>> update(
             @PathVariable Long employeeId, @PathVariable Long id, @Valid @RequestBody EmployeeEducationRequest request) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         return ResponseEntity.ok(ApiResponse.<EmployeeEducationResponse>builder()
             .success(true).message("Education record updated successfully")
             .data(service.update(employeeId, id, request)).statusCode(200).build());
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long employeeId, @PathVariable Long id) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         service.deactivate(employeeId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
             .success(true).message("Education record deactivated").statusCode(200).build());
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@employeeAccessGuard.isSelfOrAdmin(#employeeId)")
     public ResponseEntity<ApiResponse<Void>> activate(@PathVariable Long employeeId, @PathVariable Long id) {
-        accessGuard.assertSelfOrAdmin(employeeId);
         service.activate(employeeId, id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
             .success(true).message("Education record activated").statusCode(200).build());

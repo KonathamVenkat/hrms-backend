@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -48,6 +49,14 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, Long> {
         WHERE u.role = :role AND u.isActive = true AND u.employeeId <> :employeeId
         """)
     long countOtherActiveHolders(@Param("role") UserRole role, @Param("employeeId") Long employeeId);
+
+    /**
+     * The active logins that hold {@code role}, locked for update until the transaction ends: two callers that
+     * check "is there another active holder?" at the same moment are handled one after the other.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM AuthUser u WHERE u.role = :role AND u.isActive = true")
+    List<AuthUser> findActiveByRoleForUpdate(@Param("role") UserRole role);
     
     boolean existsByUsername(String username);       // ← ADD
 

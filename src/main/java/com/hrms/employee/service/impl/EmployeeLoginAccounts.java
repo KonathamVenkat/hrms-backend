@@ -2,6 +2,7 @@ package com.hrms.employee.service.impl;
 
 import com.hrms.auth.entity.AuthUser;
 import com.hrms.auth.repository.AuthUserRepository;
+import com.hrms.auth.repository.RefreshTokenRepository;
 import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.enums.UserRole;
 import com.hrms.common.exception.BusinessRuleException;
@@ -13,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -27,6 +29,7 @@ public class EmployeeLoginAccounts {
 
     private final AuthUserRepository authUserRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public boolean usernameTaken(String username) {
         return authUserRepository.existsByUsernameIgnoreCase(username);
@@ -78,7 +81,8 @@ public class EmployeeLoginAccounts {
         });
     }
 
-    public void changeRole(Employee employee, String roleStr) {
+    /** @return true when the role actually changed */
+    public boolean changeRole(Employee employee, String roleStr) {
         UserRole newRole;
         try {
             newRole = UserRole.valueOf(roleStr.toUpperCase());
@@ -87,16 +91,18 @@ public class EmployeeLoginAccounts {
                 "INVALID_ROLE",
                 "Invalid role: '" + roleStr + "'. Allowed values: HR_ADMIN, HR_MANAGER, EMPLOYEE");
         }
-        authUserRepository.findByEmployeeId(employee.getId())
-            .ifPresent(authUser -> {
-                if (!authUser.getRole().equals(newRole)) {
-                    authUser.setRole(newRole);
-                    authUser.setUpdatedAt(LocalDateTime.now());
-                    authUserRepository.save(authUser);
-                    log.info("Updated auth user role to {} for employee {}",
-                        newRole, employee.getId());
+        return authUserRepository.findByEmployeeId(employee.getId())
+            .map(authUser -> {
+                if (authUser.getRole().equals(newRole)) {
+                    return false;
                 }
-            });
+                authUser.setRole(newRole);
+                authUser.setUpdatedAt(LocalDateTime.now());
+                authUserRepository.save(authUser);
+                log.info("Updated auth user role to {} for employee {}", newRole, employee.getId());
+                return true;
+            })
+            .orElse(false);
     }
 
     public void syncFullName(Employee employee) {
@@ -113,16 +119,44 @@ public class EmployeeLoginAccounts {
             });
     }
 
-    /** Revokes or restores the login together with the employee record. */
+    /**
+     * Revokes or restores the login together with the employee record. Every session issued before the change is
+     * ended (refresh tokens revoked), so leaving cuts off all access at once and a re-hire starts clean: the person
+     * must set a new password at the first sign-in, and an old lock or failed-attempt count does not come back.
+     */
     public void setActive(Long employeeId, boolean active, String updatedBy) {
         authUserRepository.findByEmployeeId(employeeId).ifPresent(authUser -> {
             authUser.setIsActive(active);
+            if (active) {
+                authUser.setMustChangePassword(1);
+                authUser.setFailedAttempts(0);
+                authUser.setIsLocked(false);
+                authUser.setLockTime(null);
+            }
             authUser.setUpdatedBy(updatedBy);
             authUser.setUpdatedAt(LocalDateTime.now());
             authUserRepository.save(authUser);
+            refreshTokenRepository.revokeAllByUserId(authUser.getUserId());
             log.info("AuthUser for employee ID: {} {} alongside employee",
                 employeeId, active ? "reactivated" : "deactivated");
         });
+    }
+
+    /**
+     * Refuses to remove the last active HR_ADMIN. The active admin logins are locked while this runs, so two admins
+     * deactivating each other at the same moment cannot both pass the check.
+     */
+    public void requireAnotherActiveAdmin(Long employeeId) {
+        if (roleOf(employeeId).filter(r -> r == UserRole.HR_ADMIN).isEmpty()) {
+            return;
+        }
+        List<AuthUser> admins = authUserRepository.findActiveByRoleForUpdate(UserRole.HR_ADMIN);
+        boolean targetIsActiveAdmin = admins.stream().anyMatch(a -> employeeId.equals(a.getEmployeeId()));
+        boolean anotherAdmin = admins.stream().anyMatch(a -> !employeeId.equals(a.getEmployeeId()));
+        if (targetIsActiveAdmin && !anotherAdmin) {
+            throw new BusinessRuleException("LAST_HR_ADMIN",
+                "This is the last active HR_ADMIN. Make another employee an HR_ADMIN first.");
+        }
     }
 
     private static String buildFullName(String first, String middle, String last) {

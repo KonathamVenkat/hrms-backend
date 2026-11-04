@@ -50,6 +50,8 @@ class EmployeeServiceImplTest {
     @Mock EmployeeRepository employeeRepository;
     @Mock EmployeeMapper employeeMapper;
     @Mock AuthUserRepository authUserRepository;
+    @Mock com.hrms.auth.repository.RefreshTokenRepository refreshTokens;
+    @Mock AuditTrail audit;
     @Mock PasswordEncoder passwordEncoder;
     @Mock EmployeeAccessGuard accessGuard;
     @Mock com.hrms.employee.repository.EmployeeJobDetailsRepository jobDetails;
@@ -64,8 +66,8 @@ class EmployeeServiceImplTest {
         service = new EmployeeServiceImpl(
             employeeRepository, employeeMapper, accessGuard,
             new WorkEmailGenerator(employeeRepository, authUserRepository, "nilepet.com"),
-            new EmployeeLoginAccounts(authUserRepository, passwordEncoder),
-            jobDetails, mock(AuditTrail.class), departmentHeads, departmentSecretaries, organisationService);
+            new EmployeeLoginAccounts(authUserRepository, passwordEncoder, refreshTokens),
+            jobDetails, audit, departmentHeads, departmentSecretaries, organisationService);
     }
 
     @Test
@@ -108,7 +110,7 @@ class EmployeeServiceImplTest {
     private Employee employee(long id, EmploymentStatus status, boolean active) {
         return Employee.builder()
             .id(id).firstName("A").lastName("B").personalEmail("a@example.com")
-            .employmentStatus(status).isActive(active).build();
+            .employmentStatus(status).isActive(active).version(0L).build();
     }
 
     private UpdateEmployeeRequest updateRequest() {
@@ -116,6 +118,7 @@ class EmployeeServiceImplTest {
             .firstName("A").firstNameAr("ا").lastName("B").lastNameAr("ب")
             .personalEmail("a@example.com")
             .employmentStatus(EmploymentStatus.ACTIVE)
+            .version(0L)
             .build();
     }
 
@@ -313,7 +316,7 @@ class EmployeeServiceImplTest {
     void deactivationRecordsTheExitStatusAndRevokesTheLogin() {
         loginAs("admin", "HR_ADMIN");
         Employee e = employee(5, EmploymentStatus.ACTIVE, true);
-        AuthUser login = AuthUser.builder().employeeId(5L).isActive(true).build();
+        AuthUser login = AuthUser.builder().userId(77L).employeeId(5L).isActive(true).build();
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(e));
         when(accessGuard.currentEmployeeId()).thenReturn(1L);
         when(employeeRepository.softDeleteById(5L, "admin")).thenReturn(1);
@@ -324,6 +327,7 @@ class EmployeeServiceImplTest {
         assertEquals(EmploymentStatus.RESIGNED, e.getEmploymentStatus());
         assertFalse(login.getIsActive());
         verify(authUserRepository).save(login);
+        verify(refreshTokens).revokeAllByUserId(77L); // every session issued before the exit ends with it
         verify(departmentHeads).clearHeadOf(5L, null);
         verify(departmentSecretaries).clearSecretaryOf(5L, null);
         verify(organisationService).clearManagerOf(5L);
@@ -364,5 +368,114 @@ class EmployeeServiceImplTest {
         assertTrue(e.getIsActive());
         assertEquals(EmploymentStatus.ACTIVE, e.getEmploymentStatus());
         assertTrue(login.getIsActive());
+    }
+
+    @Test
+    void aRehireStartsFromCleanCredentials_andItsAuditNamesTheRestoredRole() {
+        loginAs("admin", "HR_ADMIN");
+        Employee e = employee(5, EmploymentStatus.TERMINATED, false);
+        AuthUser login = AuthUser.builder().userId(77L).employeeId(5L).isActive(false).role(UserRole.HR_MANAGER)
+            .isLocked(true).failedAttempts(4).mustChangePassword(0).lockTime(java.time.LocalDateTime.now()).build();
+        when(employeeRepository.findById(5L)).thenReturn(Optional.of(e));
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(i -> i.getArgument(0));
+        when(authUserRepository.findByEmployeeId(5L)).thenReturn(Optional.of(login));
+
+        service.reactivateEmployee(5L);
+
+        assertTrue(login.getIsActive());
+        assertEquals(1, login.getMustChangePassword());      // a new password is chosen at the first sign-in
+        assertEquals(0, login.getFailedAttempts());
+        assertFalse(login.getIsLocked());
+        assertNull(login.getLockTime());
+        verify(refreshTokens).revokeAllByUserId(77L);          // nothing issued before the exit works again
+        verify(audit).record("EMPLOYEE_REACTIVATED", "EMPLOYEE", 5L, "login role HR_MANAGER restored; password change required");
+    }
+
+    @Test
+    void theLastActiveHrAdminCannotBeDeactivated() {
+        loginAs("admin", "HR_ADMIN");
+        AuthUser onlyAdmin = AuthUser.builder().userId(77L).employeeId(5L).isActive(true).role(UserRole.HR_ADMIN).build();
+        when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(employee(5, EmploymentStatus.ACTIVE, true)));
+        when(accessGuard.currentEmployeeId()).thenReturn(1L);
+        when(authUserRepository.findByEmployeeId(5L)).thenReturn(Optional.of(onlyAdmin));
+        when(authUserRepository.findActiveByRoleForUpdate(UserRole.HR_ADMIN)).thenReturn(List.of(onlyAdmin));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+            () -> service.deactivateEmployee(5L, EmploymentStatus.RESIGNED));
+
+        assertEquals("LAST_HR_ADMIN", ex.getRuleCode());
+        verify(employeeRepository, never()).softDeleteById(any(), any());
+        verifyNoInteractions(refreshTokens);
+    }
+
+    @Test
+    void anHrAdminCanBeDeactivatedWhenAnotherActiveAdminRemains() {
+        loginAs("admin", "HR_ADMIN");
+        AuthUser target = AuthUser.builder().userId(77L).employeeId(5L).isActive(true).role(UserRole.HR_ADMIN).build();
+        AuthUser other = AuthUser.builder().userId(78L).employeeId(1L).isActive(true).role(UserRole.HR_ADMIN).build();
+        when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(employee(5, EmploymentStatus.ACTIVE, true)));
+        when(accessGuard.currentEmployeeId()).thenReturn(1L);
+        when(employeeRepository.softDeleteById(5L, "admin")).thenReturn(1);
+        when(authUserRepository.findByEmployeeId(5L)).thenReturn(Optional.of(target));
+        when(authUserRepository.findActiveByRoleForUpdate(UserRole.HR_ADMIN)).thenReturn(List.of(target, other));
+
+        service.deactivateEmployee(5L, EmploymentStatus.RESIGNED);
+
+        assertFalse(target.getIsActive());
+        verify(refreshTokens).revokeAllByUserId(77L);
+    }
+
+    @Test
+    void anEditWithoutAVersionIsRefused() {
+        loginAs("admin", "HR_ADMIN");
+        when(employeeRepository.findById(5L)).thenReturn(Optional.of(employee(5, EmploymentStatus.ACTIVE, true)));
+        UpdateEmployeeRequest req = updateRequest();
+        req.setVersion(null);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateEmployee(5L, req));
+
+        assertEquals("VERSION_REQUIRED", ex.getRuleCode());
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void changingOnlyTheRoleStillMovesTheEmployeeVersion_soAStaleFormCannotOverwriteIt() {
+        loginAs("admin", "HR_ADMIN");
+        Employee e = employee(5, EmploymentStatus.ACTIVE, true);
+        AuthUser login = AuthUser.builder().userId(77L).employeeId(5L).isActive(true).role(UserRole.EMPLOYEE).build();
+        when(employeeRepository.findById(5L)).thenReturn(Optional.of(e));
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(i -> i.getArgument(0));
+        when(authUserRepository.findByEmployeeId(5L)).thenReturn(Optional.of(login));
+        when(accessGuard.currentEmployeeId()).thenReturn(1L);
+        UpdateEmployeeRequest req = updateRequest();
+        req.setRole("HR_MANAGER");
+
+        try {
+            service.updateEmployee(5L, req);
+        } catch (RuntimeException ignored) {
+            // the detail read at the end is not set up here; only the writes matter
+        }
+
+        assertEquals(UserRole.HR_MANAGER, login.getRole());
+        verify(employeeRepository, times(2)).save(e);          // the second save touches the row so its version moves
+        assertNotNull(e.getUpdatedAt());
+    }
+
+    @Test
+    void creatingAnAccountIsAuditedWithItsRoleButNotItsPassword() {
+        loginAs("manager", "HR_MANAGER");
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "entityManager", mock(jakarta.persistence.EntityManager.class));
+        when(employeeRepository.saveAndFlush(any(Employee.class))).thenAnswer(i -> {
+            Employee saved = i.getArgument(0);
+            saved.setId(9L);
+            return saved;
+        });
+
+        service.createEmployee(createRequest("EMPLOYEE", "Str0ngPass"));
+
+        var detail = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(audit).record(eq("EMPLOYEE_CREATED"), eq("EMPLOYEE"), eq(9L), detail.capture());
+        assertEquals("login role EMPLOYEE", detail.getValue());
+        assertFalse(detail.getValue().contains("Str0ngPass"));
     }
 }

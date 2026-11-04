@@ -111,6 +111,6 @@ public class UpdateEmployeeRequest {
              message = "Role must be HR_ADMIN, HR_MANAGER, or EMPLOYEE")
     private String role;
 
-    /** The version the screen was loaded with; omit to skip the stale-edit check. */
+    /** The version the screen was loaded with. Required: a missing or stale version is refused (409). */
     private Long version;
 }

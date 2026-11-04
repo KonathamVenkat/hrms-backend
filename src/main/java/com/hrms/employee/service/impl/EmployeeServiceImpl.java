@@ -40,6 +40,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -184,6 +185,8 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         // ── 5. Create the login ────────────────────────────────
         accounts.create(savedEmployee, request, userRole, workEmail);
+        // Who created which account and with which role (never the password or personal data).
+        audit.record("EMPLOYEE_CREATED", "EMPLOYEE", savedEmployee.getId(), "login role " + userRole);
 
         return employeeMapper.toResponse(savedEmployee);
     }
@@ -267,6 +270,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                 "This employee is deactivated. Reactivate the employee before editing.");
         }
 
+        // An edit must say which version it was made from, so it cannot overwrite what another HR user saved
+        // since (the screen always sends it).
+        if (request.getVersion() == null) {
+            throw new BusinessRuleException("VERSION_REQUIRED", "Reload the employee and try again.");
+        }
         Versions.requireCurrent(request.getVersion(), employee.getVersion());
 
         // ── 2. Personal email uniqueness check (allow same) ────
@@ -336,7 +344,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                     && id.equals(accessGuard.currentEmployeeId())) {
                 accounts.requireNotDemotingSelf(id);
             }
-            accounts.changeRole(updated, request.getRole());
+            if (accounts.changeRole(updated, request.getRole())) {
+                // The role lives on the login, not on the employee row: touch the row so its version moves and a
+                // form that was loaded before this role change can no longer be saved over it.
+                updated.setUpdatedAt(LocalDateTime.now());
+                employeeRepository.save(updated);
+            }
         }
 
         // ── 6. Update Auth User full name ──────────────────────
@@ -362,6 +375,9 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new BusinessRuleException(
                 "CANNOT_DEACTIVATE_SELF", "You cannot deactivate your own account.");
         }
+
+        // Never remove the last administrator: nobody could change roles or reactivate anyone afterwards.
+        accounts.requireAnotherActiveAdmin(id);
 
         // Leaving staff with a manager who no longer works here breaks approvals and reporting lines.
         long reports = jobDetails.countActiveReportsOf(id);
@@ -429,7 +445,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         // Restore system access that was revoked on deactivation.
         accounts.setActive(id, true, CurrentAuditor.name());
 
-        audit.record("EMPLOYEE_REACTIVATED", "EMPLOYEE", id, null);
+        audit.record("EMPLOYEE_REACTIVATED", "EMPLOYEE", id,
+            accounts.roleOf(id).map(r -> "login role " + r + " restored; password change required").orElse(null));
         log.info("Employee ID: {} reactivated", id);
 
         return employeeMapper.toResponse(reactivated);

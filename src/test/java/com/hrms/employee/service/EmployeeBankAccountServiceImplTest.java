@@ -232,6 +232,33 @@ class EmployeeBankAccountServiceImplTest {
     }
 
     @Test
+    void get_carriesTheBranchContactDetails_andLeavesThemOutWhenThereIsNoBranch() {
+        when(employeeRepository.existsById(10L)).thenReturn(true);
+        EmployeeBankAccount withBranch = account(7L, true, true);
+        withBranch.setBankBranchId(5L);
+        EmployeeBankAccount noBranch = account(8L, false, true);
+        when(accountRepository.findByEmployeeIdOrderByIdAsc(10L)).thenReturn(List.of(withBranch, noBranch));
+        when(bankRepository.findAllById(any())).thenReturn(List.of(bank(true)));
+        BankBranch contact = branch(5L, 1L, true);
+        contact.setAddress("Plot 4, Airport Road, Juba");
+        contact.setPhone("+211 912 000 111");
+        contact.setEmail("juba.main@bank.example");
+        when(branchRepository.findAllById(any())).thenReturn(List.of(contact));
+        when(accessGuard.canViewUnmasked(10L)).thenReturn(true);
+
+        List<EmployeeBankAccountResponse> all = service.getAccounts(10L);
+
+        EmployeeBankAccountResponse first = all.stream().filter(r -> r.getId() == 7L).findFirst().orElseThrow();
+        assertEquals("Plot 4, Airport Road, Juba", first.getBankBranchAddress());
+        assertEquals("+211 912 000 111", first.getBankBranchPhone());
+        assertEquals("juba.main@bank.example", first.getBankBranchEmail());
+        EmployeeBankAccountResponse second = all.stream().filter(r -> r.getId() == 8L).findFirst().orElseThrow();
+        assertNull(second.getBankBranchAddress());
+        assertNull(second.getBankBranchPhone());
+        assertNull(second.getBankBranchEmail());
+    }
+
+    @Test
     void get_listsActiveFirstAndPrimaryFirst() {
         when(employeeRepository.existsById(10L)).thenReturn(true);
         when(accountRepository.findByEmployeeIdOrderByIdAsc(10L)).thenReturn(List.of(

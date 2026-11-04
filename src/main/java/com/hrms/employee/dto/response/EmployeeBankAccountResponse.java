@@ -12,6 +12,10 @@ public class EmployeeBankAccountResponse {
     private Long    bankBranchId;
     private String  bankBranchName;
     private String  bankBranchNameAr;
+    /** Contact details of the branch (all optional): where the employee can reach it. */
+    private String  bankBranchAddress;
+    private String  bankBranchPhone;
+    private String  bankBranchEmail;
     /** Last 4 characters only when {@link #masked} is true. */
     private String  accountNumber;
     private String  iban;

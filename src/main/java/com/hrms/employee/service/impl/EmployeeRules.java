@@ -6,7 +6,6 @@ import com.hrms.employee.entity.Employee;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
-import java.util.regex.Pattern;
 
 /** Stateless validation rules for employee records, kept apart from the service that applies them. */
 public final class EmployeeRules {
@@ -34,22 +33,28 @@ public final class EmployeeRules {
         }
     }
 
-    /** An http(s) address, or an app-relative path with a single leading slash (never "//host" or "/\host"). */
-    private static final Pattern PHOTO_URL = Pattern.compile("^(https?://\\S+|/(?![/\\\\])\\S+)$");
+    /**
+     * The only photo address an employee record may hold: the app's own endpoint for that employee's photo,
+     * {@code /api/v1/employees/{id}/photo} with an optional {@code ?v=<number>} cache marker. That is exactly what
+     * the photo upload writes, so a stored value never points at another site (whose host would learn the IP address
+     * and browser of everyone who opens the profile) or at another employee's photo.
+     */
+    private static final String PHOTO_PATH = "/api/v1/employees/%d/photo";
 
     /**
-     * Only accepts URLs the browser can safely load as an image source (http/https or an
-     * app-relative path); anything else is rejected rather than stored and rendered later.
-     * A protocol-relative value such as "//host/x" is not app-relative: the frontend would send
-     * the viewer's session token to that host. Blank clears the photo.
+     * Accepts the employee's own photo path and nothing else; blank clears the photo. To change the picture, upload it:
+     * the upload stores the photo and writes this address itself.
      */
-    public static String validatePhotoUrl(String url) {
+    public static String validatePhotoUrl(String url, Long employeeId) {
         if (!StringUtils.hasText(url)) return null;
         String trimmed = url.trim();
-        if (trimmed.length() > 500 || !PHOTO_URL.matcher(trimmed).matches()) {
+        String own = PHOTO_PATH.formatted(employeeId);
+        boolean ownPath = trimmed.equals(own)
+            || (trimmed.startsWith(own + "?v=") && trimmed.substring(own.length() + 3).matches("\\d{1,18}"));
+        if (!ownPath) {
             throw new BusinessRuleException(
                 "INVALID_PHOTO_URL",
-                "Profile photo must be an http(s) URL or an app-relative path (max 500 characters).");
+                "The profile photo cannot be set by address. Upload the photo instead.");
         }
         return trimmed;
     }

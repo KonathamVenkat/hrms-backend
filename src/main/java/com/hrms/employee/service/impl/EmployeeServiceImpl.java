@@ -317,7 +317,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setMaritalStatus(request.getMaritalStatus());
         employee.setNationality(request.getNationality());
         employee.setReligion(request.getReligion());
-        employee.setProfilePhotoUrl(EmployeeRules.validatePhotoUrl(request.getProfilePhotoUrl()));
+        employee.setProfilePhotoUrl(EmployeeRules.validatePhotoUrl(request.getProfilePhotoUrl(), id));
         employee.setPersonalEmail(request.getPersonalEmail().trim().toLowerCase());
         employee.setPersonalPhone(request.getPersonalPhone());
         employee.setWorkPhone(request.getWorkPhone());

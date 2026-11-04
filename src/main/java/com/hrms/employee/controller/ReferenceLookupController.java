@@ -23,13 +23,13 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Read-only dropdowns of active reference values for the employee-information forms (HR_ADMIN, and employees filling in their own details).
+ * Read-only dropdowns of active reference values for the employee-information forms (anyone signed in: reference values, filling in one's own details).
  * The employee-information responses carry the resolved names, so a reader never needs these.
  */
 @RestController
 @RequestMapping("/api/v1/lookups")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('HR_ADMIN', 'EMPLOYEE')")
+@PreAuthorize("isAuthenticated()")
 public class ReferenceLookupController {
 
     private final NationalityService nationalities;
@@ -53,7 +53,7 @@ public class ReferenceLookupController {
 
     /** The countries behind the nationalities (the address form's Country). */
     @GetMapping("/countries")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> countries() {
         return ok("Countries fetched successfully", nationalities.getActiveCountryLookup());
     }
@@ -66,14 +66,14 @@ public class ReferenceLookupController {
 
     /** Provinces (the address form's State / Province). */
     @GetMapping("/provinces")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> provinces() {
         return ok("Provinces fetched successfully", provinces.getActiveLookup());
     }
 
     /** Cities, each carrying its province id as parentId. */
     @GetMapping("/cities")
-    @PreAuthorize("hasAnyRole('HR_ADMIN', 'HR_MANAGER', 'EMPLOYEE')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<MasterLookupResponse>>> cities() {
         return ok("Cities fetched successfully", cities.getActiveLookup());
     }

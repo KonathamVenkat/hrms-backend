@@ -126,6 +126,9 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     @Transactional
     public void setPrimary(Long employeeId, Long addressId) {
         EmployeeAddress address = findAddress(employeeId, addressId);
+        if (address.getIsActive() == null || address.getIsActive() != 1) {
+            throw new BusinessRuleException("ADDRESS_INACTIVE", "A removed address cannot be the primary one.");
+        }
         addressRepository.unsetAllPrimary(employeeId);
         address.setIsPrimary(1);
         address.setUpdatedAt(LocalDateTime.now());

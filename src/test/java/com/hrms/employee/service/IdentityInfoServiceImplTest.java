@@ -1,6 +1,7 @@
 package com.hrms.employee.service;
 
 import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.IdentityInfoRequest;
@@ -28,12 +29,13 @@ class IdentityInfoServiceImplTest {
     @Mock EmployeeIdentityInfoRepository identityRepository;
     @Mock EmployeeRepository employeeRepository;
     @Mock EmployeeAccessGuard accessGuard;
+    @Mock AuditTrail audit;
 
     IdentityInfoServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new IdentityInfoServiceImpl(identityRepository, employeeRepository, accessGuard);
+        service = new IdentityInfoServiceImpl(identityRepository, employeeRepository, accessGuard, audit);
     }
 
     private EmployeeIdentityInfo record() {
@@ -139,6 +141,61 @@ class IdentityInfoServiceImplTest {
             () -> service.saveIdentityInfo(5L, req));
         verify(identityRepository, never()).save(any());
     }
+    @Test
+    void updatingAnExistingRecordWithoutAVersionIsRefused() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.of(record()));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setNationalId("123456789");
+
+        var ex = assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req));
+
+        assertEquals("VERSION_REQUIRED", ex.getRuleCode());
+        verify(identityRepository, never()).save(any());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
+    void aSaveIsAuditedWithTheNamesOfTheChangedFieldsNeverTheirValues() {
+        EmployeeIdentityInfo existing = record();
+        existing.setVersion(3L);
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.of(existing));
+        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setVersion(3L);
+        req.setNationalId("123456789");        // same as stored
+        req.setPassportNumber("P1234567");     // same as stored
+        req.setTaxId("TAX-NEW-0000");          // changed
+        req.setVisaNumber("V-5544332");
+        req.setVisaType("Work");
+        req.setVisaExpiryDate(existing.getVisaExpiryDate());
+        req.setWorkPermitNumber("WP-778899");
+        req.setSocialSecurityNumber("SSN-4455");
+        req.setDrivingLicenseNumber("DL9876");
+        req.setBiometricId("BIO12");
+
+        service.saveIdentityInfo(5L, req);
+
+        var detail = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(audit).record(eq("EMPLOYEE_IDENTITY_SAVED"), eq("EMPLOYEE"), eq(5L), detail.capture());
+        assertEquals("updated: taxId", detail.getValue());
+        assertFalse(detail.getValue().contains("TAX-NEW-0000"));
+    }
+
+    @Test
+    void creatingTheFirstRecordIsAuditedToo() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
+        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setNationalId("123456789");
+
+        service.saveIdentityInfo(5L, req);
+
+        verify(audit).record("EMPLOYEE_IDENTITY_SAVED", "EMPLOYEE", 5L, "created");
+    }
+
     @Test
     void saveReturnsRealValuesNotMaskedOnes() {
         when(employeeRepository.existsById(5L)).thenReturn(true);

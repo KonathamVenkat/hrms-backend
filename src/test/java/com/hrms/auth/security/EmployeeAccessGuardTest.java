@@ -78,6 +78,39 @@ class EmployeeAccessGuardTest {
         assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrPrivileged(7L));
     }
 
+    // ── assertSelfOrAdmin ───────────────────────────────────
+
+    @Test
+    void hrAdminMayChangeAnyEmployeesRecords() {
+        loginAs("admin", "HR_ADMIN", 1L);
+        assertDoesNotThrow(() -> guard.assertSelfOrAdmin(99L));
+    }
+
+    @Test
+    void anEmployeeMayChangeOnlyTheirOwnRecords() {
+        loginAs("emp", "EMPLOYEE", 7L);
+        assertDoesNotThrow(() -> guard.assertSelfOrAdmin(7L));
+        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(8L));
+    }
+
+    @Test
+    void anHrManagerMayChangeTheirOwnRecordsButNotSomeoneElses() {
+        loginAs("manager", "HR_MANAGER", 2L);
+        assertDoesNotThrow(() -> guard.assertSelfOrAdmin(2L));
+        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(99L));
+    }
+
+    @Test
+    void anAccountNotLinkedToAnEmployeeMayChangeNothing() {
+        loginAs("ghost", "EMPLOYEE", null);
+        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(7L));
+    }
+
+    @Test
+    void changingRecordsWithoutAuthenticationIsDenied() {
+        assertThrows(AccessDeniedException.class, () -> guard.assertSelfOrAdmin(7L));
+    }
+
     // ── canViewUnmasked ─────────────────────────────────────
 
     @Test

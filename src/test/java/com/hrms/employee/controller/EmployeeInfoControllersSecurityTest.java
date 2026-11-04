@@ -165,9 +165,9 @@ class EmployeeInfoControllersSecurityTest {
 
     @Test
     @WithMockUser(roles = "HR_MANAGER")
-    void dropdownsAreForbiddenToHrManager() throws Exception {
+    void dropdownsAreOpenToHrManagerToo() throws Exception {
         for (String path : new String[] {"relations", "languages", "language-levels", "education-levels"}) {
-            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isForbidden());
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isOk());
         }
     }
 

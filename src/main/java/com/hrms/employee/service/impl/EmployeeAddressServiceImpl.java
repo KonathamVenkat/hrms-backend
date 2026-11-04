@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.employee.service.EmployeeChecks;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -26,6 +27,9 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
 
     private final EmployeeAddressRepository addressRepository;
     private final EmployeeRepository        employeeRepository;
+    private final AuditTrail                audit;
+
+    private static final String TARGET = "EMPLOYEE_ADDRESS";
 
     // ── Get all addresses ─────────────────────────────────────
     @Override
@@ -82,6 +86,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
 
         EmployeeAddress saved = addressRepository.save(entity);
         log.info("Address added. ID: {}", saved.getEmployeeAddressesId());
+        audit.record("EMPLOYEE_ADDRESS_ADDED", TARGET, saved.getEmployeeAddressesId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -118,7 +123,9 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
             existing.setIsPrimary(1);
         }
 
-        return toResponse(addressRepository.save(existing));
+        EmployeeAddress updated = addressRepository.save(existing);
+        audit.record("EMPLOYEE_ADDRESS_UPDATED", TARGET, addressId, summary(updated));
+        return toResponse(updated);
     }
 
     // ── Set primary ───────────────────────────────────────────
@@ -134,6 +141,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
         address.setUpdatedAt(LocalDateTime.now());
         addressRepository.save(address);
         log.info("Address {} set as primary for employee {}", addressId, employeeId);
+        audit.record("EMPLOYEE_ADDRESS_PRIMARY_SET", TARGET, addressId, summary(address));
     }
 
     // ── Deactivate ────────────────────────────────────────────
@@ -172,9 +180,15 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
                 });
         }
         log.info("Address {} deactivated for employee {}", addressId, employeeId);
+        audit.record("EMPLOYEE_ADDRESS_DEACTIVATED", TARGET, addressId, summary(address));
     }
 
     // ── Helpers ───────────────────────────────────────────────
+
+    /** Who and which kind only: the address itself is personal data and stays out of the audit trail. */
+    private static String summary(EmployeeAddress a) {
+        return "employeeId=" + a.getEmployeeId() + ", type=" + a.getAddressType();
+    }
 
     private EmployeeAddress findAddress(Long employeeId, Long addressId) {
         EmployeeAddress address = addressRepository.findById(addressId)

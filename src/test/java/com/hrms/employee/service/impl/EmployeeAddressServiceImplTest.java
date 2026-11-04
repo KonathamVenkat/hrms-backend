@@ -22,11 +22,12 @@ class EmployeeAddressServiceImplTest {
 
     EmployeeAddressRepository addresses = mock(EmployeeAddressRepository.class);
     EmployeeRepository        employees = mock(EmployeeRepository.class);
+    com.hrms.auth.service.AuditTrail audit = mock(com.hrms.auth.service.AuditTrail.class);
     EmployeeAddressServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new EmployeeAddressServiceImpl(addresses, employees);
+        service = new EmployeeAddressServiceImpl(addresses, employees, audit);
         when(employees.existsById(5L)).thenReturn(true);
         when(addresses.save(any())).thenAnswer(i -> i.getArgument(0));
     }
@@ -114,6 +115,41 @@ class EmployeeAddressServiceImplTest {
         assertEquals("ADDRESS_INACTIVE", ex.getRuleCode());
         verify(addresses, never()).unsetAllPrimary(any());
         verify(addresses, never()).save(any());
+    }
+
+    @Test
+    void addingChangingMakingPrimaryAndRemovingAnAddressAreAudited_withoutTheAddressText() {
+        when(addresses.save(any())).thenAnswer(i -> {
+            EmployeeAddress a = i.getArgument(0);
+            if (a.getEmployeeAddressesId() == null) a.setEmployeeAddressesId(7L);
+            return a;
+        });
+        service.addAddress(5L, request("CURRENT", false));
+        verify(audit).record("EMPLOYEE_ADDRESS_ADDED", "EMPLOYEE_ADDRESS", 7L, "employeeId=5, type=CURRENT");
+
+        when(addresses.findById(7L)).thenReturn(Optional.of(address(7, 5, "CURRENT", 0)));
+        service.updateAddress(5L, 7L, request("CURRENT", false));
+        verify(audit).record("EMPLOYEE_ADDRESS_UPDATED", "EMPLOYEE_ADDRESS", 7L, "employeeId=5, type=CURRENT");
+
+        service.setPrimary(5L, 7L);
+        verify(audit).record("EMPLOYEE_ADDRESS_PRIMARY_SET", "EMPLOYEE_ADDRESS", 7L, "employeeId=5, type=CURRENT");
+
+        when(addresses.countByEmployeeIdAndIsActive(5L, 1)).thenReturn(2L);
+        service.deactivateAddress(5L, 7L);
+        verify(audit).record("EMPLOYEE_ADDRESS_DEACTIVATED", "EMPLOYEE_ADDRESS", 7L, "employeeId=5, type=CURRENT");
+
+        var details = ArgumentCaptor.forClass(String.class);
+        verify(audit, times(4)).record(anyString(), anyString(), any(), details.capture());
+        details.getAllValues().forEach(d -> assertFalse(d.contains("Main St") || d.contains("Muscat")));
+    }
+
+    @Test
+    void aRefusedChangeIsNotAudited() {
+        when(addresses.findById(7L)).thenReturn(Optional.of(address(7, 6, "CURRENT", 0))); // another employee's
+
+        assertThrows(ResourceNotFoundException.class, () -> service.setPrimary(5L, 7L));
+
+        verifyNoInteractions(audit);
     }
 
     @Test

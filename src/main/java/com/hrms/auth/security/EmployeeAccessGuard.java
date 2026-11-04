@@ -5,6 +5,7 @@ import com.hrms.auth.repository.AuthUserRepository;
 import com.hrms.common.enums.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -53,7 +54,7 @@ public class EmployeeAccessGuard {
      */
     public boolean isSelfOrAdmin(Long employeeId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        if (!isSignedIn(auth)) {
             return false;
         }
         return isHrAdmin() || isCaller(auth, employeeId);
@@ -62,10 +63,15 @@ public class EmployeeAccessGuard {
     /** True when the caller is HR_ADMIN or HR_MANAGER, or is the employee identified by {@code employeeId} themself. */
     public boolean isSelfOrPrivileged(Long employeeId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        if (!isSignedIn(auth)) {
             return false;
         }
         return isPrivileged(auth) || isCaller(auth, employeeId);
+    }
+
+    /** Spring marks an anonymous caller as authenticated too; it is never a signed-in user. */
+    private static boolean isSignedIn(Authentication auth) {
+        return auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken);
     }
 
     private boolean isCaller(Authentication auth, Long employeeId) {

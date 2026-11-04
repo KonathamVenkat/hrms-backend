@@ -114,6 +114,17 @@ class EmployeeAccessGuardTest {
     }
 
     @Test
+    void anAnonymousCallerIsNeverSignedInEvenThoughSpringCallsItAuthenticated() {
+        SecurityContextHolder.getContext().setAuthentication(new org.springframework.security.authentication.AnonymousAuthenticationToken(
+            "key", "anonymousUser", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))));
+        lenient().when(authUserRepository.findByUsernameOrEmail("anonymousUser"))
+            .thenReturn(Optional.of(AuthUser.builder().username("anonymousUser").employeeId(7L).build()));
+
+        assertFalse(guard.isSelfOrAdmin(7L));
+        assertFalse(guard.isSelfOrPrivileged(7L));
+    }
+
+    @Test
     void hrStaffMayReadAnyRecordAndAnEmployeeOnlyTheirOwn() {
         loginAs("manager", "HR_MANAGER", 2L);
         assertTrue(guard.isSelfOrPrivileged(99L));

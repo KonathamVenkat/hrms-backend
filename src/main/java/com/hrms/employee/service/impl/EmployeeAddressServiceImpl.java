@@ -97,6 +97,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
                                                   EmployeeAddressRequest request) {
         log.info("Updating address {} for employee {}", addressId, employeeId);
         EmployeeAddress existing = findAddress(employeeId, addressId);
+        requireActive(existing);
         Versions.requireCurrent(request.getVersion(), existing.getVersion());
 
         // If type is changing, check no duplicate
@@ -133,9 +134,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     @Transactional
     public void setPrimary(Long employeeId, Long addressId) {
         EmployeeAddress address = findAddress(employeeId, addressId);
-        if (address.getIsActive() == null || address.getIsActive() != 1) {
-            throw new BusinessRuleException("ADDRESS_INACTIVE", "A removed address cannot be the primary one.");
-        }
+        requireActive(address);
         addressRepository.unsetAllPrimary(employeeId);
         address.setIsPrimary(1);
         address.setUpdatedAt(LocalDateTime.now());
@@ -149,6 +148,9 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     @Transactional
     public void deactivateAddress(Long employeeId, Long addressId) {
         EmployeeAddress address = findAddress(employeeId, addressId);
+        if (!isActive(address)) {
+            return; // already removed: a repeated request changes nothing and is not audited again
+        }
 
         // Cannot deactivate the only active address
         long activeCount = addressRepository.countByEmployeeIdAndIsActive(employeeId, 1);
@@ -184,6 +186,17 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     }
 
     // ── Helpers ───────────────────────────────────────────────
+
+    private static boolean isActive(EmployeeAddress a) {
+        return a.getIsActive() != null && a.getIsActive() == 1;
+    }
+
+    /** A removed address is history: it cannot be edited or made the primary one. */
+    private static void requireActive(EmployeeAddress a) {
+        if (!isActive(a)) {
+            throw new BusinessRuleException("ADDRESS_INACTIVE", "A removed address cannot be changed.");
+        }
+    }
 
     /** Who and which kind only: the address itself is personal data and stays out of the audit trail. */
     private static String summary(EmployeeAddress a) {

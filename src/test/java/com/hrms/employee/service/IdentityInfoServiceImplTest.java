@@ -139,7 +139,7 @@ class IdentityInfoServiceImplTest {
 
         assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,
             () -> service.saveIdentityInfo(5L, req));
-        verify(identityRepository, never()).save(any());
+        verify(identityRepository, never()).saveAndFlush(any());
     }
     @Test
     void updatingAnExistingRecordWithoutAVersionIsRefused() {
@@ -151,7 +151,7 @@ class IdentityInfoServiceImplTest {
         var ex = assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req));
 
         assertEquals("VERSION_REQUIRED", ex.getRuleCode());
-        verify(identityRepository, never()).save(any());
+        verify(identityRepository, never()).saveAndFlush(any());
         verifyNoInteractions(audit);
     }
 
@@ -161,7 +161,7 @@ class IdentityInfoServiceImplTest {
         existing.setVersion(3L);
         when(employeeRepository.existsById(5L)).thenReturn(true);
         when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.of(existing));
-        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        when(identityRepository.saveAndFlush(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
         IdentityInfoRequest req = new IdentityInfoRequest();
         req.setVersion(3L);
         req.setNationalId("123456789");        // same as stored
@@ -178,7 +178,7 @@ class IdentityInfoServiceImplTest {
         service.saveIdentityInfo(5L, req);
 
         var detail = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(audit).record(eq("EMPLOYEE_IDENTITY_SAVED"), eq("EMPLOYEE"), eq(5L), detail.capture());
+        verify(audit).record(eq("EMPLOYEE_IDENTITY_SAVED"), eq("EMPLOYEE_IDENTITY"), eq(5L), detail.capture());
         assertEquals("updated: taxId", detail.getValue());
         assertFalse(detail.getValue().contains("TAX-NEW-0000"));
     }
@@ -187,20 +187,20 @@ class IdentityInfoServiceImplTest {
     void creatingTheFirstRecordIsAuditedToo() {
         when(employeeRepository.existsById(5L)).thenReturn(true);
         when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
-        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        when(identityRepository.saveAndFlush(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
         IdentityInfoRequest req = new IdentityInfoRequest();
         req.setNationalId("123456789");
 
         service.saveIdentityInfo(5L, req);
 
-        verify(audit).record("EMPLOYEE_IDENTITY_SAVED", "EMPLOYEE", 5L, "created");
+        verify(audit).record("EMPLOYEE_IDENTITY_SAVED", "EMPLOYEE_IDENTITY", 5L, "created");
     }
 
     @Test
     void saveReturnsRealValuesNotMaskedOnes() {
         when(employeeRepository.existsById(5L)).thenReturn(true);
         when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
-        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        when(identityRepository.saveAndFlush(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
         IdentityInfoRequest req = new IdentityInfoRequest();
         req.setNationalId("  123456789 ");
 
@@ -220,7 +220,7 @@ class IdentityInfoServiceImplTest {
         BusinessRuleException ex =
             assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req));
         assertEquals("DUPLICATE_NATIONAL_ID", ex.getRuleCode());
-        verify(identityRepository, never()).save(any());
+        verify(identityRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -241,7 +241,7 @@ class IdentityInfoServiceImplTest {
     void nationalIdDetailsAndResidenceAreStoredTrimmed_andReturnedToTheAdmin() {
         when(employeeRepository.existsById(5L)).thenReturn(true);
         when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
-        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        when(identityRepository.saveAndFlush(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
         IdentityInfoRequest req = new IdentityInfoRequest();
         req.setNationalIdType(" By birth ");
         req.setNationalIdIssueDate(LocalDate.of(1986, 9, 22));
@@ -265,7 +265,7 @@ class IdentityInfoServiceImplTest {
             .nationalIdType("Old").residencePlace("Old place").residenceValidUntil(LocalDate.of(2025, 1, 1)).build();
         when(employeeRepository.existsById(5L)).thenReturn(true);
         when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.of(existing));
-        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        when(identityRepository.saveAndFlush(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
         IdentityInfoRequest req = new IdentityInfoRequest();
         req.setVersion(3L);
         req.setNationalIdType(" New ");
@@ -288,10 +288,10 @@ class IdentityInfoServiceImplTest {
         BusinessRuleException ex =
             assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, backwards));
         assertEquals("INVALID_RESIDENCE_DATES", ex.getRuleCode());
-        verify(identityRepository, never()).save(any());
+        verify(identityRepository, never()).saveAndFlush(any());
 
         when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
-        when(identityRepository.save(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
+        when(identityRepository.saveAndFlush(any(EmployeeIdentityInfo.class))).thenAnswer(i -> i.getArgument(0));
         IdentityInfoRequest sameDay = new IdentityInfoRequest();
         sameDay.setResidenceDate(LocalDate.of(2026, 5, 1));
         sameDay.setResidenceValidUntil(LocalDate.of(2026, 5, 1));

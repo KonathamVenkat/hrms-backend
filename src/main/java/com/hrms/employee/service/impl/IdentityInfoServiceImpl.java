@@ -127,9 +127,10 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             log.info("Created identity info for employee {}", employeeId);
         }
 
-        EmployeeIdentityInfo saved = identityRepository.save(entity);
+        // Flush so the response carries the incremented version: the screen sends it back with its next save.
+        EmployeeIdentityInfo saved = identityRepository.saveAndFlush(entity);
         // Field names only: the values are sensitive and never go to the audit trail.
-        audit.record("EMPLOYEE_IDENTITY_SAVED", "EMPLOYEE", employeeId, changed);
+        audit.record("EMPLOYEE_IDENTITY_SAVED", "EMPLOYEE_IDENTITY", employeeId, changed);
         return toResponse(saved, false); // HR_ADMIN or the employee themself
     }
 

@@ -144,6 +144,31 @@ class EmployeeAddressServiceImplTest {
     }
 
     @Test
+    void aRemovedAddressCannotBeEditedEither_soItCannotBecomePrimaryThroughAnUpdate() {
+        EmployeeAddress removed = address(7, 5, "CURRENT", 0);
+        removed.setIsActive(0);
+        when(addresses.findById(7L)).thenReturn(Optional.of(removed));
+
+        var ex = assertThrows(BusinessRuleException.class, () -> service.updateAddress(5L, 7L, request("CURRENT", true)));
+
+        assertEquals("ADDRESS_INACTIVE", ex.getRuleCode());
+        verify(addresses, never()).unsetAllPrimary(any());
+        verify(addresses, never()).save(any());
+    }
+
+    @Test
+    void removingAnAlreadyRemovedAddressChangesNothingAndIsNotAuditedAgain() {
+        EmployeeAddress removed = address(7, 5, "CURRENT", 0);
+        removed.setIsActive(0);
+        when(addresses.findById(7L)).thenReturn(Optional.of(removed));
+
+        service.deactivateAddress(5L, 7L);
+
+        verify(addresses, never()).save(any());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
     void aRefusedChangeIsNotAudited() {
         when(addresses.findById(7L)).thenReturn(Optional.of(address(7, 6, "CURRENT", 0))); // another employee's
 

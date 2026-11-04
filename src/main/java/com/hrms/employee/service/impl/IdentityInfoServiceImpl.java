@@ -117,7 +117,7 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
             log.info("Created identity info for employee {}", employeeId);
         }
 
-        return toResponse(identityRepository.save(entity), false); // HR_ADMIN only
+        return toResponse(identityRepository.save(entity), false); // HR_ADMIN or the employee themself
     }
 
     // ── Private helpers ───────────────────────────────────────

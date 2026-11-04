@@ -52,10 +52,11 @@ public class EmployeeIdentityInfoController {
      * Single endpoint handles both create and update.
      */
     @PutMapping
-    @PreAuthorize("hasRole('HR_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<IdentityInfoResponse>> saveIdentityInfo(
             @PathVariable Long employeeId,
             @Valid @RequestBody IdentityInfoRequest request) {
+        accessGuard.assertSelfOrAdmin(employeeId);
 
         log.info("PUT identity info — employeeId: {}", employeeId);
         return ResponseEntity.ok(

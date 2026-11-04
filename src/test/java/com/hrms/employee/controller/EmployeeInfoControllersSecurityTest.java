@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Who may touch the six employee-information tabs: anyone signed in may read (the guard then limits an employee to
- * their own record), only HR_ADMIN may add, change, deactivate or activate, and only HR_ADMIN may use the dropdowns.
+ * their own record), HR_ADMIN or the employee themself (the guard) may add, change, deactivate or activate, and HR_ADMIN and employees may use the dropdowns.
  * The JWT filter chain is not part of this test (same setup as EmployeeBankAccountSecurityTest).
  */
 @ExtendWith(SpringExtension.class)
@@ -125,7 +125,8 @@ class EmployeeInfoControllersSecurityTest {
     @ParameterizedTest
     @MethodSource("sections")
     @WithMockUser(roles = "HR_MANAGER")
-    void hrManagerMayReadButNotChange(String section) throws Exception {
+    void hrManagerMayReadButNotChangeAnotherEmployeesRecord(String section) throws Exception {
+        doThrow(new AccessDeniedException("own records or HR_ADMIN only")).when(accessGuard).assertSelfOrAdmin(anyLong());
         writes(section, 403);
         mvc.perform(get(base(section))).andExpect(status().isOk());
     }
@@ -133,7 +134,10 @@ class EmployeeInfoControllersSecurityTest {
     @ParameterizedTest
     @MethodSource("sections")
     @WithMockUser(roles = "EMPLOYEE")
-    void employeeMayNotChangeAndReadsOnlyTheirOwn(String section) throws Exception {
+    void employeeChangesAndReadsOnlyTheirOwn(String section) throws Exception {
+        writes(section, 200); // the guard lets their own record through
+
+        doThrow(new AccessDeniedException("own records only")).when(accessGuard).assertSelfOrAdmin(anyLong());
         writes(section, 403);
 
         mvc.perform(get(base(section))).andExpect(status().isOk()); // the guard lets their own record through
@@ -214,8 +218,10 @@ class EmployeeInfoControllersSecurityTest {
 
     @Test
     @WithMockUser(roles = "EMPLOYEE")
-    void dropdownsAreForbiddenToEmployees() throws Exception {
-        mvc.perform(get("/api/v1/lookups/relations")).andExpect(status().isForbidden());
+    void dropdownsAreOpenToEmployees() throws Exception {
+        for (String path : new String[] {"relations", "languages", "language-levels", "education-levels"}) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isOk());
+        }
     }
 
     /** The employee and address forms read these: HR_MANAGER as well as HR_ADMIN, nobody else. */
@@ -239,8 +245,11 @@ class EmployeeInfoControllersSecurityTest {
 
     @Test
     @WithMockUser(roles = "EMPLOYEE")
-    void formLookupsAreForbiddenToEmployees() throws Exception {
-        for (String path : FORM_LOOKUPS) {
+    void addressLookupsAreOpenToEmployeesButTheOtherFormListsAreNot() throws Exception {
+        for (String path : new String[] {"countries", "provinces", "cities"}) {
+            mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isOk());
+        }
+        for (String path : new String[] {"nationalities", "religions"}) {
             mvc.perform(get("/api/v1/lookups/" + path)).andExpect(status().isForbidden());
         }
     }

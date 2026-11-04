@@ -47,6 +47,24 @@ public class EmployeeAccessGuard {
     }
 
     /**
+     * Throws {@link AccessDeniedException} unless the caller is HR_ADMIN or is the employee identified by
+     * {@code employeeId} themself. Used by the endpoints where an employee fills in and edits their own details.
+     */
+    public void assertSelfOrAdmin(Long employeeId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Authentication required.");
+        }
+        if (isHrAdmin()) {
+            return;
+        }
+        Long callerEmployeeId = currentEmployeeId(auth);
+        if (callerEmployeeId == null || !callerEmployeeId.equals(employeeId)) {
+            throw new AccessDeniedException("You can only change your own records.");
+        }
+    }
+
+    /**
      * The caller's own employeeId (resolved server-side from the authenticated user), or
      * null if the account isn't linked to an employee record. Use this instead of trusting
      * an employee/reviewer id sent by the client.

@@ -114,7 +114,8 @@ class EmployeeEndpointSecurityTest {
 
     @Test
     @WithMockUser(roles = "HR_MANAGER")
-    void hrManagerCannotWriteIdentityData() throws Exception {
+    void hrManagerCannotWriteAnotherEmployeesIdentityData() throws Exception {
+        doThrow(new AccessDeniedException("own records or HR_ADMIN only")).when(accessGuard).assertSelfOrAdmin(anyLong());
         mvc.perform(put("/api/v1/employees/7/identity")
                 .contentType(MediaType.APPLICATION_JSON).content(IDENTITY_BODY))
             .andExpect(status().isForbidden());
@@ -123,11 +124,23 @@ class EmployeeEndpointSecurityTest {
 
     @Test
     @WithMockUser(roles = "EMPLOYEE")
-    void employeeCannotWriteIdentityDataEvenForThemself() throws Exception {
+    void employeeCannotWriteSomeoneElsesIdentityData() throws Exception {
+        doThrow(new AccessDeniedException("own records only")).when(accessGuard).assertSelfOrAdmin(anyLong());
         mvc.perform(put("/api/v1/employees/7/identity")
                 .contentType(MediaType.APPLICATION_JSON).content(IDENTITY_BODY))
             .andExpect(status().isForbidden());
         verifyNoInteractions(identityService);
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void employeeCanWriteTheirOwnIdentityData() throws Exception {
+        when(identityService.saveIdentityInfo(anyLong(), any())).thenReturn(
+            IdentityInfoResponse.builder().employeeId(7L).nationalId("123456789").masked(false).build());
+        mvc.perform(put("/api/v1/employees/7/identity")
+                .contentType(MediaType.APPLICATION_JSON).content(IDENTITY_BODY))
+            .andExpect(status().isOk());
+        verify(accessGuard).assertSelfOrAdmin(7L);
     }
 
     @Test

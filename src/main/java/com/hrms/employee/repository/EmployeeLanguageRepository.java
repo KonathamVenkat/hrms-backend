@@ -11,4 +11,6 @@ public interface EmployeeLanguageRepository extends JpaRepository<EmployeeLangua
     List<EmployeeLanguage> findByEmployeeIdOrderByIdAsc(Long employeeId);
     boolean existsByEmployeeIdAndLanguageId(Long employeeId, Long languageId);
     boolean existsByEmployeeIdAndLanguageIdAndIdNot(Long employeeId, Long languageId, Long id);
+
+    boolean existsByEmployeeId(Long employeeId);
 }

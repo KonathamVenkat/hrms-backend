@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface EmployeeEducationRepository extends JpaRepository<EmployeeEducation, Long> {
     List<EmployeeEducation> findByEmployeeIdOrderByIdAsc(Long employeeId);
+
+    boolean existsByEmployeeId(Long employeeId);
 }

@@ -34,13 +34,14 @@ class EmployeeDocumentServiceImplTest {
     DocumentTypeRepository            docTypes  = mock(DocumentTypeRepository.class);
     EmployeeRepository                employees = mock(EmployeeRepository.class);
     EmployeeDocumentContentRepository contents  = mock(EmployeeDocumentContentRepository.class);
+    com.hrms.auth.service.AuditTrail  audit     = mock(com.hrms.auth.service.AuditTrail.class);
     EmployeeDocumentServiceImpl service;
     DocumentType passportType;
 
     @BeforeEach
     void setUp() {
         service = new EmployeeDocumentServiceImpl(documents, docTypes, employees, contents, new UploadLimits(25),
-                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000));
+                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000), audit);
         when(employees.existsById(5L)).thenReturn(true);
 
         passportType = DocumentType.builder()
@@ -74,7 +75,6 @@ class EmployeeDocumentServiceImplTest {
     @Test
     void storesTheMetadataAndTheBytesInTheDatabase() {
         service.uploadDocument(5L, request(), file("passport.pdf", PDF));
-
         ArgumentCaptor<EmployeeDocument> meta = ArgumentCaptor.forClass(EmployeeDocument.class);
         verify(documents).saveAndFlush(meta.capture());
         assertEquals("Passport", meta.getValue().getDocumentName());
@@ -85,6 +85,9 @@ class EmployeeDocumentServiceImplTest {
         verify(contents).save(content.capture());
         assertEquals(9L, content.getValue().getDocumentId());
         assertArrayEquals(PDF, content.getValue().getContent());
+        // The audit names the employee, type and extension only: never the file name or its content.
+        verify(audit).record(eq("EMPLOYEE_DOCUMENT_UPLOADED"), eq("EMPLOYEE_DOCUMENT"), eq(9L),
+            argThat(d -> d.contains("employeeId=5") && !d.contains("passport.pdf")));
     }
 
     @Test
@@ -188,5 +191,19 @@ class EmployeeDocumentServiceImplTest {
         assertEquals(0, doc.getIsActive());
         verify(documents).save(doc);
         verify(contents, never()).deleteById(any());
+        verify(audit).record("EMPLOYEE_DOCUMENT_DELETED", "EMPLOYEE_DOCUMENT", 9L, "employeeId=5");
+    }
+
+    @Test
+    void verifyingAndEditingAreAudited_andARefusedUploadIsNot() {
+        EmployeeDocument doc = stored(9, 5, 1);
+        when(documents.findById(9L)).thenReturn(Optional.of(doc));
+        when(documents.findByDocumentIdAndEmployeeId(9L, 5L)).thenReturn(Optional.of(mock(EmployeeDocumentProjection.class)));
+
+        service.verifyDocument(5L, 9L, "hr");
+        verify(audit).record("EMPLOYEE_DOCUMENT_VERIFIED", "EMPLOYEE_DOCUMENT", 9L, "employeeId=5");
+
+        assertThrows(BusinessRuleException.class, () -> service.uploadDocument(5L, request(), null));
+        verify(audit, never()).record(eq("EMPLOYEE_DOCUMENT_UPLOADED"), any(), any(), any());
     }
 }

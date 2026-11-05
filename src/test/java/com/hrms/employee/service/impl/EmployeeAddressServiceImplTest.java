@@ -35,13 +35,13 @@ class EmployeeAddressServiceImplTest {
     private static EmployeeAddressRequest request(String type, Boolean primary) {
         return EmployeeAddressRequest.builder()
             .addressType(type).addressLine1(" 12 Main St ").city(" Muscat ").country("Oman")
-            .isPrimary(primary).build();
+            .isPrimary(primary).version(0L).build();
     }
 
     private static EmployeeAddress address(long id, long employeeId, String type, int primary) {
         return EmployeeAddress.builder()
             .employeeAddressesId(id).employeeId(employeeId).addressType(type)
-            .addressLine1("x").city("y").country("Oman").isPrimary(primary).isActive(1).build();
+            .addressLine1("x").city("y").country("Oman").isPrimary(primary).isActive(1).version(0L).build();
     }
 
 
@@ -56,6 +56,22 @@ class EmployeeAddressServiceImplTest {
         service.deactivateAddress(5L, 7L);
 
         verify(employees, times(4)).findByIdForUpdate(5L);
+    }
+
+    @Test
+    void editingWithoutAVersionIsRefused_andOptionalTextIsTrimmedToNull() {
+        when(addresses.findById(7L)).thenReturn(Optional.of(address(7, 5, "CURRENT", 0)));
+        EmployeeAddressRequest noVersion = request("CURRENT", false);
+        noVersion.setVersion(null);
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateAddress(5L, 7L, noVersion));
+        assertEquals("VERSION_REQUIRED", ex.getRuleCode());
+
+        EmployeeAddressRequest blanks = request("CURRENT", false);
+        blanks.setAddressLine2("   ");
+        blanks.setPostalCode(" 11111 ");
+        EmployeeAddressResponse r = service.updateAddress(5L, 7L, blanks);
+        assertNull(r.getAddressLine2());
+        assertEquals("11111", r.getPostalCode());
     }
 
     @Test

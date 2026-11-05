@@ -56,6 +56,7 @@ public class JobDetailsRequest {
     private String currentWorkPhone;
 
     @Size(max = 20, message = "Job position ID max 20 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Job position ID contains control or invisible characters")
     private String jobPositionId;
 
     private Long reportingManagerId;
@@ -78,6 +79,10 @@ public class JobDetailsRequest {
     private LocalDate effectiveFrom;
 
     @Size(max = 500, message = "Remarks max 500 characters")
+    @Pattern(regexp = "^(?:[\r\n\t]|[^\\p{Cc}\\p{Cf}])*$", message = "Remarks contain control or invisible characters")
     private String remarks;
+
+    /** The version the screen was loaded with; required when updating the current job, ignored when assigning a new one. */
+    private Long version;
 }
 

@@ -1,6 +1,7 @@
 package com.hrms.employee.service.impl;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.util.Strings;
 import com.hrms.employee.service.EmployeeChecks;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -75,11 +76,11 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
             .employeeId(employeeId)
             .addressType(request.getAddressType())
             .addressLine1(request.getAddressLine1().trim())
-            .addressLine2(request.getAddressLine2())
+            .addressLine2(Strings.trimToNull(request.getAddressLine2()))
             .city(request.getCity().trim())
-            .stateProvince(request.getStateProvince())
-            .country(request.getCountry() != null ? request.getCountry().trim() : "South Sudan")
-            .postalCode(request.getPostalCode())
+            .stateProvince(Strings.trimToNull(request.getStateProvince()))
+            .country(request.getCountry().trim())
+            .postalCode(Strings.trimToNull(request.getPostalCode()))
             .isPrimary(setPrimary ? 1 : 0)
             .isActive(1)
             .build();
@@ -99,7 +100,8 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
         lockEmployee(employeeId);
         EmployeeAddress existing = findAddress(employeeId, addressId);
         requireActive(existing);
-        Versions.requireCurrent(request.getVersion(), existing.getVersion());
+        Versions.requireSentAndCurrent(request.getVersion(), existing.getVersion(),
+            "Reload the addresses and try again.");
 
         // If type is changing, check no duplicate
         if (!existing.getAddressType().equals(request.getAddressType())) {
@@ -113,11 +115,11 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
 
         existing.setAddressType(request.getAddressType());
         existing.setAddressLine1(request.getAddressLine1().trim());
-        existing.setAddressLine2(request.getAddressLine2());
+        existing.setAddressLine2(Strings.trimToNull(request.getAddressLine2()));
         existing.setCity(request.getCity().trim());
-        existing.setStateProvince(request.getStateProvince());
-        existing.setCountry(request.getCountry() != null ? request.getCountry().trim() : "South Sudan");
-        existing.setPostalCode(request.getPostalCode());
+        existing.setStateProvince(Strings.trimToNull(request.getStateProvince()));
+        existing.setCountry(request.getCountry().trim());
+        existing.setPostalCode(Strings.trimToNull(request.getPostalCode()));
         existing.setUpdatedAt(LocalDateTime.now());
 
         if (Boolean.TRUE.equals(request.getIsPrimary()) && existing.getIsPrimary() != 1) {

@@ -69,7 +69,7 @@ class JobDetailsServiceImplTest {
     private JobDetailsRequest request(LocalDate effectiveFrom) {
         return JobDetailsRequest.builder()
             .departmentId(10L).designationId(20L).locationId(30L)
-            .effectiveFrom(effectiveFrom).build();
+            .effectiveFrom(effectiveFrom).version(0L).build();
     }
 
     @Test
@@ -122,6 +122,21 @@ class JobDetailsServiceImplTest {
         BusinessRuleException ex = assertThrows(BusinessRuleException.class,
             () -> service.assignJob(5L, req));
         assertEquals("MANAGER_IS_SELF", ex.getRuleCode());
+    }
+
+    @Test
+    void aManagerWhoReportsUpToTheEmployeeIsRejected() {
+        when(employeeRepository.findByIdAndIsActive(7L, true)).thenReturn(Optional.of(mock(Employee.class)));
+        // 7 reports to 8, and 8 reports to the employee (5): choosing 7 as 5's manager would close a loop.
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(7L, 1)).thenReturn(Optional.of(
+            EmployeeJobDetails.builder().version(0L).employeeId(7L).reportingManagerId(8L).build()));
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(8L, 1)).thenReturn(Optional.of(
+            EmployeeJobDetails.builder().version(0L).employeeId(8L).reportingManagerId(5L).build()));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setReportingManagerId(7L);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("MANAGER_CYCLE", ex.getRuleCode());
     }
 
     @Test
@@ -242,7 +257,7 @@ class JobDetailsServiceImplTest {
 
     @Test
     void changingTheProfessionOfTheCurrentJobNeedsANewAssignment_butOmittingItKeepsIt() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).professionId(7L).workMode("ON_SITE").build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         JobDetailsRequest changed = request(LocalDate.now());
@@ -259,7 +274,7 @@ class JobDetailsServiceImplTest {
     }
 
     private EmployeeJobDetails currentWithoutProfession() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).workMode("ON_SITE").build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         return current;
@@ -344,7 +359,7 @@ class JobDetailsServiceImplTest {
 
     @Test
     void newAssignmentWithoutABranch_keepsTheCurrentBranchWhenTheLocationIsUnchanged() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -357,7 +372,7 @@ class JobDetailsServiceImplTest {
 
     @Test
     void newAssignmentInAnotherLocation_doesNotCarryTheOldBranchOver() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(31L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -371,7 +386,7 @@ class JobDetailsServiceImplTest {
     /** The branch decides who the branch manager of the employee's waiting requests is. */
     @Test
     void aNewAssignmentThatChangesTheBranchPublishesOrganisationChanged() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(31L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -385,7 +400,7 @@ class JobDetailsServiceImplTest {
 
     @Test
     void aNewAssignmentThatKeepsTheBranchPublishesNothing() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).companyBranchId(40L).effectiveFrom(LocalDate.now().minusDays(30)).build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -455,7 +470,7 @@ class JobDetailsServiceImplTest {
 
     @Test
     void changingTheBranchOnAnUpdateIsAStructuralChange() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).companyBranchId(40L).build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         JobDetailsRequest req = request(LocalDate.now());
@@ -515,7 +530,7 @@ class JobDetailsServiceImplTest {
     @Test
     void aCurrentJobWithoutASectionMayBeGivenOne_butASetSectionNeedsANewAssignment() {
         section(50L, 10L, true);
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).workMode("ON_SITE").build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         JobDetailsRequest req = request(LocalDate.now());
@@ -614,7 +629,7 @@ class JobDetailsServiceImplTest {
 
     @Test
     void aNewAssignmentKeepsTheAppointmentFieldsItWasNotGiven() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).workMode("ON_SITE").effectiveFrom(LocalDate.now().minusDays(5))
             .afe("OLD-AFE").specializationId(3L).contractTypeId(4L).currentWorkAddress("Old address").build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
@@ -634,11 +649,12 @@ class JobDetailsServiceImplTest {
 
     @Test
     void updatingTheCurrentJobSetsTheAppointmentFields_andAnEmptyValueClearsOne() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).workMode("ON_SITE").afe("OLD").formRequestNo("F1").specializationId(3L).build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         JobDetailsRequest req = request(LocalDate.now());
         req.setWorkMode("ON_SITE");
+        req.setVersion(0L);
         req.setAfe(" NEW ");
         req.setFormRequestNo("   ");
 
@@ -651,7 +667,7 @@ class JobDetailsServiceImplTest {
 
     @Test
     void aNewStartAfterTheCarriedOverContractEndIsRejected_andNothingIsClosedOrSaved() {
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).workMode("ON_SITE").effectiveFrom(LocalDate.now().minusDays(5))
             .contractEndDate(LocalDate.of(2026, 12, 31)).build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
@@ -671,7 +687,7 @@ class JobDetailsServiceImplTest {
         verify(audit).record(eq("EMPLOYEE_JOB_ASSIGNED"), eq("EMPLOYEE_JOB"), any(),
             argThat(d -> d.contains("employeeId=5") && d.contains("departmentId=10")));
 
-        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).workMode("ON_SITE").build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         JobDetailsRequest req = request(LocalDate.now());
@@ -681,8 +697,28 @@ class JobDetailsServiceImplTest {
     }
 
     @Test
-    void updatingTheCurrentJobRejectsAnInactiveSpecialization_andSavesNothing() {
+    void updatingTheCurrentJobNeedsTheVersionItWasOpenedWith_andRefusesAStaleOne() {
         EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").build();
+        current.setVersion(3L);
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        JobDetailsRequest none = request(LocalDate.now());
+        none.setWorkMode("ON_SITE");
+        none.setVersion(null);
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, none));
+        assertEquals("VERSION_REQUIRED", ex.getRuleCode());
+
+        JobDetailsRequest stale = request(LocalDate.now());
+        stale.setWorkMode("ON_SITE");
+        stale.setVersion(2L);
+        assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,
+            () -> service.updateCurrentJob(5L, stale));
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void updatingTheCurrentJobRejectsAnInactiveSpecialization_andSavesNothing() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L).designationId(20L)
             .locationId(30L).workMode("ON_SITE").build();
         when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
         specialization(3L, false);

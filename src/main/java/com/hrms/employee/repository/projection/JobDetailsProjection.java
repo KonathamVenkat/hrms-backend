@@ -91,6 +91,7 @@ public interface JobDetailsProjection {
     String  getEffectiveTo();
     Integer getIsCurrent();
     String  getRemarks();
+    Long    getVersion();
     String  getCreatedAt();
     String  getCreatedBy();
 }

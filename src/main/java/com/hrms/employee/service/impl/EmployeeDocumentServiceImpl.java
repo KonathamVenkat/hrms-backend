@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.util.Strings;
 import com.hrms.employee.service.EmployeeChecks;
 import com.hrms.common.audit.CurrentAuditor;
@@ -49,6 +50,9 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     private final EmployeeDocumentContentRepository contentRepository;
     private final UploadLimits               uploadLimits;
     private final UploadScanner              uploadScanner;
+    private final AuditTrail                 audit;
+
+    private static final String TARGET = "EMPLOYEE_DOCUMENT";
 
     @Value("${app.base-url:http://localhost:8082}")
     private String baseUrl;
@@ -202,6 +206,8 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         EmployeeDocument saved = documentRepository.saveAndFlush(entity);
         contentRepository.save(new EmployeeDocumentContent(saved.getDocumentId(), fileBytes));
         log.info("Document uploaded. ID: {}", saved.getDocumentId());
+        audit.record("EMPLOYEE_DOCUMENT_UPLOADED", TARGET, saved.getDocumentId(),
+            "employeeId=" + employeeId + ", docTypeId=" + request.getDocTypeId() + ", extension=" + extension);
 
         return toResponse(findProjection(employeeId, saved.getDocumentId()));
     }
@@ -223,6 +229,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         doc.setUpdatedAt(LocalDateTime.now());
 
         documentRepository.save(doc);
+        audit.record("EMPLOYEE_DOCUMENT_UPDATED", TARGET, documentId, "employeeId=" + employeeId);
         return toResponse(findProjection(employeeId, documentId));
     }
 
@@ -239,6 +246,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         doc.setUpdatedAt(LocalDateTime.now());
         documentRepository.save(doc);
         log.info("Document {} verified by {}", documentId, verifiedBy);
+        audit.record("EMPLOYEE_DOCUMENT_VERIFIED", TARGET, documentId, "employeeId=" + employeeId);
         return toResponse(findProjection(employeeId, documentId));
     }
 
@@ -251,6 +259,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         doc.setUpdatedAt(LocalDateTime.now());
         documentRepository.save(doc);
         log.info("Document {} soft-deleted for employee {}", documentId, employeeId);
+        audit.record("EMPLOYEE_DOCUMENT_DELETED", TARGET, documentId, "employeeId=" + employeeId);
     }
 
     // ── Download ──────────────────────────────────────────────

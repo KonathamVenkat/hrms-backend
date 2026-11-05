@@ -159,7 +159,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .designationId(request.getDesignationId())
             .professionId(professionId)
             .sectionId(request.getSectionId())
-            .jobPositionId(request.getJobPositionId())
+            .jobPositionId(Strings.trimToNull(request.getJobPositionId()))
             .reportingManagerId(request.getReportingManagerId())
             .functionalManagerId(request.getFunctionalManagerId())
             .locationId(request.getLocationId())
@@ -179,7 +179,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .effectiveFrom(request.getEffectiveFrom())
             .effectiveTo(null)              // null = still active
             .isCurrent(1)
-            .remarks(request.getRemarks())
+            .remarks(Strings.trimToNull(request.getRemarks()))
             .createdBy(auditor)
             .createdAt(LocalDateTime.now())
             .build();
@@ -216,6 +216,9 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .findByEmployeeIdAndIsCurrent(employeeId, 1)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "JobDetails", "employeeId", employeeId));
+        // The screen always sends the version it was opened with, so this cannot silently undo a colleague's save.
+        Versions.requireSentAndCurrent(request.getVersion(), current.getVersion(),
+            "Reload the job details and try again.");
 
         // Structural fields are history-bearing: changing one here would rewrite the past
         // instead of starting a new SCD record, and the old code silently ignored the change
@@ -266,7 +269,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         current.setCurrentWorkPhone(Strings.trimToNull(request.getCurrentWorkPhone()));
         current.setShiftId(request.getShiftId());
         current.setWorkMode(request.getWorkMode());
-        current.setRemarks(request.getRemarks());
+        current.setRemarks(Strings.trimToNull(request.getRemarks()));
         current.setUpdatedBy(CurrentAuditor.name());
         current.setUpdatedAt(LocalDateTime.now());
 
@@ -445,6 +448,24 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             throw new BusinessRuleException(
                 "MANAGER_INVALID", label + " must be an existing, active employee.");
         }
+        if (reportsUpTo(managerId, employeeId)) {
+            throw new BusinessRuleException(
+                "MANAGER_CYCLE", label + " already reports to this employee, directly or through others.");
+        }
+    }
+
+    /** Longest reporting chain followed when looking for a loop; a chain this long is data trouble, not an organisation. */
+    private static final int MAX_REPORTING_LEVELS = 50;
+
+    /** True when {@code start} has {@code target} somewhere above them in the reporting-manager chain. */
+    private boolean reportsUpTo(Long start, Long target) {
+        Long next = start;
+        for (int level = 0; level < MAX_REPORTING_LEVELS && next != null; level++) {
+            next = jobDetailsRepository.findByEmployeeIdAndIsCurrent(next, 1)
+                .map(EmployeeJobDetails::getReportingManagerId).orElse(null);
+            if (target.equals(next)) return true;
+        }
+        return false;
     }
 
     private JobDetailsResponse toResponse(JobDetailsProjection p) {
@@ -517,6 +538,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .effectiveTo(p.getEffectiveTo())
             .isCurrent(p.getIsCurrent() == 1)
             .remarks(p.getRemarks())
+            .version(p.getVersion())
             // Audit
             .createdBy(p.getCreatedBy())
             .createdAt(p.getCreatedAt())

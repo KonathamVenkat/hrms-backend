@@ -1,6 +1,7 @@
 package com.hrms.employee.service.impl;
 
 import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.enums.UserRole;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -40,6 +41,9 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
     private final UploadScanner           uploadScanner;
     private final EmployeeLoginAccounts   accounts;
     private final EmployeeAccessGuard     accessGuard;
+    private final AuditTrail              audit;
+
+    private static final String TARGET = "EMPLOYEE_PHOTO";
 
     @Override
     @Transactional
@@ -76,6 +80,7 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
         photoRepository.save(photo);
 
         employee.setProfilePhotoUrl(photoUrl(employeeId));
+        audit.record("EMPLOYEE_PHOTO_CHANGED", TARGET, employeeId, "employeeId=" + employeeId);
         return employeeMapper.toResponse(employeeRepository.save(employee));
     }
 
@@ -93,6 +98,7 @@ public class EmployeePhotoServiceImpl implements EmployeePhotoService {
         requireMayChange(employeeId);
         photoRepository.deleteById(employeeId);
         employee.setProfilePhotoUrl(null);
+        audit.record("EMPLOYEE_PHOTO_REMOVED", TARGET, employeeId, "employeeId=" + employeeId);
         return employeeMapper.toResponse(employeeRepository.save(employee));
     }
 

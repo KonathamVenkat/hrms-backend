@@ -1,6 +1,7 @@
 package com.hrms.employee.service.impl;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.util.Strings;
 import com.hrms.employee.service.EmployeeChecks;
 import com.hrms.auth.security.EmployeeAccessGuard;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Optional;
 
 @Slf4j
@@ -179,34 +181,46 @@ public class IdentityInfoServiceImpl implements IdentityInfoService {
     }
 
     private void validateUniqueFields(Long employeeId, IdentityInfoRequest req) {
-        if (hasValue(req.getNationalId()) &&
-            identityRepository.existsByNationalIdAndEmployeeIdNot(
-                req.getNationalId(), employeeId)) {
-            throw new BusinessRuleException(
-                "DUPLICATE_NATIONAL_ID",
-                "National ID already exists for another employee.");
+        String nationalId = normalise(req.getNationalId());
+        if (nationalId != null && identityRepository.existsByNationalIdAndEmployeeIdNot(nationalId, employeeId)) {
+            throw duplicate("nationalId", "DUPLICATE_NATIONAL_ID",
+                "National ID already exists for another employee.", employeeId);
         }
-        if (hasValue(req.getPassportNumber()) &&
-            identityRepository.existsByPassportNumberAndEmployeeIdNot(
-                req.getPassportNumber(), employeeId)) {
-            throw new BusinessRuleException(
-                "DUPLICATE_PASSPORT",
-                "Passport number already exists for another employee.");
+        String passport = normalise(req.getPassportNumber());
+        if (passport != null && identityRepository.existsByPassportNumberAndEmployeeIdNot(passport, employeeId)) {
+            throw duplicate("passportNumber", "DUPLICATE_PASSPORT",
+                "Passport number already exists for another employee.", employeeId);
         }
-        if (hasValue(req.getVisaNumber()) &&
-            identityRepository.existsByVisaNumberAndEmployeeIdNot(
-                req.getVisaNumber(), employeeId)) {
-            throw new BusinessRuleException(
-                "DUPLICATE_VISA",
-                "Visa number already exists for another employee.");
+        String visa = normalise(req.getVisaNumber());
+        if (visa != null && identityRepository.existsByVisaNumberAndEmployeeIdNot(visa, employeeId)) {
+            throw duplicate("visaNumber", "DUPLICATE_VISA",
+                "Visa number already exists for another employee.", employeeId);
         }
-        if (hasValue(req.getWorkPermitNumber()) &&
-            identityRepository.existsByWorkPermitNumberAndEmployeeIdNot(
-                req.getWorkPermitNumber(), employeeId)) {
-            throw new BusinessRuleException(
-                "DUPLICATE_WORK_PERMIT",
-                "Work permit number already exists for another employee.");
+        String workPermit = normalise(req.getWorkPermitNumber());
+        if (workPermit != null && identityRepository.existsByWorkPermitNumberAndEmployeeIdNot(workPermit, employeeId)) {
+            throw duplicate("workPermitNumber", "DUPLICATE_WORK_PERMIT",
+                "Work permit number already exists for another employee.", employeeId);
         }
+    }
+
+    /** The form of a number used to compare it with the others: no surrounding spaces, no difference in letter case. */
+    private static String normalise(String number) {
+        String trimmed = Strings.trimToNull(number);
+        return trimmed == null ? null : trimmed.toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * Only an HR_ADMIN is told which number clashes with whom. Anyone else (an employee saving their own details)
+     * gets one generic refusal, so the form cannot be used to find out which numbers other employees hold.
+     * The refusal is logged with the field name, never the number.
+     */
+    private BusinessRuleException duplicate(String field, String rule, String message, Long employeeId) {
+        log.warn("Identity save refused as a duplicate: field={}, employeeId={}, actor={}",
+            field, employeeId, CurrentAuditor.name());
+        return accessGuard.isHrAdmin()
+            ? new BusinessRuleException(rule, message)
+            : new BusinessRuleException("IDENTITY_NOT_ACCEPTED",
+                "These identity details could not be saved. Check them or contact HR.");
     }
 
     private IdentityInfoResponse toResponse(EmployeeIdentityInfo info, boolean masked) {

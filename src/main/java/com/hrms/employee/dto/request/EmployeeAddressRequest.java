@@ -13,23 +13,29 @@ public class EmployeeAddressRequest {
 
     @NotBlank(message = "Address line 1 is required")
     @Size(max = 300, message = "Address line 1 max 300 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Address line 1 contains control or invisible characters")
     private String addressLine1;
 
     @Size(max = 300, message = "Address line 2 max 300 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Address line 2 contains control or invisible characters")
     private String addressLine2;
 
     @NotBlank(message = "City is required")
     @Size(max = 100, message = "City max 100 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "City contains control or invisible characters")
     private String city;
 
     @Size(max = 100, message = "State/Province max 100 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "State/Province contains control or invisible characters")
     private String stateProvince;
 
     @NotBlank(message = "Country is required")
     @Size(max = 100, message = "Country max 100 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Country contains control or invisible characters")
     private String country;
 
     @Size(max = 20, message = "Postal code max 20 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Postal code contains control or invisible characters")
     private String postalCode;
 
     private Boolean isPrimary;

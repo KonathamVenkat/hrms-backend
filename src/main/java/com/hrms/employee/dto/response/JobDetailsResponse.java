@@ -91,6 +91,8 @@ public class JobDetailsResponse {
     private String  effectiveTo;
     private Boolean isCurrent;
     private String  remarks;
+    /** Optimistic-lock version: send it back unchanged when updating the current job. */
+    private Long    version;
 
     // Audit
     private String  createdBy;

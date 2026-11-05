@@ -214,6 +214,7 @@ class IdentityInfoServiceImplTest {
     void duplicateNationalIdOnAnotherEmployeeIsRejected() {
         when(employeeRepository.existsById(5L)).thenReturn(true);
         when(identityRepository.existsByNationalIdAndEmployeeIdNot("123456789", 5L)).thenReturn(true);
+        when(accessGuard.isHrAdmin()).thenReturn(true);
         IdentityInfoRequest req = new IdentityInfoRequest();
         req.setNationalId("123456789");
 
@@ -307,5 +308,63 @@ class IdentityInfoServiceImplTest {
         BusinessRuleException ex =
             assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, req));
         assertEquals("INVALID_NATIONAL_ID_DATES", ex.getRuleCode());
+    }
+
+    // ── Duplicate numbers ───────────────────────────────────
+
+    private IdentityInfoRequest passportRequest(String passport) {
+        IdentityInfoRequest req = new IdentityInfoRequest();
+        req.setPassportNumber(passport);
+        return req;
+    }
+
+    @Test
+    void aNumberIsComparedTrimmedAndUpperCased() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.existsByPassportNumberAndEmployeeIdNot("AB123", 5L)).thenReturn(true);
+        when(accessGuard.isHrAdmin()).thenReturn(true);
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+            () -> service.saveIdentityInfo(5L, passportRequest("  ab123 ")));
+
+        assertEquals("DUPLICATE_PASSPORT", ex.getRuleCode());
+        verify(identityRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void anHrAdminIsToldWhichNumberClashes_everyoneElseGetsOneGenericRefusal() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.existsByNationalIdAndEmployeeIdNot("N-1", 5L)).thenReturn(true);
+        when(identityRepository.existsByVisaNumberAndEmployeeIdNot("V-9", 5L)).thenReturn(true);
+        IdentityInfoRequest nationalId = new IdentityInfoRequest();
+        nationalId.setNationalId("n-1");
+        IdentityInfoRequest visa = new IdentityInfoRequest();
+        visa.setVisaNumber("v-9");
+
+        when(accessGuard.isHrAdmin()).thenReturn(false);
+        assertEquals("IDENTITY_NOT_ACCEPTED",
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, nationalId)).getRuleCode());
+        assertEquals("IDENTITY_NOT_ACCEPTED",
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, visa)).getRuleCode());
+
+        when(accessGuard.isHrAdmin()).thenReturn(true);
+        assertEquals("DUPLICATE_NATIONAL_ID",
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, nationalId)).getRuleCode());
+        assertEquals("DUPLICATE_VISA",
+            assertThrows(BusinessRuleException.class, () -> service.saveIdentityInfo(5L, visa)).getRuleCode());
+    }
+
+    @Test
+    void anEmptyOrBlankNumberIsNeverComparedWithTheOthers() {
+        when(employeeRepository.existsById(5L)).thenReturn(true);
+        when(identityRepository.findByEmployeeId(5L)).thenReturn(Optional.empty());
+        when(identityRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
+        IdentityInfoRequest req = passportRequest("   ");
+        req.setWorkPermitNumber("");
+
+        service.saveIdentityInfo(5L, req);
+
+        verify(identityRepository, never()).existsByPassportNumberAndEmployeeIdNot(any(), any());
+        verify(identityRepository, never()).existsByWorkPermitNumberAndEmployeeIdNot(any(), any());
     }
 }

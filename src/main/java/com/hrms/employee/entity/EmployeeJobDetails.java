@@ -143,6 +143,11 @@ public class EmployeeJobDetails {
     @Column(name = "REMARKS", length = 500)
     private String remarks;
 
+    /** Optimistic-lock version (V21): a screen opened before someone else saved is refused with 409. */
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
+
     // ── Audit ─────────────────────────────────────────────────
     @Column(name = "CREATED_BY", length = 36)
     private String createdBy;

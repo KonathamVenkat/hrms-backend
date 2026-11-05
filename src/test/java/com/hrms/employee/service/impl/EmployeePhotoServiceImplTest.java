@@ -34,13 +34,14 @@ class EmployeePhotoServiceImplTest {
     EmployeeMapper          mapper    = mock(EmployeeMapper.class);
     EmployeeLoginAccounts   accounts  = mock(EmployeeLoginAccounts.class);
     EmployeeAccessGuard     guard     = mock(EmployeeAccessGuard.class);
+    com.hrms.auth.service.AuditTrail audit = mock(com.hrms.auth.service.AuditTrail.class);
     EmployeePhotoServiceImpl service;
     Employee employee;
 
     @BeforeEach
     void setUp() {
         service = new EmployeePhotoServiceImpl(employees, photos, mapper,
-                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000), accounts, guard);
+                new com.hrms.employee.config.UploadScanner(false, "localhost", 3310, 1000), accounts, guard, audit);
         employee = new Employee();
         when(employees.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(employee));
         when(employees.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -79,6 +80,7 @@ class EmployeePhotoServiceImplTest {
         assertEquals("image/png", saved.getValue().getContentType()); // from the bytes, not the header
         assertArrayEquals(PNG, saved.getValue().getContent());
         assertTrue(employee.getProfilePhotoUrl().matches("/api/v1/employees/5/photo\\?v=\\d+"));
+        verify(audit).record("EMPLOYEE_PHOTO_CHANGED", "EMPLOYEE_PHOTO", 5L, "employeeId=5");
     }
 
 
@@ -86,7 +88,7 @@ class EmployeePhotoServiceImplTest {
     void aPhotoTheScannerRejectsIsNeverStored() {
         var scanner = mock(com.hrms.employee.config.UploadScanner.class);
         doThrow(new BusinessRuleException("MALWARE_DETECTED", "infected")).when(scanner).assertClean(any());
-        var scanning = new EmployeePhotoServiceImpl(employees, photos, mapper, scanner, accounts, guard);
+        var scanning = new EmployeePhotoServiceImpl(employees, photos, mapper, scanner, accounts, guard, audit);
 
         var ex = assertThrows(BusinessRuleException.class,
             () -> scanning.upload(5L, new MockMultipartFile("file", "me.png", "image/png", PNG)));
@@ -130,6 +132,7 @@ class EmployeePhotoServiceImplTest {
         service.remove(5L);
         verify(photos).deleteById(5L);
         assertNull(employee.getProfilePhotoUrl());
+        verify(audit).record("EMPLOYEE_PHOTO_REMOVED", "EMPLOYEE_PHOTO", 5L, "employeeId=5");
     }
 
     @Test

@@ -248,6 +248,15 @@ class GeneratedMastersDbTest extends DatabaseTest {
             "'DOCUMENT_TYPE','DOCUMENT_NO','DOCUMENT_ISSUE_DATE','DOCUMENT_ISSUE_PLACE','DOCUMENT_VALID_UNTIL'"));
     }
 
+    @Test
+    void v21AndV22GiveJobDetailsAVersionAndIdentityNumbersUniqueIndexes() {
+        assertEquals(1, columnCount("EMPLOYEE_JOB_DETAILS", "'VERSION'"));   // V21
+        int unique = ((Number) em.createNativeQuery("select count(*) from all_indexes where owner = 'HRMS' "
+            + "and table_name = 'EMPLOYEE_IDENTITY_INFO' and uniqueness = 'UNIQUE' and index_name in "
+            + "('UQ_EII_NATIONAL_ID','UQ_EII_PASSPORT','UQ_EII_VISA_NUMBER','UQ_EII_WORK_PERMIT')").getSingleResult()).intValue();
+        assertEquals(4, unique);   // V22
+    }
+
     private int columnCount(String table, String quotedColumns) {
         return ((Number) em.createNativeQuery("select count(*) from all_tab_columns where owner = 'HRMS' and table_name = '"
             + table + "' and column_name in (" + quotedColumns + ")").getSingleResult()).intValue();

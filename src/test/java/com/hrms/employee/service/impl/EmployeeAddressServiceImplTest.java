@@ -30,6 +30,7 @@ class EmployeeAddressServiceImplTest {
         service = new EmployeeAddressServiceImpl(addresses, employees, audit);
         when(employees.findByIdForUpdate(5L)).thenReturn(java.util.Optional.of(new com.hrms.employee.entity.Employee()));
         when(addresses.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(addresses.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
     }
 
     private static EmployeeAddressRequest request(String type, Boolean primary) {

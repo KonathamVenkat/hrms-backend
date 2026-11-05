@@ -176,7 +176,7 @@ class AuthServiceImplTest {
     void aFirstRefreshRotatesTheTokenAndKeepsTheOriginalExpiry() {
         Instant expiry = Instant.now().plusSeconds(3 * 24 * 3600);
         when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(false, expiry)));
-        when(refreshTokens.revokeIfActive("old-token")).thenReturn(1);
+        when(refreshTokens.revokeIfActive(eq("old-token"), any())).thenReturn(1);
 
         LoginResponse response = refresh();
 
@@ -191,8 +191,8 @@ class AuthServiceImplTest {
     @Test
     void theLoserOfARaceGetsAnAccessTokenOnlyAndNoSecondRefreshToken() {
         when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(false, Instant.now().plusSeconds(3600))));
-        when(refreshTokens.revokeIfActive("old-token")).thenReturn(0);   // another request rotated it first
-        when(refreshTokens.existsByUser_UserIdAndCreatedAtAfter(eq(1L), any())).thenReturn(true);
+        when(refreshTokens.revokeIfActive(eq("old-token"), any())).thenReturn(0);   // another request rotated it first
+        when(refreshTokens.findRotatedAt("old-token")).thenReturn(Optional.of(LocalDateTime.now().minusSeconds(2)));
 
         LoginResponse response = refresh();
 
@@ -205,19 +205,19 @@ class AuthServiceImplTest {
     @Test
     void anAlreadyRotatedTokenSeenWithinTheGraceWindowIsTolerated() {
         when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(true, Instant.now().plusSeconds(3600))));
-        when(refreshTokens.existsByUser_UserIdAndCreatedAtAfter(eq(1L), any())).thenReturn(true);
+        when(refreshTokens.findRotatedAt("old-token")).thenReturn(Optional.of(LocalDateTime.now().minusSeconds(2)));
 
         LoginResponse response = refresh();
 
         assertNull(response.refreshToken());
-        verify(refreshTokens, never()).revokeIfActive(any());
+        verify(refreshTokens, never()).revokeIfActive(any(), any());
         verify(refreshTokens, never()).save(any());
     }
 
     @Test
     void aUsedTokenPresentedLaterIsRefusedAndAudited() {
         when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(true, Instant.now().plusSeconds(3600))));
-        when(refreshTokens.existsByUser_UserIdAndCreatedAtAfter(eq(1L), any())).thenReturn(false);
+        when(refreshTokens.findRotatedAt("old-token")).thenReturn(Optional.empty());
 
         assertThrows(InvalidTokenException.class, this::refresh);
 
@@ -228,12 +228,31 @@ class AuthServiceImplTest {
     @Test
     void aLostRaceOutsideTheGraceWindowIsRefused() {
         when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(false, Instant.now().plusSeconds(3600))));
-        when(refreshTokens.revokeIfActive("old-token")).thenReturn(0);
-        when(refreshTokens.existsByUser_UserIdAndCreatedAtAfter(eq(1L), any())).thenReturn(false);
+        when(refreshTokens.revokeIfActive(eq("old-token"), any())).thenReturn(0);
+        when(refreshTokens.findRotatedAt("old-token")).thenReturn(Optional.empty());
 
         assertThrows(InvalidTokenException.class, this::refresh);
 
         verify(refreshTokens, never()).save(any());
+    }
+
+    @Test
+    void aTokenRevokedAnyOtherWayGetsNoGrace_evenIfTheUserLoggedInASecondAgo() {
+        // Revoked by logout or a password change: it was never rotated, so there is no rotation time to find.
+        when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(true, Instant.now().plusSeconds(3600))));
+        when(refreshTokens.findRotatedAt("old-token")).thenReturn(Optional.empty());
+
+        assertThrows(InvalidTokenException.class, this::refresh);
+        verify(audit).recordAs(eq("jaya"), eq("REFRESH_TOKEN_REJECTED"), eq("USER"), eq(1L), any());
+        verify(refreshTokens, never()).save(any());
+    }
+
+    @Test
+    void aTokenRotatedLongAgoGetsNoGrace() {
+        when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(true, Instant.now().plusSeconds(3600))));
+        when(refreshTokens.findRotatedAt("old-token")).thenReturn(Optional.of(LocalDateTime.now().minusMinutes(5)));
+
+        assertThrows(InvalidTokenException.class, this::refresh);
     }
 
     @Test
@@ -242,7 +261,7 @@ class AuthServiceImplTest {
 
         assertThrows(InvalidTokenException.class, this::refresh);
 
-        verify(refreshTokens, never()).revokeIfActive(any());
+        verify(refreshTokens, never()).revokeIfActive(any(), any());
         verify(refreshTokens, never()).save(any());
     }
 
@@ -254,7 +273,7 @@ class AuthServiceImplTest {
 
         assertThrows(AccountDisabledException.class, this::refresh);
 
-        verify(refreshTokens, never()).revokeIfActive(any());
+        verify(refreshTokens, never()).revokeIfActive(any(), any());
     }
 
     @Test
@@ -265,7 +284,7 @@ class AuthServiceImplTest {
         LoginResponse response = refresh();
 
         assertEquals("old-token", response.refreshToken());
-        verify(refreshTokens, never()).revokeIfActive(any());
+        verify(refreshTokens, never()).revokeIfActive(any(), any());
         verify(refreshTokens, never()).save(any());
     }
 }

@@ -59,6 +59,10 @@ public class RefreshToken {
     @Column(name = "CREATED_AT", updatable = false)
     private LocalDateTime createdAt;
 
+    /** When a refresh used this token up (V23). Only a rotation sets it; logout, password change and deactivation do not. */
+    @Column(name = "ROTATED_AT")
+    private LocalDateTime rotatedAt;
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     public boolean isExpired() {

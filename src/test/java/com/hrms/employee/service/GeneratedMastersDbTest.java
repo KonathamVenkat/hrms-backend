@@ -255,6 +255,7 @@ class GeneratedMastersDbTest extends DatabaseTest {
             + "and table_name = 'EMPLOYEE_IDENTITY_INFO' and uniqueness = 'UNIQUE' and index_name in "
             + "('UQ_EII_NATIONAL_ID','UQ_EII_PASSPORT','UQ_EII_VISA_NUMBER','UQ_EII_WORK_PERMIT')").getSingleResult()).intValue();
         assertEquals(4, unique);   // V22
+        assertEquals(1, columnCount("AUTH_REFRESH_TOKENS", "'ROTATED_AT'"));   // V23
     }
 
     private int columnCount(String table, String quotedColumns) {

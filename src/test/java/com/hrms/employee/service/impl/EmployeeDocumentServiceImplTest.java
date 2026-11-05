@@ -182,6 +182,19 @@ class EmployeeDocumentServiceImplTest {
     }
 
     @Test
+    void theStoredFileNameHasNoFolderPartAndNoHiddenCharacters() {
+        assertEquals("passport.pdf", EmployeeDocumentServiceImpl.safeFileName("..\\..\\docs/passport.pdf", "pdf"));
+        assertEquals("evil.pdf", EmployeeDocumentServiceImpl.safeFileName("evil\u200B\u0007.pdf", "pdf"));
+        assertEquals("document.pdf", EmployeeDocumentServiceImpl.safeFileName(".pdf", "pdf"));
+        assertEquals("document.png", EmployeeDocumentServiceImpl.safeFileName("   ", "png"));
+        assertEquals("document.pdf", EmployeeDocumentServiceImpl.safeFileName(null, "pdf"));
+        String longName = "a".repeat(400) + ".pdf";
+        String kept = EmployeeDocumentServiceImpl.safeFileName(longName, "pdf");
+        assertEquals(300, kept.length());
+        assertTrue(kept.endsWith(".pdf"));   // the end is kept, so the extension survives
+    }
+
+    @Test
     void deleteIsASoftDelete() {
         EmployeeDocument doc = stored(9, 5, 1);
         when(documents.findById(9L)).thenReturn(Optional.of(doc));

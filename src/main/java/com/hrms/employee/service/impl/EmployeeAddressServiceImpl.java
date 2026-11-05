@@ -127,7 +127,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
             existing.setIsPrimary(1);
         }
 
-        EmployeeAddress updated = addressRepository.save(existing);
+        EmployeeAddress updated = addressRepository.saveAndFlush(existing);   // so the response carries the new version
         audit.record("EMPLOYEE_ADDRESS_UPDATED", TARGET, addressId, summary(updated));
         return toResponse(updated);
     }

@@ -39,18 +39,28 @@ class RefreshTokenRepositoryDbTest extends DatabaseTest {
     void onlyTheFirstCallerWinsTheRevoke() {
         token(user(), "t-1", Instant.now().plusSeconds(3600), false);
 
-        assertEquals(1, tokens.revokeIfActive("t-1"));
-        assertEquals(0, tokens.revokeIfActive("t-1"), "a second caller must lose");
-        assertEquals(0, tokens.revokeIfActive("no-such-token"));
+        assertEquals(1, tokens.revokeIfActive("t-1", LocalDateTime.now()));
+        assertEquals(0, tokens.revokeIfActive("t-1", LocalDateTime.now()), "a second caller must lose");
+        assertEquals(0, tokens.revokeIfActive("no-such-token", LocalDateTime.now()));
     }
 
     @Test
-    void theGraceLookupSeesATokenIssuedJustNowButNotOneFromBefore() {
+    void onlyARotationLeavesARotationTime() {
         AuthUser u = user();
         token(u, "t-2", Instant.now().plusSeconds(3600), false);
+        token(u, "t-3", Instant.now().plusSeconds(3600), false);
+        token(u, "t-4", Instant.now().plusSeconds(3600), false);
+        LocalDateTime before = LocalDateTime.now().minusSeconds(5);
 
-        assertTrue(tokens.existsByUser_UserIdAndCreatedAtAfter(u.getUserId(), LocalDateTime.now().minusSeconds(60)));
-        assertFalse(tokens.existsByUser_UserIdAndCreatedAtAfter(u.getUserId(), LocalDateTime.now().plusSeconds(60)));
+        assertTrue(tokens.findRotatedAt("t-2").isEmpty(), "an active token was never rotated");
+        tokens.revokeIfActive("t-2", LocalDateTime.now());
+        tokens.revokeByToken("t-3");        // logout
+        tokens.revokeAllByUserId(u.getUserId());   // password change: also not a rotation, whatever it did to t-4
+
+        assertTrue(tokens.findRotatedAt("t-2").orElseThrow().isAfter(before));
+        assertTrue(tokens.findRotatedAt("t-3").isEmpty(), "logout is not a rotation");
+        assertTrue(tokens.findRotatedAt("t-4").isEmpty(), "revoking everything is not a rotation");
+        assertTrue(tokens.findRotatedAt("no-such-token").isEmpty());
     }
 
     @Test

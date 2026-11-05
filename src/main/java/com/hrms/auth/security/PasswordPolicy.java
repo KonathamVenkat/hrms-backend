@@ -10,7 +10,8 @@ import com.hrms.common.exception.BusinessRuleException;
 public final class PasswordPolicy {
 
     public static final int MIN_LENGTH = 8;
-    public static final int MAX_LENGTH = 72;   // BCrypt silently ignores anything past 72 bytes
+    /** BCrypt refuses more than 72 BYTES, which is fewer characters for Arabic and other non-ASCII text. */
+    public static final int MAX_BYTES = 72;
 
     private PasswordPolicy() {}
 
@@ -20,9 +21,9 @@ public final class PasswordPolicy {
             throw new BusinessRuleException("PASSWORD_POLICY",
                     "Password must be at least " + MIN_LENGTH + " characters long.");
         }
-        if (password.length() > MAX_LENGTH) {
+        if (password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_BYTES) {
             throw new BusinessRuleException("PASSWORD_POLICY",
-                    "Password must be at most " + MAX_LENGTH + " characters long.");
+                    "Password is too long: at most " + MAX_BYTES + " bytes (72 English letters, fewer in Arabic).");
         }
         boolean upper = false, lower = false, digit = false;
         for (char c : password.toCharArray()) {

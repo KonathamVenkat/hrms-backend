@@ -189,7 +189,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
             .employeeId(employeeId)
             .docTypeId(request.getDocTypeId())
             .documentName(request.getDocumentName().trim())
-            .originalFileName(originalName)
+            .originalFileName(safeFileName(originalName, extensionLc))
             .fileSize(sizeBytes)
             .fileExtension(extension)
             .documentNumber(Strings.trimToNull(request.getDocumentNumber()))
@@ -345,6 +345,21 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         if (bytes < 1024 * 1024)      return String.format("%.1f KB", bytes / 1024.0);
         return String.format("%.1f MB", bytes / (1024.0 * 1024));
     }
+
+    /**
+     * The client's file name made safe to store and show: no folder part, no control or invisible characters, and
+     * short enough for its column. A name that is nothing after cleaning becomes "document.<ext>".
+     */
+    static String safeFileName(String name, String extensionLc) {
+        String base = name == null ? "" : name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+        base = base.replaceAll("[" + "\\p{Cc}\\p{Cf}" + "]", "").trim();
+        if (base.isEmpty() || base.startsWith(".")) {
+            return "document." + extensionLc;
+        }
+        return base.length() > MAX_FILE_NAME ? base.substring(base.length() - MAX_FILE_NAME) : base;
+    }
+
+    private static final int MAX_FILE_NAME = 300;
 
     private String getExtension(String filename) {
         if (filename == null || !filename.contains(".")) return "bin";

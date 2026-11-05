@@ -141,9 +141,9 @@ public class AuthServiceImpl implements AuthService {
         validateAccountState(user);
 
         boolean alreadyUsed = Boolean.TRUE.equals(rt.getIsRevoked())
-            || (rotateRefreshToken && refreshTokenRepository.revokeIfActive(request.refreshToken()) == 0);
+            || (rotateRefreshToken && refreshTokenRepository.revokeIfActive(request.refreshToken(), LocalDateTime.now()) == 0);
         if (alreadyUsed) {
-            return answerUsedToken(user);
+            return answerUsedToken(user, request.refreshToken());
         }
 
         String newAccess = generateToken(user);
@@ -155,9 +155,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /** Answer for a token that was already rotated or revoked: tolerate the same-moment tab, refuse a later replay. */
-    private LoginResponse answerUsedToken(AuthUser user) {
+    private LoginResponse answerUsedToken(AuthUser user, String presentedToken) {
         LocalDateTime graceStart = LocalDateTime.now().minusSeconds(reuseGraceSeconds);
-        if (refreshTokenRepository.existsByUser_UserIdAndCreatedAtAfter(user.getUserId(), graceStart)) {
+        // Only the token that was rotated moments ago gets the grace (a second tab that had not yet received the new
+        // cookie). A token revoked any other way, or rotated earlier, never does, whatever else the user did since.
+        if (refreshTokenRepository.findRotatedAt(presentedToken).filter(at -> at.isAfter(graceStart)).isPresent()) {
             return buildResponse(user, generateToken(user), null);
         }
         audit.recordAs(user.getUsername(), "REFRESH_TOKEN_REJECTED", "USER", user.getUserId(),

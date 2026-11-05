@@ -39,6 +39,19 @@ class AddressJobInputHygieneTest {
     }
 
     @Test
+    void documentTextRefusesHiddenCharacters_andNotesMayHaveLineBreaks() {
+        com.hrms.employee.dto.request.EmployeeDocumentRequest ok = com.hrms.employee.dto.request.EmployeeDocumentRequest.builder()
+            .docTypeId(1L).documentName("Passport").documentNumber("P-1").issuedBy("Ministry")
+            .notes("line one\nline two").build();
+        assertTrue(VALIDATOR.validate(ok).isEmpty());
+
+        com.hrms.employee.dto.request.EmployeeDocumentRequest hidden = com.hrms.employee.dto.request.EmployeeDocumentRequest.builder()
+            .docTypeId(1L).documentName("Pass" + ZERO_WIDTH_SPACE + "port").documentNumber("P-1\u0007").issuedBy("Ministry")
+            .notes("note" + ZERO_WIDTH_SPACE).build();
+        assertEquals(3, VALIDATOR.validate(hidden).size());
+    }
+
+    @Test
     void jobRemarksMayHaveLineBreaksButNotOtherControlOrInvisibleCharacters() {
         assertTrue(VALIDATOR.validate(job("First line\r\nSecond line\twith tab", "P-100")).isEmpty());
         assertEquals(1, VALIDATOR.validate(job("hidden" + ZERO_WIDTH_SPACE + "text", "P-100")).size());

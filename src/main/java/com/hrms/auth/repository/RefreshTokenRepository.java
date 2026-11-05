@@ -31,11 +31,15 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * concurrent refreshes with the same cookie cannot both rotate it.
      */
     @Modifying
-    @Query("UPDATE RefreshToken rt SET rt.isRevoked = true WHERE rt.token = :token AND rt.isRevoked = false")
-    int revokeIfActive(@Param("token") String token);
+    @Query("UPDATE RefreshToken rt SET rt.isRevoked = true, rt.rotatedAt = :now WHERE rt.token = :token AND rt.isRevoked = false")
+    int revokeIfActive(@Param("token") String token, @Param("now") LocalDateTime now);
 
-    /** True when the user was issued a token after the given time, i.e. a rotation happened moments ago. */
-    boolean existsByUser_UserIdAndCreatedAtAfter(Long userId, LocalDateTime createdAfter);
+    /**
+     * When this very token was rotated, or empty if it never was (still active, or revoked by logout, password change
+     * or deactivation). Read from the database, not from a loaded entity, so a rotation committed a moment ago is seen.
+     */
+    @Query("SELECT rt.rotatedAt FROM RefreshToken rt WHERE rt.token = :token")
+    Optional<LocalDateTime> findRotatedAt(@Param("token") String token);
 
     /**
      * House-keeping: purge tokens past their expiry. Revoked tokens stay until they expire, so a replay of a

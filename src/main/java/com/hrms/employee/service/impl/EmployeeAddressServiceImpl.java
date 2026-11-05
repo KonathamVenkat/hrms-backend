@@ -52,7 +52,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     @Transactional
     public EmployeeAddressResponse addAddress(Long employeeId, EmployeeAddressRequest request) {
         log.info("Adding {} address for employee {}", request.getAddressType(), employeeId);
-        EmployeeChecks.requireExists(employeeRepository, employeeId);
+        lockEmployee(employeeId);
 
         // Each type can only have one active address
         if (addressRepository.existsByEmployeeIdAndAddressTypeAndIsActive(
@@ -147,6 +147,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     @Override
     @Transactional
     public void deactivateAddress(Long employeeId, Long addressId) {
+        lockEmployee(employeeId);
         EmployeeAddress address = findAddress(employeeId, addressId);
         if (!isActive(address)) {
             return; // already removed: a repeated request changes nothing and is not audited again
@@ -186,6 +187,12 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     }
 
     // ── Helpers ───────────────────────────────────────────────
+
+    /** Serialises changes to one employee's addresses: two requests cannot both pass the "last active" or duplicate-type check. */
+    private void lockEmployee(Long employeeId) {
+        employeeRepository.findByIdForUpdate(employeeId)
+            .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+    }
 
     private static boolean isActive(EmployeeAddress a) {
         return a.getIsActive() != null && a.getIsActive() == 1;

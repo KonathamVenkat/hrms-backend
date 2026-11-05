@@ -28,7 +28,7 @@ class EmployeeAddressServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new EmployeeAddressServiceImpl(addresses, employees, audit);
-        when(employees.existsById(5L)).thenReturn(true);
+        when(employees.findByIdForUpdate(5L)).thenReturn(java.util.Optional.of(new com.hrms.employee.entity.Employee()));
         when(addresses.save(any())).thenAnswer(i -> i.getArgument(0));
     }
 

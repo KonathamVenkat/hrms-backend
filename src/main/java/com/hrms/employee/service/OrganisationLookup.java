@@ -21,6 +21,9 @@ public interface OrganisationLookup {
     /** Department of the employee's current job; empty when no current job or the department is inactive. */
     Optional<Long> departmentOf(long employeeId);
 
+    /** The role of the employee's login (e.g. "HR_ADMIN", "GENERAL_MANAGER"); empty when the employee has no login. */
+    Optional<String> accountRoleOf(long employeeId);
+
     boolean departmentExists(long departmentId);
 
     boolean isDepartmentActive(long departmentId);

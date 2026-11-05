@@ -264,4 +264,14 @@ class GeneratedMastersDbTest extends DatabaseTest {
         return ((Number) em.createNativeQuery("select count(*) from all_tab_columns where owner = 'HRMS' and table_name = '"
             + table + "' and column_name in (" + quotedColumns + ")").getSingleResult()).intValue();
     }
+
+    @Test
+    void v25AddsTheCeoRoleRowAndLetsALoginHaveIt() {
+        assertEquals(1, ((Number) em.createNativeQuery("select count(*) from roles where role_name = 'CEO'").getSingleResult()).intValue());
+        String condition = (String) em.createNativeQuery("select search_condition_vc from all_constraints where owner = 'HRMS' "
+            + "and table_name = 'AUTH_USERS' and constraint_name = 'CK_AUTH_USERS_ROLE'").getSingleResult();
+        org.junit.jupiter.api.Assertions.assertTrue(condition.contains("'CEO'"), condition);
+        org.junit.jupiter.api.Assertions.assertTrue(condition.contains("'GENERAL_MANAGER'"), condition);
+    }
+
 }

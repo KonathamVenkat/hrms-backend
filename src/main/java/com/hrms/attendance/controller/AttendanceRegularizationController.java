@@ -81,7 +81,7 @@ public class AttendanceRegularizationController {
 
     // ── HR/Manager: Approve ───────────────────────────────────
     @PatchMapping("/{regId}/approve")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO')")
     public ResponseEntity<ApiResponse<RegularizationResponse>> approve(
             @PathVariable Long regId,
             @Valid @RequestBody RegularizationActionRequest request) {
@@ -94,7 +94,7 @@ public class AttendanceRegularizationController {
 
     // ── HR/Manager: Reject ────────────────────────────────────
     @PatchMapping("/{regId}/reject")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO')")
     public ResponseEntity<ApiResponse<RegularizationResponse>> reject(
             @PathVariable Long regId,
             @Valid @RequestBody RegularizationActionRequest request) {

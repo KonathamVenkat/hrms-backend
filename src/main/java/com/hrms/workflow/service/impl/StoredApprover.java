@@ -13,9 +13,10 @@ record StoredApprover(Long employeeId, String role) {
 
     static final String OVERRIDE_ROLE = UserRole.HR_ADMIN.name();
 
-    static StoredApprover of(WorkflowStep step, Long resolvedEmployeeId, long requesterId) {
+    /** {@code holdingRole} is the role that holds a ROLE step for this requester (see ApproverResolver#roleHolding). */
+    static StoredApprover of(WorkflowStep step, Long resolvedEmployeeId, long requesterId, String holdingRole) {
         if (step.getApproverType() == ApproverType.ROLE) {
-            return new StoredApprover(null, step.getApproverRole());
+            return new StoredApprover(null, holdingRole != null ? holdingRole : step.getApproverRole());
         }
         boolean someoneElse = resolvedEmployeeId != null && resolvedEmployeeId != requesterId;
         return someoneElse ? new StoredApprover(resolvedEmployeeId, null) : new StoredApprover(null, OVERRIDE_ROLE);

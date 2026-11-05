@@ -135,7 +135,8 @@ class ApproverRefresher {
             ? r.requesterEmployeeId() : r.targetDepartmentId());
         Long holder = resolved.computeIfAbsent(key,
             k -> resolver.resolve(step, r.requesterEmployeeId(), r.targetDepartmentId())).orElse(null);
-        StoredApprover now = StoredApprover.of(step, holder, r.requesterEmployeeId());
+        StoredApprover now = StoredApprover.of(step, holder, r.requesterEmployeeId(),
+            resolver.roleHolding(step, r.requesterEmployeeId()).orElse(null));
         boolean same = Objects.equals(now.employeeId(), r.approverEmployeeId())
             && Objects.equals(now.role(), r.approverRole());
         return same ? Optional.empty()

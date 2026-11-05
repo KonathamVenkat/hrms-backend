@@ -81,7 +81,7 @@ public class OvertimeRequestController {
 
     // ── HR/Manager: Approve ───────────────────────────────
     @PatchMapping("/{otId}/approve")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO')")
     public ResponseEntity<ApiResponse<OvertimeResponse>> approve(
             @PathVariable String otId,
             @Valid @RequestBody OvertimeActionRequest request) {
@@ -94,7 +94,7 @@ public class OvertimeRequestController {
 
     // ── HR/Manager: Reject ────────────────────────────────
     @PatchMapping("/{otId}/reject")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO')")
     public ResponseEntity<ApiResponse<OvertimeResponse>> reject(
             @PathVariable String otId,
             @Valid @RequestBody OvertimeActionRequest request) {

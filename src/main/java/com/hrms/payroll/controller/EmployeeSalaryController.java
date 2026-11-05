@@ -55,7 +55,7 @@ public class EmployeeSalaryController {
 
     // ── Salary history for one employee ──────────────────
     @GetMapping("/{employeeId}/history")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasRole('HR_ADMIN')")
     public ResponseEntity<ApiResponse<List<EmployeeSalaryResponse>>> getHistory(
             @PathVariable Long employeeId) {
         List<EmployeeSalaryResponse> history = service.getSalaryHistory(employeeId);
@@ -65,7 +65,7 @@ public class EmployeeSalaryController {
 
     // ── Paginated list of all current salaries ────────────
     @GetMapping
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasRole('HR_ADMIN')")
     public ResponseEntity<ApiResponse<PagedResponse<EmployeeSalaryResponse>>> getAll(
             @RequestParam(required = false) Long structureId,
             @RequestParam(defaultValue = "0")  int page,

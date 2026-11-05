@@ -405,11 +405,12 @@ public class LeaveServiceImpl implements LeaveService {
                 + "Status: " + lr.getStatus().name());
         }
 
-        if (!employeeAccessGuard.isHrAdmin()
-                && lr.getEmployeeId().equals(employeeAccessGuard.currentEmployeeId())) {
+        if (lr.getEmployeeId().equals(employeeAccessGuard.currentEmployeeId())) {
             throw new BusinessRuleException("SELF_APPROVAL",
-                "You cannot approve or reject your own leave request. Ask an HR administrator.");
+                "You cannot approve or reject your own leave request.");
         }
+
+        employeeAccessGuard.assertMayDecideRequestOf(lr.getEmployeeId());
 
         LeaveBalance balance;
         if ("APPROVED".equals(request.getAction())) {

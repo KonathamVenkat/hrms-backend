@@ -334,6 +334,17 @@ class AttendanceRegularizationServiceImplTest {
     }
 
     @Test
+    void aReviewerWhoMayNotDecideThisRequestersRequestIsRefusedAndNothingChanges() {
+        pendingNormalDay();
+        doThrow(new com.hrms.common.exception.BusinessRuleException("DECIDER_ROLE_REQUIRED", "x"))
+                .when(guard).assertMayDecideRequestOf(EMPLOYEE);
+
+        assertEquals("DECIDER_ROLE_REQUIRED", refused(() -> service.approve(41L, APPROVE)).getRuleCode());
+        assertEquals("DECIDER_ROLE_REQUIRED", refused(() -> service.reject(41L,
+                new RegularizationActionRequest(RegularizationStatus.REJECTED, "No proof"))).getRuleCode());
+    }
+
+    @Test
     void anAccountWithoutAnEmployeeRecordCannotReview() {
         pendingNormalDay();
         when(guard.currentEmployeeId()).thenReturn(null);

@@ -408,6 +408,7 @@ public class AttendanceRegularizationServiceImpl
             throw new BusinessRuleException("NO_EMPLOYEE_LINK",
                     "Your account is not linked to an employee record, so it cannot review requests.");
         }
+        accessGuard.assertMayDecideRequestOf(reg.getEmployeeId());
         if (reviewerId.equals(reg.getEmployeeId())) {
             throw new BusinessRuleException("SELF_APPROVAL",
                     "You cannot approve or reject your own request.");

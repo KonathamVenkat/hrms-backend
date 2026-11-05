@@ -114,4 +114,42 @@ class ApproverResolverTest {
     void roleStepIsHeldByAnyoneWithTheRoleRegardlessOfOrganisation() {
         assertTrue(resolver.holds(HR_ADMIN, 5L, Set.of("ROLE_HR_ADMIN"), 1L, null));
     }
+
+    // ── the role that holds a ROLE step depends on who asked ──
+
+    private void requesterIs(long employeeId, String role) {
+        when(organisation.accountRoleOf(employeeId)).thenReturn(Optional.of(role));
+    }
+
+    @Test
+    void theGeneralManagersOwnRequestAtTheGmStepIsHeldByTheCeoAndNotByAnotherGeneralManager() {
+        requesterIs(1L, "GENERAL_MANAGER");
+
+        assertEquals(Optional.of("CEO"), resolver.roleHolding(GM, 1L));
+        assertTrue(resolver.holds(GM, 5L, Set.of("ROLE_CEO"), 1L, null));
+        assertFalse(resolver.holds(GM, 6L, Set.of("ROLE_GENERAL_MANAGER"), 1L, null));
+        assertFalse(resolver.holds(GM, 7L, Set.of("ROLE_HR_ADMIN"), 1L, null));
+    }
+
+    @Test
+    void anHrAdminsOrHrManagersRequestAtAnHrStepIsHeldByTheGeneralManager() {
+        requesterIs(1L, "HR_ADMIN");
+        requesterIs(2L, "HR_MANAGER");
+
+        assertEquals(Optional.of("GENERAL_MANAGER"), resolver.roleHolding(HR_ADMIN, 1L));
+        assertEquals(Optional.of("GENERAL_MANAGER"), resolver.roleHolding(HR_ADMIN, 2L));
+        assertTrue(resolver.holds(HR_ADMIN, 5L, Set.of("ROLE_GENERAL_MANAGER"), 1L, null));
+        assertFalse(resolver.holds(HR_ADMIN, 6L, Set.of("ROLE_HR_ADMIN"), 1L, null));
+    }
+
+    @Test
+    void anOrdinaryEmployeesRequestAndAPersonStepAreUnchanged() {
+        requesterIs(1L, "EMPLOYEE");
+        assertEquals(Optional.of("GENERAL_MANAGER"), resolver.roleHolding(GM, 1L));
+        assertEquals(Optional.of("HR_ADMIN"), resolver.roleHolding(HR_ADMIN, 1L));
+        assertTrue(resolver.roleHolding(BRANCH, 1L).isEmpty());
+        // no login on record counts as an employee
+        assertEquals(Optional.of("HR_ADMIN"), resolver.roleHolding(HR_ADMIN, 99L));
+    }
+
 }

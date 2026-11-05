@@ -101,6 +101,28 @@ class EmployeeSalaryServiceImplTest {
     }
 
     @Test
+    void aSalaryIsReadByItsOwnerOrAnHrAdminAndByNobodyElse() {
+        EmployeeSalary current = EmployeeSalary.builder().empSalaryId(1L).employeeId(5L).structureId(3L)
+                .basicSalary(new BigDecimal("1500.00")).grossSalary(new BigDecimal("1500.00"))
+                .netSalary(new BigDecimal("1500.00")).currency("SSP").effectiveFrom(LocalDate.now()).isCurrent(1).build();
+        when(salaries.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        Employee owner = new Employee();
+        owner.setId(5L);
+        owner.setEmployeeCode("EMP-5");
+        owner.setFirstName("Sara");
+        owner.setLastName("Khan");
+        when(employees.findById(5L)).thenReturn(Optional.of(owner));
+
+        // an HR_MANAGER (or anyone else) who is not the owner and not an HR_ADMIN
+        when(guard.isSelfOrAdmin(5L)).thenReturn(false);
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> service.getCurrentSalary(5L));
+
+        // the owner or an HR_ADMIN
+        when(guard.isSelfOrAdmin(5L)).thenReturn(true);
+        assertEquals(new BigDecimal("1500.00"), service.getCurrentSalary(5L).basicSalary());
+    }
+
+    @Test
     void anUnknownEmployeeIsNotFoundAndNothingIsWritten() {
         when(employees.findByIdForUpdate(6L)).thenReturn(Optional.empty());
 

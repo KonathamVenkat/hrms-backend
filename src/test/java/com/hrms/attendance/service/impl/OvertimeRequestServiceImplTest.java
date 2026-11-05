@@ -270,6 +270,18 @@ class OvertimeRequestServiceImplTest {
     }
 
     @Test
+    void aReviewerWhoMayNotDecideThisRequestersRequestIsRefusedAndNothingChanges() {
+        var r = pending(lastWeekday());
+        doThrow(new com.hrms.common.exception.BusinessRuleException("DECIDER_ROLE_REQUIRED", "x"))
+                .when(guard).assertMayDecideRequestOf(EMPLOYEE);
+
+        assertEquals("DECIDER_ROLE_REQUIRED", refused(() -> service.approve("OT-2026-000001", APPROVE)).getRuleCode());
+        assertEquals("DECIDER_ROLE_REQUIRED", refused(() -> service.reject("OT-2026-000001",
+                new OvertimeActionRequest(RegularizationStatus.REJECTED, "Not needed"))).getRuleCode());
+        assertEquals(RegularizationStatus.PENDING, r.getStatus());
+    }
+
+    @Test
     void anAccountWithoutAnEmployeeRecordCannotReview() {
         pending(lastWeekday());
         when(guard.currentEmployeeId()).thenReturn(null);

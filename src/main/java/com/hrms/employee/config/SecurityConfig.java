@@ -96,14 +96,14 @@ public class SecurityConfig {
     }
 
     /**
-     * A GENERAL_MANAGER is also an employee: the EMPLOYEE self-service endpoints accept them (on their own records,
+     * A GENERAL_MANAGER and the CEO are also employees: the EMPLOYEE self-service endpoints accept them (on their own records,
      * which the access guard enforces by employee id). Nothing else is inherited: not HR_ADMIN, HR_MANAGER or
      * SYSTEM_ADMIN. Applies to method security and the request matchers; raw authority reads are unaffected.
      * Static so method security can pick it up early.
      */
     @Bean
     static RoleHierarchy roleHierarchy() {
-        return RoleHierarchyImpl.fromHierarchy("ROLE_GENERAL_MANAGER > ROLE_EMPLOYEE");
+        return RoleHierarchyImpl.fromHierarchy("ROLE_GENERAL_MANAGER > ROLE_EMPLOYEE\nROLE_CEO > ROLE_EMPLOYEE");
     }
 
     @Bean

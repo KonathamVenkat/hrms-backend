@@ -1,0 +1,9 @@
+-- UNDO of db/approver_roles_menu.sql: removes the CEO's menu rights, and the inbox from the
+-- GENERAL_MANAGER role (its self-service rights from general_manager_menu.sql stay). Run as the HRMS user.
+DELETE FROM HRMS.ROLE_RIGHTS WHERE ROLE_ID = (SELECT ROLE_ID FROM HRMS.ROLES WHERE ROLE_NAME = 'CEO');
+
+DELETE FROM HRMS.ROLE_RIGHTS
+ WHERE ROLE_ID = (SELECT ROLE_ID FROM HRMS.ROLES WHERE ROLE_NAME = 'GENERAL_MANAGER')
+   AND MENU_ID IN (SELECT SUB_MENU_ID FROM HRMS.SUB_MENU WHERE SUB_MENU_CODE = 'WORKFLOW_INBOX');
+
+COMMIT;

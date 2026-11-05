@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/inbox")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','EMPLOYEE')")
+@PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO','EMPLOYEE')")
 public class InboxController {
 
     private final InboxService inboxService;

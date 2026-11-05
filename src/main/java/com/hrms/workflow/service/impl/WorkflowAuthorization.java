@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class WorkflowAuthorization {
 
     private static final Set<String> OVERSEER_ROLES =
-        Set.of("ROLE_HR_ADMIN", "ROLE_HR_MANAGER", "ROLE_GENERAL_MANAGER");
+        Set.of("ROLE_HR_ADMIN", "ROLE_HR_MANAGER", "ROLE_GENERAL_MANAGER", "ROLE_CEO");
 
     private final ApproverResolver resolver;
     private final EmployeeAccessGuard accessGuard;
@@ -80,8 +80,8 @@ public class WorkflowAuthorization {
     /** The override condition on the step itself, shared by {@link #assertMayOverride} and {@link #mayOverride}. */
     private boolean nobodyElseCanAct(WorkflowStep step, long requesterId, Long targetDepartmentId) {
         if (step.getApproverType() == ApproverType.ROLE) {
-            return step.getApproverRole() != null
-                && accessGuard.isSoleActiveHolderOf(step.getApproverRole(), requesterId);
+            return resolver.roleHolding(step, requesterId)
+                .filter(role -> accessGuard.isSoleActiveHolderOf(role, requesterId)).isPresent();
         }
         return resolver.resolve(step, requesterId, targetDepartmentId).filter(id -> id != requesterId).isEmpty();
     }

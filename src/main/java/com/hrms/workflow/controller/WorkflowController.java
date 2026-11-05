@@ -26,7 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WorkflowController {
 
-    private static final String PARTICIPANT_ROLES = "hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','EMPLOYEE')";
+    private static final String PARTICIPANT_ROLES = "hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO','EMPLOYEE')";
 
     private final WorkflowService workflowService;
     private final WorkflowDefinitionService definitionService;

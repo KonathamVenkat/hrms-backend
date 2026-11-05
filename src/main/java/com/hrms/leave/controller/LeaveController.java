@@ -227,7 +227,7 @@ public class LeaveController {
      * HR/Manager approves or rejects a leave request.
      */
     @PatchMapping("/leave-requests/{leaveReqId}/process")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> processLeave(
             @PathVariable Long leaveReqId,
             @Valid @RequestBody ApproveLeaveRequest request,

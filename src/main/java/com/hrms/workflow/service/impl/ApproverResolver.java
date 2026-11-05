@@ -1,5 +1,9 @@
 package com.hrms.workflow.service.impl;
 
+import com.hrms.auth.security.ApprovalRouting;
+import com.hrms.workflow.enums.ApproverType;
+import com.hrms.common.enums.UserRole;
+
 import com.hrms.employee.service.OrganisationLookup;
 import com.hrms.workflow.entity.WorkflowStep;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +38,26 @@ public class ApproverResolver {
         };
     }
 
+    /**
+     * The role that holds a ROLE step for this requester: the step's own role, except that a request from a member of
+     * that group passes to the level above (General Manager's own request: CEO; HR_ADMIN's or HR_MANAGER's request at an
+     * HR step: General Manager). Empty for a person step. See {@link ApprovalRouting#stepRole}.
+     */
+    public Optional<String> roleHolding(WorkflowStep step, long requesterEmployeeId) {
+        if (step.getApproverType() != ApproverType.ROLE || step.getApproverRole() == null) {
+            return Optional.empty();
+        }
+        UserRole requesterRole = organisation.accountRoleOf(requesterEmployeeId)
+            .flatMap(name -> {
+                try {
+                    return Optional.of(UserRole.valueOf(name));
+                } catch (IllegalArgumentException e) {
+                    return Optional.<UserRole>empty();
+                }
+            }).orElse(UserRole.EMPLOYEE);
+        return Optional.of(ApprovalRouting.stepRole(step.getApproverRole(), requesterRole));
+    }
+
     /** The requester's own current active department (default target for a requester who picks it themselves). */
     public Optional<Long> departmentOf(long employeeId) {
         return organisation.departmentOf(employeeId);
@@ -50,8 +74,8 @@ public class ApproverResolver {
         }
         switch (step.getApproverType()) {
             case ROLE -> {
-                String role = step.getApproverRole();
-                return role != null && callerRoles.contains("ROLE_" + role);
+                return roleHolding(step, requesterEmployeeId)
+                    .filter(role -> callerRoles.contains("ROLE_" + role)).isPresent();
             }
             default -> {
                 return resolve(step, requesterEmployeeId, targetDepartmentId)

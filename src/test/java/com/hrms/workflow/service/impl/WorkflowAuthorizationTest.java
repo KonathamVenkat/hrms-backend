@@ -250,4 +250,18 @@ class WorkflowAuthorizationTest {
         assertThrows(AccessDeniedException.class, () -> authorization.assertMayOverride(HEAD, 1L, 8L));
         assertThrows(AccessDeniedException.class, () -> authorization.assertMayAct(GM, 1L, 7L));
     }
+
+    @Test
+    void theGeneralManagersOwnRequestCannotBeOverriddenByAnHrAdminWhileNoCeoCanDecideIt() {
+        when(organisation.accountRoleOf(1L)).thenReturn(Optional.of("GENERAL_MANAGER"));
+        caller(77L, "ROLE_HR_ADMIN");
+        // the role that holds the step is CEO, and the requester (a GM) is not its holder: no override
+        when(guard.isSoleActiveHolderOf("CEO", 1L)).thenReturn(false);
+        when(guard.isSoleActiveHolderOf("GENERAL_MANAGER", 1L)).thenReturn(true);   // the old rule would have allowed it
+
+        assertFalse(authorization.mayOverride(GM, 1L, null));
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.security.access.AccessDeniedException.class,
+            () -> authorization.assertMayOverride(GM, 1L, null));
+    }
+
 }

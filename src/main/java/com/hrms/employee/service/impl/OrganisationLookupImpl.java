@@ -26,6 +26,12 @@ public class OrganisationLookupImpl implements OrganisationLookup {
     private final DepartmentRepository departmentRepository;
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final EmployeeRepository employeeRepository;
+    private final com.hrms.auth.repository.AuthUserRepository authUserRepository;
+
+    @Override
+    public Optional<String> accountRoleOf(long employeeId) {
+        return authUserRepository.findByEmployeeId(employeeId).map(u -> u.getRole().name());
+    }
 
     @Override
     public Optional<Long> branchManagerOf(long employeeId) {

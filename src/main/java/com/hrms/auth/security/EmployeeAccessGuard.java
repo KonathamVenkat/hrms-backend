@@ -3,6 +3,7 @@ package com.hrms.auth.security;
 import com.hrms.auth.entity.AuthUser;
 import com.hrms.auth.repository.AuthUserRepository;
 import com.hrms.common.enums.UserRole;
+import com.hrms.common.exception.BusinessRuleException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -106,6 +107,26 @@ public class EmployeeAccessGuard {
         }
         Long callerEmployeeId = currentEmployeeId(auth);
         return callerEmployeeId != null && callerEmployeeId.equals(employeeId);
+    }
+
+    /**
+     * Refuses a caller who may not decide a request made by {@code requesterEmployeeId}: a request from an HR_ADMIN or
+     * HR_MANAGER is decided by the General Manager, one from the General Manager by the CEO, everyone else's by
+     * HR_ADMIN or HR_MANAGER (see {@link ApprovalRouting}). The requester's own role comes from their login.
+     */
+    public void assertMayDecideRequestOf(Long requesterEmployeeId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (!isSignedIn(auth)) {
+            throw new AccessDeniedException("Authentication required.");
+        }
+        UserRole requesterRole = authUserRepository.findByEmployeeId(requesterEmployeeId)
+            .map(AuthUser::getRole).orElse(UserRole.EMPLOYEE);
+        boolean allowed = ApprovalRouting.deciders(requesterRole).stream()
+            .map(UserRole::asAuthority)
+            .anyMatch(authority -> auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals(authority)));
+        if (!allowed) {
+            throw new BusinessRuleException("DECIDER_ROLE_REQUIRED", ApprovalRouting.refusal(requesterRole));
+        }
     }
 
     /** True when the caller holds ROLE_HR_ADMIN. */

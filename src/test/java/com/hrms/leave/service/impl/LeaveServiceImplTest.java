@@ -504,15 +504,31 @@ class LeaveServiceImplTest {
     }
 
     @Test
-    void anHrAdminMayDecideTheirOwnRequest() {
+    void anHrAdminCannotDecideTheirOwnRequestEither() {
         balance.setPendingDays(5.0);
         LeaveRequest r = pendingRequest(5.0);
         when(guard.currentEmployeeId()).thenReturn(EMPLOYEE);
         when(guard.isHrAdmin()).thenReturn(true);
 
-        service.processLeave(501L, decision("APPROVED", null), "hr.admin");
+        assertEquals("SELF_APPROVAL",
+                refused(() -> service.processLeave(501L, decision("APPROVED", null), "hr.admin")).getRuleCode());
+        assertEquals(LeaveStatus.PENDING, r.getStatus());
+        assertEquals(5.0, balance.getPendingDays());
+        verify(balances, never()).save(any());
+    }
 
-        assertEquals(LeaveStatus.APPROVED, r.getStatus());
+    @Test
+    void aCallerWhoMayNotDecideThisRequestersRequestIsRefusedAndNothingChanges() {
+        balance.setPendingDays(5.0);
+        LeaveRequest r = pendingRequest(5.0);
+        doThrow(new com.hrms.common.exception.BusinessRuleException("DECIDER_ROLE_REQUIRED", "x"))
+                .when(guard).assertMayDecideRequestOf(EMPLOYEE);
+
+        assertEquals("DECIDER_ROLE_REQUIRED",
+                refused(() -> service.processLeave(501L, decision("APPROVED", null), "gm")).getRuleCode());
+        assertEquals(LeaveStatus.PENDING, r.getStatus());
+        assertEquals(5.0, balance.getPendingDays());
+        verify(balances, never()).save(any());
     }
 
     @Test

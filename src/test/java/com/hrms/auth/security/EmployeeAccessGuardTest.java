@@ -191,4 +191,63 @@ class EmployeeAccessGuardTest {
         loginAs("emp", "EMPLOYEE", 7L);
         assertEquals(7L, guard.currentEmployeeId());
     }
+
+    // ── assertMayDecideRequestOf ──────────────────────────────
+
+    private void requesterWithRole(long employeeId, UserRole role) {
+        lenient().when(authUserRepository.findByEmployeeId(employeeId)).thenReturn(Optional.of(
+            AuthUser.builder().employeeId(employeeId).role(role).isActive(true).build()));
+    }
+
+    @Test
+    void anEmployeesRequestIsDecidedByHrAdminOrHrManagerAndByNobodyHigher() {
+        requesterWithRole(5L, UserRole.EMPLOYEE);
+        loginAs("hr", "HR_ADMIN", 20L);
+        guard.assertMayDecideRequestOf(5L);
+        loginAs("hrm", "HR_MANAGER", 21L);
+        guard.assertMayDecideRequestOf(5L);
+        for (String role : new String[] {"GENERAL_MANAGER", "CEO", "EMPLOYEE"}) {
+            loginAs("u", role, 22L);
+            assertEquals("DECIDER_ROLE_REQUIRED", org.junit.jupiter.api.Assertions.assertThrows(
+                com.hrms.common.exception.BusinessRuleException.class, () -> guard.assertMayDecideRequestOf(5L)).getRuleCode());
+        }
+    }
+
+    @Test
+    void aRequestFromHrIsDecidedOnlyByTheGeneralManager() {
+        requesterWithRole(6L, UserRole.HR_ADMIN);
+        requesterWithRole(7L, UserRole.HR_MANAGER);
+        loginAs("gm", "GENERAL_MANAGER", 30L);
+        guard.assertMayDecideRequestOf(6L);
+        guard.assertMayDecideRequestOf(7L);
+        for (String role : new String[] {"HR_ADMIN", "HR_MANAGER", "CEO"}) {
+            loginAs("u", role, 31L);
+            org.junit.jupiter.api.Assertions.assertThrows(com.hrms.common.exception.BusinessRuleException.class,
+                () -> guard.assertMayDecideRequestOf(6L), role);
+        }
+    }
+
+    @Test
+    void theGeneralManagersRequestIsDecidedOnlyByTheCeo() {
+        requesterWithRole(8L, UserRole.GENERAL_MANAGER);
+        loginAs("ceo", "CEO", 40L);
+        guard.assertMayDecideRequestOf(8L);
+        for (String role : new String[] {"HR_ADMIN", "HR_MANAGER", "GENERAL_MANAGER"}) {
+            loginAs("u", role, 41L);
+            org.junit.jupiter.api.Assertions.assertThrows(com.hrms.common.exception.BusinessRuleException.class,
+                () -> guard.assertMayDecideRequestOf(8L), role);
+        }
+    }
+
+    @Test
+    void aRequesterWithNoLoginCountsAsAnEmployee_andAnonymousCallersAreRefused() {
+        lenient().when(authUserRepository.findByEmployeeId(9L)).thenReturn(Optional.empty());
+        loginAs("hr", "HR_ADMIN", 20L);
+        guard.assertMayDecideRequestOf(9L);
+
+        SecurityContextHolder.clearContext();
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.security.access.AccessDeniedException.class,
+            () -> guard.assertMayDecideRequestOf(9L));
+    }
+
 }

@@ -150,7 +150,11 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     @Override
     public EmployeeSalaryResponse getCurrentSalary(Long employeeId) {
         log.info("Fetching current salary — employeeId={}", employeeId);
-        employeeAccessGuard.assertSelfOrPrivileged(employeeId);
+        // A salary is read by the employee it belongs to or by an HR_ADMIN: not by an HR_MANAGER.
+        if (!employeeAccessGuard.isSelfOrAdmin(employeeId)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "A salary can only be read by its owner or an HR_ADMIN.");
+        }
 
         Employee employee = findEmployee(employeeId);
         EmployeeSalary empSalary = salaryRepo

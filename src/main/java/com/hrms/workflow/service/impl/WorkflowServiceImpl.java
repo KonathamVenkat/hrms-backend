@@ -220,7 +220,8 @@ public class WorkflowServiceImpl implements WorkflowService {
     private WorkflowStatusResponse land(Ctx ctx, StepEntry.Rest rest, boolean entered) {
         WorkflowStep step = rest.step();
         String stage = PENDING_PREFIX + step.getStepKey();
-        StoredApprover approver = StoredApprover.of(step, rest.approverEmployeeId(), ctx.requesterId());
+        StoredApprover approver = StoredApprover.of(step, rest.approverEmployeeId(), ctx.requesterId(),
+            resolver.roleHolding(step, ctx.requesterId()).orElse(null));
         String approverType = step.getApproverType().name();
         WorkflowRequestAccess access = ports.access(ctx.type());
         if (entered) {

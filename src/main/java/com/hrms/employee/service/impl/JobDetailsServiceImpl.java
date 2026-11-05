@@ -1,5 +1,6 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.util.Strings;
 import com.hrms.employee.service.EmployeeChecks;
 import com.hrms.common.audit.CurrentAuditor;
@@ -58,6 +59,9 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final SpecializationRepository     specializationRepository;
     private final ContractTypeRepository       contractTypeRepository;
     private final ApplicationEventPublisher    events;
+    private final AuditTrail                   audit;
+
+    private static final String TARGET = "EMPLOYEE_JOB";
 
     // ── Get current job ───────────────────────────────────────
 
@@ -114,6 +118,12 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         // ── Close current record (SCD Type 2) ────────────────
         var currentRecord = jobDetailsRepository
             .findByEmployeeIdAndIsCurrent(employeeId, 1);
+        EmployeeJobDetails prev = currentRecord.orElse(null);
+
+        // A date left out is carried over from the record being replaced, so the end is checked against the start that will be stored.
+        LocalDate contractStart = keep(request.getContractStartDate(), prev, EmployeeJobDetails::getContractStartDate);
+        LocalDate contractEnd   = keep(request.getContractEndDate(), prev, EmployeeJobDetails::getContractEndDate);
+        requireContractDatesInOrder(contractStart, contractEnd);
 
         if (currentRecord.isPresent()) {
             // The new assignment must move the SCD chain forward — an effectiveFrom on or
@@ -134,8 +144,6 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             log.info("Closed {} previous job record(s) for employee {}",
                 closed, employeeId);
         }
-
-        EmployeeJobDetails prev = currentRecord.orElse(null);
 
         // A new assignment in the same location keeps the employee's branch unless another one is chosen.
         Long branchId = request.getCompanyBranchId();
@@ -158,8 +166,8 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .shiftId(request.getShiftId())
             .companyBranchId(branchId)
             .contractTypeId(keep(request.getContractTypeId(), prev, EmployeeJobDetails::getContractTypeId))
-            .contractStartDate(keep(request.getContractStartDate(), prev, EmployeeJobDetails::getContractStartDate))
-            .contractEndDate(keep(request.getContractEndDate(), prev, EmployeeJobDetails::getContractEndDate))
+            .contractStartDate(contractStart)
+            .contractEndDate(contractEnd)
             .specializationId(keep(request.getSpecializationId(), prev, EmployeeJobDetails::getSpecializationId))
             .formRequestNo(keep(Strings.trimToNull(request.getFormRequestNo()), prev, EmployeeJobDetails::getFormRequestNo))
             .appointmentRequestNo(keep(Strings.trimToNull(request.getAppointmentRequestNo()), prev, EmployeeJobDetails::getAppointmentRequestNo))
@@ -178,6 +186,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
 
         EmployeeJobDetails saved = jobDetailsRepository.save(newJob);
         log.info("New job assigned. JOB_DETAILS_ID: {}", saved.getJobDetailsId());
+        audit.record("EMPLOYEE_JOB_ASSIGNED", TARGET, saved.getJobDetailsId(), jobSummary(saved));
         // Moving to another department ends any headship or secretary post of the old one.
         departmentHeads.clearHeadOf(employeeId, request.getDepartmentId());
         departmentSecretaries.clearSecretaryOf(employeeId, request.getDepartmentId());
@@ -262,6 +271,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         current.setUpdatedAt(LocalDateTime.now());
 
         jobDetailsRepository.save(current);
+        audit.record("EMPLOYEE_JOB_UPDATED", TARGET, current.getJobDetailsId(), jobSummary(current));
 
         return jobDetailsRepository
             .findCurrentJobByEmployee(employeeId)
@@ -373,10 +383,20 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 throw new BusinessRuleException("CONTRACT_TYPE_INACTIVE", "The selected contract type is inactive.");
             }
         }
-        if (request.getContractStartDate() != null && request.getContractEndDate() != null
-                && request.getContractEndDate().isBefore(request.getContractStartDate())) {
+        requireContractDatesInOrder(request.getContractStartDate(), request.getContractEndDate());
+    }
+
+    private static void requireContractDatesInOrder(LocalDate start, LocalDate end) {
+        if (start != null && end != null && end.isBefore(start)) {
             throw new BusinessRuleException("INVALID_CONTRACT_DATES", "The contract end date cannot be before its start date.");
         }
+    }
+
+    /** Which employee and which organisation ids only: managers and references are ids, no free text or personal data. */
+    private static String jobSummary(EmployeeJobDetails j) {
+        return "employeeId=" + j.getEmployeeId() + ", departmentId=" + j.getDepartmentId()
+            + ", designationId=" + j.getDesignationId() + ", locationId=" + j.getLocationId()
+            + ", reportingManagerId=" + j.getReportingManagerId() + ", effectiveFrom=" + j.getEffectiveFrom();
     }
 
     /** A section is optional; when given it must exist, be active and belong to the chosen department. */

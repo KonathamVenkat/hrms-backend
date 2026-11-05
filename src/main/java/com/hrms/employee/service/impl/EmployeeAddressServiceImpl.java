@@ -96,6 +96,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     public EmployeeAddressResponse updateAddress(Long employeeId, Long addressId,
                                                   EmployeeAddressRequest request) {
         log.info("Updating address {} for employee {}", addressId, employeeId);
+        lockEmployee(employeeId);
         EmployeeAddress existing = findAddress(employeeId, addressId);
         requireActive(existing);
         Versions.requireCurrent(request.getVersion(), existing.getVersion());
@@ -133,6 +134,7 @@ public class EmployeeAddressServiceImpl implements EmployeeAddressService {
     @Override
     @Transactional
     public void setPrimary(Long employeeId, Long addressId) {
+        lockEmployee(employeeId);
         EmployeeAddress address = findAddress(employeeId, addressId);
         requireActive(address);
         addressRepository.unsetAllPrimary(employeeId);

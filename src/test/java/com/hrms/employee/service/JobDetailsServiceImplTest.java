@@ -43,13 +43,14 @@ class JobDetailsServiceImplTest {
     @Mock SpecializationRepository specializationRepository;
     @Mock ContractTypeRepository contractTypeRepository;
     @Mock org.springframework.context.ApplicationEventPublisher events;
+    @Mock com.hrms.auth.service.AuditTrail audit;
 
     JobDetailsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, sectionRepository, specializationRepository, contractTypeRepository, events);
+            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, sectionRepository, specializationRepository, contractTypeRepository, events, audit);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -646,6 +647,37 @@ class JobDetailsServiceImplTest {
         assertEquals("NEW", current.getAfe());
         assertNull(current.getFormRequestNo());
         assertNull(current.getSpecializationId());
+    }
+
+    @Test
+    void aNewStartAfterTheCarriedOverContractEndIsRejected_andNothingIsClosedOrSaved() {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").effectiveFrom(LocalDate.now().minusDays(5))
+            .contractEndDate(LocalDate.of(2026, 12, 31)).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setContractStartDate(LocalDate.of(2027, 1, 1));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+        assertEquals("INVALID_CONTRACT_DATES", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).closeCurrentRecord(any(), any(), any());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void assigningAndUpdatingAJobAreAudited_withIdsOnly() {
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertThrows(java.util.NoSuchElementException.class, () -> service.assignJob(5L, request(LocalDate.now())));
+        verify(audit).record(eq("EMPLOYEE_JOB_ASSIGNED"), eq("EMPLOYEE_JOB"), any(),
+            argThat(d -> d.contains("employeeId=5") && d.contains("departmentId=10")));
+
+        EmployeeJobDetails current = EmployeeJobDetails.builder().employeeId(5L).departmentId(10L).designationId(20L)
+            .locationId(30L).workMode("ON_SITE").build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setWorkMode("ON_SITE");
+        assertThrows(java.util.NoSuchElementException.class, () -> service.updateCurrentJob(5L, req));
+        verify(audit).record(eq("EMPLOYEE_JOB_UPDATED"), eq("EMPLOYEE_JOB"), any(), anyString());
     }
 
     @Test

@@ -46,6 +46,19 @@ class EmployeeAddressServiceImplTest {
 
 
     @Test
+    void everyAddressChangeLocksTheEmployeeFirst() {
+        when(addresses.findById(7L)).thenReturn(Optional.of(address(7, 5, "CURRENT", 0)));
+        when(addresses.countByEmployeeIdAndIsActive(5L, 1)).thenReturn(2L);
+
+        service.addAddress(5L, request("MAILING", false));
+        service.updateAddress(5L, 7L, request("CURRENT", false));
+        service.setPrimary(5L, 7L);
+        service.deactivateAddress(5L, 7L);
+
+        verify(employees, times(4)).findByIdForUpdate(5L);
+    }
+
+    @Test
     void editingFromAStaleScreenIsRefused() {
         EmployeeAddress current = address(7, 5, "CURRENT", 0);
         current.setVersion(2L);

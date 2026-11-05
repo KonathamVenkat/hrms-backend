@@ -255,6 +255,48 @@ class AuthServiceImplTest {
         assertThrows(InvalidTokenException.class, this::refresh);
     }
 
+    // ── admin reset-password ────────────────────────────────────
+
+    private AuthUser userWithRole(UserRole role) {
+        AuthUser u = user(false, null, 0);
+        u.setRole(role);
+        u.setEmployeeId(77L);
+        return u;
+    }
+
+    @Test
+    void anHrAdminCanResetAnEmployeeAccount() {
+        AuthUser target = userWithRole(UserRole.EMPLOYEE);
+        when(users.findByEmployeeId(77L)).thenReturn(Optional.of(target));
+        when(encoder.encode("TempPass123")).thenReturn("new-hash");
+
+        service.resetPassword(new com.hrms.auth.dto.request.ResetPasswordRequest(77L, "TempPass123"), "admin");
+
+        assertEquals("new-hash", target.getPasswordHash());
+        assertEquals(1, target.getMustChangePassword());
+        verify(refreshTokens).revokeAllByUserId(1L);
+        verify(audit).recordAs(eq("admin"), eq("PASSWORD_RESET"), eq("USER"), eq(1L), any());
+    }
+
+    @Test
+    void anHrAdminCannotResetAnyOtherRole_andNothingChanges() {
+        for (UserRole role : UserRole.values()) {
+            if (role == UserRole.EMPLOYEE) continue;
+            AuthUser target = userWithRole(role);
+            when(users.findByEmployeeId(77L)).thenReturn(Optional.of(target));
+
+            BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> service.resetPassword(new com.hrms.auth.dto.request.ResetPasswordRequest(77L, "TempPass123"), "admin"),
+                "role " + role);
+
+            assertEquals("RESET_NOT_ALLOWED", ex.getRuleCode(), "role " + role);
+            assertEquals("hash", target.getPasswordHash(), "role " + role);
+        }
+        verify(encoder, never()).encode(any());
+        verify(refreshTokens, never()).revokeAllByUserId(any());
+        verify(users, never()).save(any());
+    }
+
     @Test
     void anExpiredTokenIsRefusedWithoutTouchingTheDatabase() {
         when(refreshTokens.findByToken("old-token")).thenReturn(Optional.of(storedToken(false, Instant.now().minusSeconds(1))));

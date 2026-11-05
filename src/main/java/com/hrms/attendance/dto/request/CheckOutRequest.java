@@ -9,7 +9,8 @@ public record CheckOutRequest(
         Long employeeId,
 
 
-        PunchSource punchSource,
+        /** Ignored: the server decides how a punch is recorded. */ PunchSource punchSource,
 
+        @jakarta.validation.constraints.Size(max = 500, message = "Notes max 500 characters")
         String notes
 ) {}

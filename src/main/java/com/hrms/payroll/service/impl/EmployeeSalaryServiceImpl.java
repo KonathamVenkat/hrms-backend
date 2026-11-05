@@ -1,6 +1,7 @@
 package com.hrms.payroll.service.impl;
 
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
@@ -68,7 +69,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         log.info("Assigning salary structure — employeeId={}, structureId={}",
                 request.employeeId(), request.structureId());
 
-        Employee employee = findEmployee(request.employeeId());
+        // Two simultaneous assignments for one employee would each close the old record and insert a current one.
+        // The row lock makes the second wait and see the first; the unique index (V24) is the backstop.
+        Employee employee = employeeRepo.findByIdForUpdate(request.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.employeeId()));
         SalaryStructure structure = findStructure(request.structureId());
 
         if (structure.getIsActive() != 1) {
@@ -130,7 +134,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 .remarks(request.remarks())
                 .build();
 
-        empSalary.setCreatedBy(employee.getEmployeeCode());
+        empSalary.setCreatedBy(CurrentAuditor.name());
         empSalary.setCreatedAt(LocalDateTime.now());
         empSalary.setUpdatedAt(LocalDateTime.now());
 

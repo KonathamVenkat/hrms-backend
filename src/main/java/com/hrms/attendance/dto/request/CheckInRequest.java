@@ -10,9 +10,10 @@ public record CheckInRequest(
         Long employeeId,
 
 
-        PunchSource punchSource,    // null defaults to WEB
+        /** Ignored: the server decides how a punch is recorded. */ PunchSource punchSource,    // null defaults to WEB
 
         Long locationId,
 
+        @jakarta.validation.constraints.Size(max = 500, message = "Notes max 500 characters")
         String notes
 ) {}

@@ -11,6 +11,9 @@ import com.hrms.attendance.repository.AttendanceLogRepository;
 import com.hrms.attendance.service.AttendanceService;
 import com.hrms.attendance.service.AttendanceSummaryService;
 import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.employee.repository.OfficeLocationRepository;
+import com.hrms.common.audit.CurrentAuditor;
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.service.JobAlert;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.common.exception.BusinessRuleException;
@@ -49,6 +52,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceDayClassifier classifier;
     private final AttendanceDayRecorder   recorder;
     private final JobAlert                jobAlert;
+    private final AuditTrail              audit;
+    private final OfficeLocationRepository locationRepo;
 
     // ────────────────────────────────────────────────────────
     // CHECK-IN
@@ -68,6 +73,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         // Weekend / holiday: only with approved overtime. Full-day approved leave: not at all.
         classifier.assertMayCheckIn(employee.getId(), shift, day);
+        requireKnownLocation(request.locationId());
 
         // The nightly job writes a placeholder row (no check-in) for days nobody punched.
         // Reuse it instead of inserting a second row for the same employee and date.
@@ -86,14 +92,15 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .employeeCode(employee.getEmployeeCode())
                     .attendanceDate(day)
                     .build();
-            attendanceLog.setCreatedBy(employee.getEmployeeCode());
+            attendanceLog.setCreatedBy(CurrentAuditor.name());   // who punched, which is not always the employee
             attendanceLog.setCreatedAt(now);
         }
-        attendanceLog.setPunchSource(request.punchSource() != null ? request.punchSource() : PunchSource.WEB);
+        attendanceLog.setPunchSource(punchSourceFor(employee.getId()));
         attendanceLog.setLocationId(request.locationId());
         attendanceLog.setNotes(request.notes());
         calculator.applyCheckIn(attendanceLog, now, shift, classifier.isNonWorkingDay(shift, day));
         attendanceLog.setUpdatedAt(now);
+        auditPunchForSomeoneElse("ATTENDANCE_CHECK_IN_FOR_OTHER", employee);
 
         return buildResponse(logRepo.save(attendanceLog), employee, shift);
     }
@@ -127,8 +134,35 @@ public class AttendanceServiceImpl implements AttendanceService {
                 classifier.isNonWorkingDay(shift, attendanceLog.getAttendanceDate()));
         if (request.notes() != null) attendanceLog.setNotes(request.notes());
         attendanceLog.setUpdatedAt(now);
+        auditPunchForSomeoneElse("ATTENDANCE_CHECK_OUT_FOR_OTHER", employee);
 
         return buildResponse(logRepo.save(attendanceLog), employee, shift);
+    }
+
+    /**
+     * How a punch is recorded is decided here, never by the caller: a person punching for themselves is WEB, anybody
+     * punching for someone else is a MANUAL entry. BIOMETRIC and MOBILE must come from a device integration, not from a
+     * field a browser can fill in.
+     */
+    private PunchSource punchSourceFor(Long employeeId) {
+        return employeeId.equals(accessGuard.currentEmployeeId()) ? PunchSource.WEB : PunchSource.MANUAL;
+    }
+
+    /** An HR user punching for another employee is allowed, but it must not look like the employee did it. */
+    private void auditPunchForSomeoneElse(String action, Employee employee) {
+        if (!employee.getId().equals(accessGuard.currentEmployeeId())) {
+            audit.record(action, "ATTENDANCE", employee.getId(), "employeeId=" + employee.getId());
+        }
+    }
+
+    /** A location id, when given, must be an existing, active office location. */
+    private void requireKnownLocation(Long locationId) {
+        if (locationId == null) return;
+        boolean known = locationRepo.findById(locationId)
+                .map(l -> Integer.valueOf(1).equals(l.getIsActive())).orElse(false);
+        if (!known) {
+            throw new BusinessRuleException("LOCATION_INVALID", "The selected office location does not exist or is inactive.");
+        }
     }
 
     // ────────────────────────────────────────────────────────

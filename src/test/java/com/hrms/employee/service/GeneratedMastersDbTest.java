@@ -256,6 +256,8 @@ class GeneratedMastersDbTest extends DatabaseTest {
             + "('UQ_EII_NATIONAL_ID','UQ_EII_PASSPORT','UQ_EII_VISA_NUMBER','UQ_EII_WORK_PERMIT')").getSingleResult()).intValue();
         assertEquals(4, unique);   // V22
         assertEquals(1, columnCount("AUTH_REFRESH_TOKENS", "'ROTATED_AT'"));   // V23
+        assertEquals(1, ((Number) em.createNativeQuery("select count(*) from all_indexes where owner = 'HRMS' "
+            + "and table_name = 'EMPLOYEE_SALARY' and uniqueness = 'UNIQUE' and index_name = 'UQ_ES_ONE_CURRENT'").getSingleResult()).intValue());   // V24
     }
 
     private int columnCount(String table, String quotedColumns) {

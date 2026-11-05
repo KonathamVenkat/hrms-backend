@@ -18,6 +18,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -230,13 +231,13 @@ public class LeaveController {
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> processLeave(
             @PathVariable Long leaveReqId,
             @Valid @RequestBody ApproveLeaveRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            Authentication authentication) {
 
         log.info("PATCH process — leaveReqId={} action={}",
             leaveReqId, request.getAction());
 
-        String approver = userDetails != null
-            ? userDetails.getUsername() : "SYSTEM";
+        // The security context holds the login name itself (not a UserDetails), so read it from the Authentication.
+        String approver = authentication.getName();
 
         return ResponseEntity.ok(
             ApiResponse.<LeaveRequestResponse>builder()

@@ -46,6 +46,8 @@ class AttendanceServiceImplTest {
     AttendanceDayClassifier       classifier = mock(AttendanceDayClassifier.class);
     AttendanceDayRecorder         recorder  = mock(AttendanceDayRecorder.class);
     com.hrms.auth.service.JobAlert jobAlert = mock(com.hrms.auth.service.JobAlert.class);
+    com.hrms.auth.service.AuditTrail audit = mock(com.hrms.auth.service.AuditTrail.class);
+    com.hrms.employee.repository.OfficeLocationRepository locations = mock(com.hrms.employee.repository.OfficeLocationRepository.class);
     AttendanceServiceImpl         service;
 
     LocalDate today = LocalDate.now();
@@ -53,7 +55,7 @@ class AttendanceServiceImplTest {
     @BeforeEach
     void setUp() {
         AttendanceCalculator calculator = new AttendanceCalculator(jobs, shifts, ot);
-        service = new AttendanceServiceImpl(logs, employees, calculator, summaries, guard, classifier, recorder, jobAlert);
+        service = new AttendanceServiceImpl(logs, employees, calculator, summaries, guard, classifier, recorder, jobAlert, audit, locations);
 
         Employee e = new Employee();
         e.setId(5L);
@@ -99,6 +101,53 @@ class AttendanceServiceImplTest {
         assertEquals(today, saved.getValue().getAttendanceDate());
         assertNotNull(saved.getValue().getCheckInTime());
         verify(classifier).assertMayCheckIn(eq5(), any(), eq(today));
+    }
+
+    // ── Who punched, how, and where ──────────────────────────
+
+    @Test
+    void anEmployeePunchingForThemselvesIsWeb_whateverTheRequestClaims() {
+        notNearMidnight();
+        when(guard.currentEmployeeId()).thenReturn(5L);
+        when(logs.findByEmployeeIdAndAttendanceDateAndIsActive(5L, today, 1)).thenReturn(Optional.empty());
+
+        service.checkIn(new CheckInRequest(5L, com.hrms.attendance.enums.PunchSource.BIOMETRIC, null, null));
+
+        ArgumentCaptor<AttendanceLog> saved = ArgumentCaptor.forClass(AttendanceLog.class);
+        verify(logs).save(saved.capture());
+        assertEquals(com.hrms.attendance.enums.PunchSource.WEB, saved.getValue().getPunchSource());
+        assertNotEquals("EMP-5", saved.getValue().getCreatedBy(), "the creator is whoever is signed in, not the employee's code");
+        verify(audit, never()).record(any(), any(), any(), any());
+    }
+
+    @Test
+    void aPunchMadeByAnotherUserIsManualAndAudited() {
+        notNearMidnight();
+        when(guard.currentEmployeeId()).thenReturn(99L);   // an HR user punching for employee 5
+        when(logs.findByEmployeeIdAndAttendanceDateAndIsActive(5L, today, 1)).thenReturn(Optional.empty());
+
+        service.checkIn(new CheckInRequest(5L, com.hrms.attendance.enums.PunchSource.WEB, null, null));
+
+        ArgumentCaptor<AttendanceLog> saved = ArgumentCaptor.forClass(AttendanceLog.class);
+        verify(logs).save(saved.capture());
+        assertEquals(com.hrms.attendance.enums.PunchSource.MANUAL, saved.getValue().getPunchSource());
+        verify(audit).record(eq("ATTENDANCE_CHECK_IN_FOR_OTHER"), eq("ATTENDANCE"), eq(5L), any());
+    }
+
+    @Test
+    void anUnknownOrInactiveLocationIsRefusedAndNothingIsWritten() {
+        notNearMidnight();
+        when(guard.currentEmployeeId()).thenReturn(5L);
+        when(logs.findByEmployeeIdAndAttendanceDateAndIsActive(5L, today, 1)).thenReturn(Optional.empty());
+        com.hrms.employee.entity.OfficeLocation inactive = new com.hrms.employee.entity.OfficeLocation();
+        inactive.setIsActive(0);
+        when(locations.findById(8L)).thenReturn(Optional.of(inactive));
+
+        assertEquals("LOCATION_INVALID", assertThrows(BusinessRuleException.class,
+                () -> service.checkIn(new CheckInRequest(5L, null, 8L, null))).getRuleCode());
+        assertEquals("LOCATION_INVALID", assertThrows(BusinessRuleException.class,
+                () -> service.checkIn(new CheckInRequest(5L, null, 9L, null))).getRuleCode());
+        verify(logs, never()).save(any());
     }
 
     @Test

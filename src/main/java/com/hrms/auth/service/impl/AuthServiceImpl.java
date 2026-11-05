@@ -4,6 +4,7 @@ import com.hrms.auth.service.AuditTrail;
 import com.hrms.auth.dto.request.ChangePasswordRequest;
 import com.hrms.auth.dto.request.ResetPasswordRequest;
 import com.hrms.auth.security.PasswordPolicy;
+import com.hrms.common.enums.UserRole;
 import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.auth.dto.request.LoginRequest;
@@ -241,6 +242,13 @@ public class AuthServiceImpl implements AuthService {
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             throw new BusinessRuleException("ACCOUNT_INACTIVE",
                 "This account is deactivated; its password cannot be reset.");
+        }
+        // An HR_ADMIN may reset an ordinary employee only. Setting the password of an admin, a manager or the General
+        // Manager would let the HR_ADMIN sign in as that person and act in their name (approvals included).
+        if (user.getRole() != UserRole.EMPLOYEE) {
+            log.warn("Password reset refused — admin={} target={} role={}", adminUsername, user.getUsername(), user.getRole());
+            throw new BusinessRuleException("RESET_NOT_ALLOWED",
+                "Only an employee account can be reset here. Ask the system administrator for any other role.");
         }
         PasswordPolicy.validate(request.temporaryPassword());
 

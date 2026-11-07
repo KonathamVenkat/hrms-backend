@@ -1,5 +1,9 @@
 package com.hrms.workflow;
 
+import com.hrms.attendance.entity.OvertimeRequest;
+import com.hrms.attendance.enums.OvertimeType;
+import com.hrms.attendance.enums.RegularizationStatus;
+import com.hrms.attendance.repository.OvertimeRequestRepository;
 import com.hrms.auth.entity.AuthUser;
 import com.hrms.auth.repository.AuthUserRepository;
 import com.hrms.common.enums.EmploymentType;
@@ -22,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -39,6 +44,7 @@ class GeneralManagerAccessDbTest extends DatabaseTest {
     @Autowired JwtTokenProvider jwt;
     @Autowired EmployeeRepository employees;
     @Autowired AuthUserRepository authUsers;
+    @Autowired OvertimeRequestRepository overtimes;
 
     MockMvc mvc;
     long gm, other;
@@ -97,5 +103,34 @@ class GeneralManagerAccessDbTest extends DatabaseTest {
         asGm(get("/api/v1/payroll/employee-salary/" + other + "/history")).andExpect(status().isForbidden());
         asGm(get("/api/v1/admin/departments")).andExpect(status().isForbidden());
         asGm(get("/actuator/info")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aGeneralManagerListsOnlyTheOvertimeOfHrStaff_notOfEmployees() throws Exception {
+        long hr = person("hr", Long.toString(System.nanoTime(), 36), UserRole.HR_MANAGER);
+        String hrOt = overtime(hr), otherOt = overtime(other);
+
+        String body = asGm(get("/api/v1/attendance/overtime/all")).andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains(hrOt));
+        org.junit.jupiter.api.Assertions.assertFalse(body.contains(otherOt));
+        asGm(get("/api/v1/attendance/overtime/all?employeeId=" + other)).andExpect(status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.content").isEmpty());
+        asGm(get("/api/v1/attendance/overtime/pending-count")).andExpect(status().isOk());
+        asGm(get("/api/v1/attendance/regularization/all")).andExpect(status().isOk());
+        asGm(get("/api/v1/attendance/regularization/pending-count")).andExpect(status().isOk());
+    }
+
+    private String overtime(long employeeId) {
+        String id = "OT-TEST-" + Long.toString(System.nanoTime(), 36);
+        OvertimeRequest ot = OvertimeRequest.builder().otId(id).employeeId(employeeId).employeeCode("X")
+            .otDate(LocalDate.now().minusDays(1)).otType(OvertimeType.WEEKEND)
+            .startTime(LocalDate.now().minusDays(1).atTime(18, 0)).endTime(LocalDate.now().minusDays(1).atTime(20, 0))
+            .durationMinutes(120).reason("test").status(RegularizationStatus.PENDING).build();
+        ot.setCreatedBy("test");
+        ot.setCreatedAt(LocalDateTime.now());
+        ot.setUpdatedAt(LocalDateTime.now());
+        overtimes.saveAndFlush(ot);
+        return id;
     }
 }

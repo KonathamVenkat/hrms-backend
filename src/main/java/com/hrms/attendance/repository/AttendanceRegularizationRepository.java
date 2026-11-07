@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,6 +47,28 @@ public interface AttendanceRegularizationRepository
             @Param("from")       LocalDate from,
             @Param("to")         LocalDate to,
             Pageable pageable);
+
+    // ── General Manager / CEO: the same list, limited to the requesters they decide ──
+    @Query("""
+            SELECT r FROM AttendanceRegularization r
+            WHERE r.isActive = 1
+              AND r.employeeId IN :employeeIds
+              AND (:status IS NULL OR r.status = :status)
+              AND (:employeeId IS NULL OR r.employeeId = :employeeId)
+              AND (:from IS NULL OR r.attendanceDate >= :from)
+              AND (:to   IS NULL OR r.attendanceDate <= :to)
+            ORDER BY r.createdAt DESC
+            """)
+    Page<AttendanceRegularization> findByFiltersAmong(
+            @Param("employeeIds") Collection<Long> employeeIds,
+            @Param("status")      RegularizationStatus status,
+            @Param("employeeId")  Long employeeId,
+            @Param("from")        LocalDate from,
+            @Param("to")          LocalDate to,
+            Pageable pageable);
+
+    long countByStatusAndIsActiveAndEmployeeIdIn(
+            RegularizationStatus status, Integer isActive, Collection<Long> employeeIds);
 
     // ── Check duplicate: one pending per employee per date ────
     boolean existsByEmployeeIdAndAttendanceDateAndStatusAndIsActive(

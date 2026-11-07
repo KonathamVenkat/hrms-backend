@@ -250,4 +250,32 @@ class EmployeeAccessGuardTest {
             () -> guard.assertMayDecideRequestOf(9L));
     }
 
+    @Test
+    void hrStaffAreNotLimitedToAnyRequesters() {
+        loginAs("hr", "HR_MANAGER", 20L);
+        assertTrue(guard.requesterScope().isEmpty());
+    }
+
+    @Test
+    void theGeneralManagerSeesOnlyHrRequestersAndTheCeoOnlyTheGeneralManager() {
+        loginAs("gm", "GENERAL_MANAGER", 30L);
+        org.mockito.Mockito.when(authUserRepository.findEmployeeIdsByRoleIn(
+            java.util.EnumSet.of(UserRole.HR_ADMIN, UserRole.HR_MANAGER), 30L)).thenReturn(List.of(1L, 2L));
+        assertEquals(java.util.Set.of(1L, 2L), guard.requesterScope().orElseThrow());
+
+        loginAs("ceo", "CEO", 40L);
+        org.mockito.Mockito.when(authUserRepository.findEmployeeIdsByRoleIn(
+            java.util.EnumSet.of(UserRole.GENERAL_MANAGER), 40L)).thenReturn(List.of(30L));
+        assertEquals(java.util.Set.of(30L), guard.requesterScope().orElseThrow());
+    }
+
+    @Test
+    void anEmployeeDecidesNobodysRequestsAndAnonymousCallersAreRefused() {
+        loginAs("emp", "EMPLOYEE", 7L);
+        assertTrue(guard.requesterScope().orElseThrow().isEmpty());
+
+        SecurityContextHolder.clearContext();
+        assertThrows(AccessDeniedException.class, () -> guard.requesterScope());
+    }
+
 }

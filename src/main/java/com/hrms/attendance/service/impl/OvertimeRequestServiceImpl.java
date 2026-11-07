@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -314,8 +315,15 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
         log.info("Fetching all OT requests — status={}, employeeId={}, from={}, to={}",
                 status, employeeId, from, to);
 
-        Page<OvertimeRequest> page = otRepo
-                .findByFilters(status, employeeId, from, to, pageable);
+        Optional<Set<Long>> scope = accessGuard.requesterScope();
+        Page<OvertimeRequest> page;
+        if (scope.isEmpty()) {
+            page = otRepo.findByFilters(status, employeeId, from, to, pageable);
+        } else if (scope.get().isEmpty() || employeeId != null && !scope.get().contains(employeeId)) {
+            page = Page.empty(pageable);
+        } else {
+            page = otRepo.findByFiltersAmong(scope.get(), status, employeeId, from, to, pageable);
+        }
 
         log.info("Found {} total OT requests", page.getTotalElements());
 
@@ -329,8 +337,12 @@ public class OvertimeRequestServiceImpl implements OvertimeRequestService {
 
     @Override
     public long getPendingCount() {
-        long count = otRepo.countByStatusAndIsActive(
-                RegularizationStatus.PENDING, 1);
+        Optional<Set<Long>> scope = accessGuard.requesterScope();
+        long count = scope.isEmpty()
+                ? otRepo.countByStatusAndIsActive(RegularizationStatus.PENDING, 1)
+                : scope.get().isEmpty() ? 0
+                : otRepo.countByStatusAndIsActiveAndEmployeeIdIn(
+                        RegularizationStatus.PENDING, 1, scope.get());
         log.debug("Pending OT count: {}", count);
         return count;
     }

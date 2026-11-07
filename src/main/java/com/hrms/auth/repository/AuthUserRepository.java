@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,6 +50,14 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, Long> {
         WHERE u.role = :role AND u.isActive = true AND u.employeeId <> :employeeId
         """)
     long countOtherActiveHolders(@Param("role") UserRole role, @Param("employeeId") Long employeeId);
+
+    /** Employees whose login has one of {@code roles}, except {@code excludeEmployeeId} (the approval screens' scope). */
+    @Query("""
+        SELECT u.employeeId FROM AuthUser u
+        WHERE u.role IN :roles AND u.employeeId IS NOT NULL AND u.employeeId <> :excludeEmployeeId
+        """)
+    List<Long> findEmployeeIdsByRoleIn(@Param("roles") Collection<UserRole> roles,
+                                       @Param("excludeEmployeeId") Long excludeEmployeeId);
 
     /**
      * The active logins that hold {@code role}, locked for update until the transaction ends: two callers that

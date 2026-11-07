@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -42,6 +43,28 @@ public interface OvertimeRequestRepository
             @Param("from")       LocalDate from,
             @Param("to")         LocalDate to,
             Pageable pageable);
+
+    // ── General Manager / CEO: the same list, limited to the requesters they decide ──
+    @Query("""
+            SELECT o FROM OvertimeRequest o
+            WHERE o.isActive = 1
+              AND o.employeeId IN :employeeIds
+              AND (:status     IS NULL OR o.status     = :status)
+              AND (:employeeId IS NULL OR o.employeeId = :employeeId)
+              AND (:from       IS NULL OR o.otDate    >= :from)
+              AND (:to         IS NULL OR o.otDate    <= :to)
+            ORDER BY o.createdAt DESC
+            """)
+    Page<OvertimeRequest> findByFiltersAmong(
+            @Param("employeeIds") Collection<Long> employeeIds,
+            @Param("status")      RegularizationStatus status,
+            @Param("employeeId")  Long employeeId,
+            @Param("from")        LocalDate from,
+            @Param("to")          LocalDate to,
+            Pageable pageable);
+
+    long countByStatusAndIsActiveAndEmployeeIdIn(
+            RegularizationStatus status, Integer isActive, Collection<Long> employeeIds);
 
     // ── Payroll integration: approved OT for a period ─────
     @Query(value = """

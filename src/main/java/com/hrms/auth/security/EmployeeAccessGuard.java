@@ -8,8 +8,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Guards "employee self-service" endpoints shaped like
@@ -27,6 +34,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class EmployeeAccessGuard {
+
+    private static final long NO_EMPLOYEE = -1L;
 
     private final AuthUserRepository authUserRepository;
 
@@ -127,6 +136,35 @@ public class EmployeeAccessGuard {
         if (!allowed) {
             throw new BusinessRuleException("DECIDER_ROLE_REQUIRED", ApprovalRouting.refusal(requesterRole));
         }
+    }
+
+    /**
+     * Whose requests the caller may list in the approval screens. Empty for HR_ADMIN and HR_MANAGER (they see every
+     * employee's, as before). For anyone else (General Manager, CEO) the employee ids of the people whose requests
+     * their role decides under {@link ApprovalRouting}, never their own; an empty set means nothing is listed.
+     */
+    public Optional<Set<Long>> requesterScope() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (!isSignedIn(auth)) {
+            throw new AccessDeniedException("Authentication required.");
+        }
+        if (isPrivileged(auth)) {
+            return Optional.empty();
+        }
+        Set<String> callerAuthorities = auth.getAuthorities().stream()
+            .map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
+        Set<UserRole> requesterRoles = EnumSet.noneOf(UserRole.class);
+        for (UserRole requester : UserRole.values()) {
+            if (ApprovalRouting.deciders(requester).stream().map(UserRole::asAuthority).anyMatch(callerAuthorities::contains)) {
+                requesterRoles.add(requester);
+            }
+        }
+        if (requesterRoles.isEmpty()) {
+            return Optional.of(Set.of());   // an empty IN list is invalid SQL on Oracle
+        }
+        Long self = currentEmployeeId(auth);
+        return Optional.of(new HashSet<>(authUserRepository.findEmployeeIdsByRoleIn(requesterRoles,
+            self == null ? NO_EMPLOYEE : self)));
     }
 
     /** True when the caller holds ROLE_HR_ADMIN. */

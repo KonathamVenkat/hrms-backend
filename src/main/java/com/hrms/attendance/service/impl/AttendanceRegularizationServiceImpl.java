@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -301,8 +302,15 @@ public class AttendanceRegularizationServiceImpl
         log.info("Fetching all regularizations — status={}, employeeId={}, from={}, to={}",
                 status, employeeId, from, to);
 
-        Page<AttendanceRegularization> page =
-                regRepo.findByFilters(status, employeeId, from, to, pageable);
+        Optional<Set<Long>> scope = accessGuard.requesterScope();
+        Page<AttendanceRegularization> page;
+        if (scope.isEmpty()) {
+            page = regRepo.findByFilters(status, employeeId, from, to, pageable);
+        } else if (scope.get().isEmpty() || employeeId != null && !scope.get().contains(employeeId)) {
+            page = Page.empty(pageable);
+        } else {
+            page = regRepo.findByFiltersAmong(scope.get(), status, employeeId, from, to, pageable);
+        }
 
         log.info("Found {} total regularization requests", page.getTotalElements());
 
@@ -316,8 +324,12 @@ public class AttendanceRegularizationServiceImpl
 
     @Override
     public long getPendingCount() {
-        long count = regRepo.countByStatusAndIsActive(
-                RegularizationStatus.PENDING, 1);
+        Optional<Set<Long>> scope = accessGuard.requesterScope();
+        long count = scope.isEmpty()
+                ? regRepo.countByStatusAndIsActive(RegularizationStatus.PENDING, 1)
+                : scope.get().isEmpty() ? 0
+                : regRepo.countByStatusAndIsActiveAndEmployeeIdIn(
+                        RegularizationStatus.PENDING, 1, scope.get());
         log.debug("Pending regularization count: {}", count);
         return count;
     }

@@ -107,7 +107,7 @@ public class OvertimeRequestController {
 
     // ── HR/Manager: All requests with filters ─────────────
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO')")
     public ResponseEntity<ApiResponse<PagedResponse<OvertimeResponse>>> getAll(
             @RequestParam(required = false) RegularizationStatus status,
             @RequestParam(required = false) Long employeeId,
@@ -127,7 +127,7 @@ public class OvertimeRequestController {
 
     // ── Pending count for badge ────────────────────────────
     @GetMapping("/pending-count")
-    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER')")
+    @PreAuthorize("hasAnyRole('HR_ADMIN','HR_MANAGER','GENERAL_MANAGER','CEO')")
     public ResponseEntity<ApiResponse<Long>> getPendingCount() {
         return ResponseEntity.ok(
                 ApiResponse.success("Success", otService.getPendingCount()));

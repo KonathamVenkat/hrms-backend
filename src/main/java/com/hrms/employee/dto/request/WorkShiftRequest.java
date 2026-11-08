@@ -17,10 +17,12 @@ public class WorkShiftRequest {
 
     @NotBlank(message = "Shift name is required")
     @Size(max = 100, message = "Shift name max 100 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Name contains control or invisible characters")
     private String shiftName;
 
     @NotBlank(message = "Arabic shift name is required")
     @Size(max = 200, message = "Arabic name max 200 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic name contains control or invisible characters")
     private String shiftNameAr;
 
     @NotBlank(message = "Shift type is required")
@@ -52,6 +54,8 @@ public class WorkShiftRequest {
     private Integer gracePeriod;
 
     @NotBlank(message = "Working days is required")
+    @Pattern(regexp = "^(?i)(MON|TUE|WED|THU|FRI|SAT|SUN)(,(MON|TUE|WED|THU|FRI|SAT|SUN))*$",
+             message = "Working days must be a comma-separated list of MON, TUE, WED, THU, FRI, SAT, SUN")
     private String workingDays;     // "SUN,MON,TUE,WED,THU"
 
     private Boolean isOvernight;
@@ -64,6 +68,8 @@ public class WorkShiftRequest {
     private Integer sortOrder;
 
     private Boolean isActive;
+    /** The version the screen was loaded with; required to update (400 when missing, 409 when stale). */
+    private Long version;
 }
 
 

@@ -58,6 +58,9 @@ public class SpecializationServiceImpl implements SpecializationService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Specialization", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Specialization", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         Specialization entity = Specialization.builder().build();
@@ -82,6 +85,9 @@ public class SpecializationServiceImpl implements SpecializationService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Specialization", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Specialization", "name", request.getName().trim());
         }
 
         String before = summary(existing);

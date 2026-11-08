@@ -123,6 +123,9 @@ public interface LeaveRequestRepository
 
     long countByEmployeeIdAndStatus(Long employeeId, LeaveStatus status);
 
+    /** True when some request uses this leave type code (the code of a type in use cannot change). */
+    boolean existsByLeaveTypeCode(String leaveTypeCode);
+
     long countByStatus(LeaveStatus status);
 
     long countByStatusAndWorkflowDefinitionIdIsNull(LeaveStatus status);

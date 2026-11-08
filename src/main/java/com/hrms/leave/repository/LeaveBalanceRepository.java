@@ -13,6 +13,9 @@ import java.util.Optional;
 @Repository
 public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Long> {
 
+    /** True when some balance uses this leave type code (the code of a type in use cannot change). */
+    boolean existsByLeaveTypeCode(String leaveTypeCode);
+
     // ── Single record lookup ──────────────────────────────────
 
     Optional<LeaveBalance> findByEmployeeIdAndLeaveTypeCodeAndYear(

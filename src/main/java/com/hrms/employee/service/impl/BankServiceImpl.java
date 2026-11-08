@@ -58,6 +58,9 @@ public class BankServiceImpl implements BankService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Bank", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Bank", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         Bank entity = Bank.builder().build();
@@ -82,6 +85,9 @@ public class BankServiceImpl implements BankService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Bank", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Bank", "name", request.getName().trim());
         }
         if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveChildren(existing);
 

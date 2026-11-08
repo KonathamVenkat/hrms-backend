@@ -10,5 +10,7 @@ public interface BankRepository extends JpaRepository<Bank, Long> {
     List<Bank> findAllByOrderByNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
     List<Bank> findByIsActiveOrderByNameAsc(Boolean isActive);
 }

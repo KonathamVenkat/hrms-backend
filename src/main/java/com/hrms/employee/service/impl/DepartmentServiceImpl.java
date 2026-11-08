@@ -86,6 +86,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         if (departmentRepository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Department", "code", code);
         }
+        if (departmentRepository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Department", "name", request.getName().trim());
+        }
         checkHeadEmployee(request.getHeadEmployeeId(), null);
 
         Department entity = Department.builder().build();
@@ -110,6 +113,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         String code = request.getCode().trim().toUpperCase();
         if (departmentRepository.existsByCodeIgnoreCaseAndDeptIdNot(code, id)) {
             throw new DuplicateResourceException("Department", "code", code);
+        }
+        if (departmentRepository.existsByNameIgnoreCaseAndDeptIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Department", "name", request.getName().trim());
         }
         checkHeadEmployee(request.getHeadEmployeeId(), existing.getHeadEmployeeId());
         if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveDesignations(existing);

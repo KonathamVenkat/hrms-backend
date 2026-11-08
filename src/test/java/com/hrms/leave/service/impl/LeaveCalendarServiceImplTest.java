@@ -2,12 +2,15 @@ package com.hrms.leave.service.impl;
 
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.leave.dto.response.CalendarHolidayEntry;
 import com.hrms.leave.dto.response.CalendarLeaveEntry;
 import com.hrms.leave.dto.response.CalendarMonthResponse;
 import com.hrms.leave.entity.LeaveRequest;
 import com.hrms.leave.entity.LeaveStatus;
 import com.hrms.leave.entity.LeaveType;
 import com.hrms.leave.repository.HolidayCalendarRepository;
+import com.hrms.leave.service.WorkCalendar;
+import com.hrms.leave.entity.HolidayCalendar;
 import com.hrms.leave.repository.LeaveRequestRepository;
 import com.hrms.leave.repository.LeaveTypeRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +40,7 @@ class LeaveCalendarServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new LeaveCalendarServiceImpl(leaves, holidays, types, employees, guard);
+        service = new LeaveCalendarServiceImpl(leaves, new WorkCalendar(holidays), types, employees, guard);
         when(leaves.findLeavesOverlappingMonth(any(), any())).thenReturn(List.of(
                 leave(1, 7, "SICK", LeaveStatus.APPROVED),
                 leave(2, 7, "ANNUAL", LeaveStatus.PENDING),
@@ -45,7 +48,8 @@ class LeaveCalendarServiceImplTest {
         when(types.findAllByOrderBySortOrderAsc()).thenReturn(List.of(
                 LeaveType.builder().code("SICK").nameEn("Sick").build(),
                 LeaveType.builder().code("ANNUAL").nameEn("Annual").build()));
-        when(holidays.findByYearAndIsActiveOrderByHolidayDateAsc(anyInt(), anyInt())).thenReturn(List.of());
+        when(holidays.findHolidaysBetween(any(), any())).thenReturn(List.of());
+        when(holidays.findByIsRecurringAndIsActive(1, 1)).thenReturn(List.of());
     }
 
     private List<CalendarLeaveEntry> entriesOn14th(CalendarMonthResponse m) {
@@ -76,5 +80,19 @@ class LeaveCalendarServiceImplTest {
 
         assertEquals(3, entries.size());
         assertTrue(entries.stream().noneMatch(e -> "On leave".equals(e.getLeaveTypeName())));
+    }
+
+    @Test
+    void aRecurringHolidayEnteredInAnEarlierYearShowsOnItsDayThisYear() {
+        when(guard.isHrStaff()).thenReturn(true);
+        when(holidays.findByIsRecurringAndIsActive(1, 1)).thenReturn(List.of(
+                HolidayCalendar.builder().holidayId(4L).holidayName("Independence Day").holidayNameAr("x")
+                        .holidayDate(LocalDate.of(2025, 10, 14)).holidayType("PUBLIC").isRecurring(1).year(2025).build()));
+
+        CalendarMonthResponse month = service.getMonthCalendar(2026, 10);
+
+        List<String> names = month.getDays().stream().filter(d -> d.getDate().equals("2026-10-14"))
+                .flatMap(d -> d.getHolidays().stream()).map(CalendarHolidayEntry::getHolidayName).toList();
+        assertEquals(List.of("Independence Day"), names);
     }
 }

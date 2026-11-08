@@ -56,6 +56,9 @@ public class LanguageServiceImpl implements LanguageService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Language", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Language", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         Language entity = Language.builder().build();
@@ -80,6 +83,9 @@ public class LanguageServiceImpl implements LanguageService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Language", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Language", "name", request.getName().trim());
         }
 
         String before = summary(existing);

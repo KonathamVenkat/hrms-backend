@@ -11,6 +11,8 @@ public interface ProvinceRepository extends JpaRepository<Province, Long> {
     List<Province> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCaseAndWilayaId(String name, Long wilayaId);
+    boolean existsByNameIgnoreCaseAndWilayaIdAndIdNot(String name, Long wilayaId, Long id);
     boolean existsByWilayaId(Long wilayaId);
     boolean existsByWilayaIdAndIsActive(Long wilayaId, Boolean isActive);
 }

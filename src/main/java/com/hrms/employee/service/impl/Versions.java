@@ -3,7 +3,7 @@ package com.hrms.employee.service.impl;
 import org.springframework.dao.OptimisticLockingFailureException;
 
 /** Rejects an edit made from a screen that has since been overtaken by someone else's save. */
-final class Versions {
+public final class Versions {
 
     private Versions() {}
 
@@ -20,7 +20,7 @@ final class Versions {
         requireCurrent(sent, current);
     }
 
-    static void requireCurrent(Long sent, Long current) {
+    public static void requireCurrent(Long sent, Long current) {
         if (sent != null && !sent.equals(current)) {
             throw new OptimisticLockingFailureException(
                 "Version " + sent + " is stale, current is " + current);

@@ -56,6 +56,9 @@ public class EducationLevelServiceImpl implements EducationLevelService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Education level", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Education level", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         EducationLevel entity = EducationLevel.builder().build();
@@ -80,6 +83,9 @@ public class EducationLevelServiceImpl implements EducationLevelService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Education level", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Education level", "name", request.getName().trim());
         }
 
         String before = summary(existing);

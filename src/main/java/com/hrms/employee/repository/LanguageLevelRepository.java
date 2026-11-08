@@ -10,5 +10,7 @@ public interface LanguageLevelRepository extends JpaRepository<LanguageLevel, Lo
     List<LanguageLevel> findAllByOrderBySortOrderAscNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
     List<LanguageLevel> findByIsActiveOrderBySortOrderAscNameAsc(Boolean isActive);
 }

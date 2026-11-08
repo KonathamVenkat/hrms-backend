@@ -25,5 +25,6 @@ public record SalaryComponentResponse(
         Integer           sortOrder,
         Boolean           isActive,
         LocalDateTime     createdAt,
-        LocalDateTime     updatedAt
+        LocalDateTime     updatedAt,
+        Long              version
 ) {}

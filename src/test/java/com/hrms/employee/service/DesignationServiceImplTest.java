@@ -189,6 +189,35 @@ class DesignationServiceImplTest {
     }
 
     @Test
+    void getAll_loadsTheProfessionNamesInOneBatch() {
+        Designation a = Designation.builder().desigId(1L).code("A").title("A").professionId(5L).isActive(true).build();
+        Designation b = Designation.builder().desigId(2L).code("B").title("B").professionId(6L).isActive(true).build();
+        Designation c = Designation.builder().desigId(3L).code("C").title("C").professionId(5L).isActive(true).build();
+        when(designationRepository.findAllByOrderByTitleAsc()).thenReturn(List.of(a, b, c));
+        when(professionRepository.findAllById(any())).thenReturn(List.of(
+            Profession.builder().id(5L).name("Engineer").build(), Profession.builder().id(6L).name("Analyst").build()));
+
+        List<DesignationResponse> out = service.getAllDesignations();
+
+        assertEquals(List.of("Engineer", "Analyst", "Engineer"), out.stream().map(DesignationResponse::getProfessionName).toList());
+        verify(professionRepository, times(1)).findAllById(any());
+        verify(professionRepository, never()).findById(any());
+    }
+
+    @Test
+    void delete_whenAnotherRecordStillPointsToIt_saysItIsInUse() {
+        Designation d = existing();
+        when(designationRepository.findById(8L)).thenReturn(Optional.of(d));
+        when(jobDetailsRepository.existsByDesignationId(8L)).thenReturn(false);
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("FK_REQ_DESIGNATION")).when(designationRepository).flush();
+
+        BusinessRuleException e = assertThrows(BusinessRuleException.class, () -> service.deleteDesignation(8L));
+
+        assertEquals("DESIGNATION_IN_USE", e.getRuleCode());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
     void deactivate_setsInactiveAndStampsUpdate() {
         Designation d = existing();
         when(designationRepository.findById(8L)).thenReturn(Optional.of(d));

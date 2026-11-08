@@ -22,7 +22,7 @@ public class DocumentTypeController {
     private final DocumentTypeService documentTypeService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<List<DocumentTypeResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.<List<DocumentTypeResponse>>builder()
             .success(true).message("Document types fetched")
@@ -46,7 +46,7 @@ public class DocumentTypeController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<DocumentTypeResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.<DocumentTypeResponse>builder()
             .success(true).message("Document type fetched")
@@ -54,7 +54,7 @@ public class DocumentTypeController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<DocumentTypeResponse>> create(
             @Valid @RequestBody DocumentTypeRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -64,7 +64,7 @@ public class DocumentTypeController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<DocumentTypeResponse>> update(
             @PathVariable Long id, @Valid @RequestBody DocumentTypeRequest request) {
         return ResponseEntity.ok(ApiResponse.<DocumentTypeResponse>builder()
@@ -73,7 +73,7 @@ public class DocumentTypeController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
         documentTypeService.deactivateDocumentType(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -81,7 +81,7 @@ public class DocumentTypeController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> activate(@PathVariable Long id) {
         documentTypeService.activateDocumentType(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()

@@ -11,8 +11,8 @@ public class DirectorateRequest {
 
     @NotBlank(message = "Directorate code is required")
     @Size(max = 30)
-    @Pattern(regexp = "^[A-Z0-9_]+$",
-             message = "Code must be uppercase letters, numbers and underscores only")
+    @Pattern(regexp = "^[A-Z0-9_-]+$",
+             message = "Code must be uppercase letters, numbers, hyphens and underscores only")
     private String code;
 
     @NotBlank(message = "Directorate name is required")

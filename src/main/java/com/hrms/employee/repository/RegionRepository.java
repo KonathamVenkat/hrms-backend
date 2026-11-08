@@ -10,4 +10,6 @@ public interface RegionRepository extends JpaRepository<Region, Long> {
     List<Region> findAllByOrderByNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 }

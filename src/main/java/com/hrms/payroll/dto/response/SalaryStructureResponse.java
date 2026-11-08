@@ -12,5 +12,6 @@ public record SalaryStructureResponse(
         List<SalaryStructureItemResponse> items,
         int                               employeeCount,   // how many employees use this structure
         LocalDateTime                     createdAt,
-        LocalDateTime                     updatedAt
+        LocalDateTime                     updatedAt,
+        Long                              version
 ) {}

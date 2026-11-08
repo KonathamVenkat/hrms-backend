@@ -119,6 +119,11 @@ public class LeaveType {
     @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
 
+    /** Optimistic lock: an edit made from a stale screen is refused (HTTP 409). */
+    @jakarta.persistence.Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
+
     /**
      * True when an employee of {@code gender} may take this leave type: a type for "ALL" (or with no
      * restriction set) is open to everyone, a restricted type needs a known, matching gender.

@@ -27,19 +27,6 @@ public interface HolidayCalendarRepository extends JpaRepository<HolidayCalendar
     // ── Leave calculation queries ─────────────────────────────
 
     /**
-     * Count active holidays between two dates (inclusive).
-     * Used by leave module to count working days.
-     */
-    @Query("""
-        SELECT COUNT(h) FROM HolidayCalendar h
-        WHERE h.isActive = 1
-          AND h.holidayDate BETWEEN :startDate AND :endDate
-        """)
-    long countHolidaysBetween(
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate")   LocalDate endDate);
-
-    /**
      * Get all active holidays between two dates.
      * Used to build a list of non-working days.
      */
@@ -64,6 +51,9 @@ public interface HolidayCalendarRepository extends JpaRepository<HolidayCalendar
     
     List<HolidayCalendar> findByYearAndIsActive(
             Integer year, Integer isActive);
+
+    /** Active holidays marked recurring: they fall on the same month and day every year from their own year. */
+    List<HolidayCalendar> findByIsRecurringAndIsActive(Integer isRecurring, Integer isActive);
 
 
 }

@@ -17,7 +17,7 @@ public class DocumentTypeResponse {
     private Integer maxFileSizeMb;
     private Boolean isActive;
     private Integer sortOrder;
-    private String  createdBy;
     private String  createdAt;
     private String  updatedAt;
+    private Long    version;
 }

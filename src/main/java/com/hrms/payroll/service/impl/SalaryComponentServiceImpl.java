@@ -1,6 +1,9 @@
 package com.hrms.payroll.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
+import com.hrms.employee.service.impl.Versions;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.payroll.dto.request.SalaryComponentRequest;
 import com.hrms.payroll.dto.response.SalaryComponentResponse;
@@ -24,7 +27,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SalaryComponentServiceImpl implements SalaryComponentService {
 
+    private static final String TARGET = "SALARY_COMPONENT";
+
     private final SalaryComponentRepository componentRepo;
+    private final AuditTrail                audit;
 
     @Override
     public List<SalaryComponentResponse> getAll(Boolean activeOnly) {
@@ -86,6 +92,7 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
         SalaryComponent saved = componentRepo.save(comp);
         log.info("Salary component created — id={}, code={}", saved.getComponentId(),
                 saved.getComponentCode());
+        audit.record("SALARY_COMPONENT_CREATED", TARGET, saved.getComponentId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -94,6 +101,22 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
     public SalaryComponentResponse update(Long id, SalaryComponentRequest request) {
         log.info("Updating salary component id={}", id);
         SalaryComponent comp = findComponent(id);
+        if (request.version() == null) {
+            throw new BadRequestException("version is required to update a salary component");
+        }
+        Versions.requireCurrent(request.version(), comp.getVersion());
+        String before = summary(comp);
+
+        // A component in a structure that employees are paid by feeds their pay breakdown live (like an edited
+        // structure would), so what it is, how it is calculated and how it is taxed stay fixed while it is in use.
+        if (changesHowItPays(comp, request)) {
+            int employees = componentRepo.countCurrentEmployeesByComponentId(id);
+            if (employees > 0) {
+                throw new BusinessRuleException("COMPONENT_IN_USE",
+                        "Cannot change how '" + comp.getComponentName() + "' is calculated - it is part of the pay of "
+                        + employees + " employee(s). Only its names, description and order can change; create a new component instead.");
+            }
+        }
 
         // Check duplicate code/name only if changed
         String newCode = request.componentCode().toUpperCase().trim();
@@ -121,8 +144,10 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
         if (request.sortOrder() != null) comp.setSortOrder(request.sortOrder());
         comp.setUpdatedAt(LocalDateTime.now());
 
+        SalaryComponent saved = componentRepo.saveAndFlush(comp); // so the response carries the new version
         log.info("Salary component updated — id={}", id);
-        return toResponse(componentRepo.save(comp));
+        audit.record("SALARY_COMPONENT_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
 
     @Override
@@ -130,9 +155,36 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
     public void toggleActive(Long id, boolean active) {
         log.info("Toggling salary component id={} active={}", id, active);
         SalaryComponent comp = findComponent(id);
+        if (!active) {
+            int employees = componentRepo.countCurrentEmployeesByComponentId(id);
+            if (employees > 0) {
+                throw new BusinessRuleException("COMPONENT_IN_USE",
+                        "Cannot deactivate '" + comp.getComponentName() + "' - it is part of the pay of "
+                        + employees + " employee(s).");
+            }
+        }
         comp.setIsActive(active ? 1 : 0);
         comp.setUpdatedAt(LocalDateTime.now());
         componentRepo.save(comp);
+        audit.record(active ? "SALARY_COMPONENT_ACTIVATED" : "SALARY_COMPONENT_DEACTIVATED", TARGET, id,
+                comp.getComponentCode());
+    }
+
+    /** True when the request changes anything that decides the amount: code, type, calculation, value or flags. */
+    private static boolean changesHowItPays(SalaryComponent c, SalaryComponentRequest r) {
+        BigDecimal value = r.defaultValue() != null ? r.defaultValue() : BigDecimal.ZERO;
+        return !c.getComponentCode().equals(r.componentCode().toUpperCase().trim())
+                || c.getComponentType() != r.componentType()
+                || c.getCalcType() != r.calcType()
+                || c.getDefaultValue().compareTo(value) != 0
+                || (c.getIsTaxable() == 1) != Boolean.TRUE.equals(r.isTaxable())
+                || (c.getIsNssfApplicable() == 1) != Boolean.TRUE.equals(r.isNssfApplicable());
+    }
+
+    private static String summary(SalaryComponent c) {
+        return "code=" + c.getComponentCode() + ", name=" + c.getComponentName() + ", type=" + c.getComponentType()
+                + ", calc=" + c.getCalcType() + ", value=" + c.getDefaultValue() + ", taxable=" + c.getIsTaxable()
+                + ", nssf=" + c.getIsNssfApplicable() + ", active=" + c.getIsActive();
     }
 
     // ── Helper ────────────────────────────────────────────
@@ -167,6 +219,6 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
                 c.getDescription(),
                 c.getSortOrder(),
                 c.getIsActive() == 1,
-                c.getCreatedAt(), c.getUpdatedAt());
+                c.getCreatedAt(), c.getUpdatedAt(), c.getVersion());
     }
 }

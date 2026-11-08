@@ -7,7 +7,6 @@ import com.hrms.leave.dto.response.*;
 import com.hrms.leave.entity.HolidayCalendar;
 import com.hrms.leave.entity.LeaveRequest;
 import com.hrms.leave.entity.LeaveStatus;
-import com.hrms.leave.repository.HolidayCalendarRepository;
 import com.hrms.leave.service.WorkCalendar;
 import com.hrms.leave.repository.LeaveRequestRepository;
 import com.hrms.leave.repository.LeaveTypeRepository;
@@ -30,7 +29,7 @@ import java.util.stream.Collectors;
 public class LeaveCalendarServiceImpl implements LeaveCalendarService {
 
     private final LeaveRequestRepository    leaveRequestRepository;
-    private final HolidayCalendarRepository holidayRepository;
+    private final WorkCalendar              workCalendar;
     private final LeaveTypeRepository       leaveTypeRepository;
     private final EmployeeRepository        employeeRepository;
     private final EmployeeAccessGuard       accessGuard;
@@ -62,15 +61,6 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
             .findLeavesOverlappingMonth(firstDay, lastDay).stream()
             .filter(lr -> hr || lr.getEmployeeId().equals(selfId) || LeaveStatus.APPROVED == lr.getStatus())
             .collect(Collectors.toList());
-
-        // ── Fetch active holidays for this year ───────────────────
-        List<HolidayCalendar> holidays = holidayRepository
-            .findByYearAndIsActiveOrderByHolidayDateAsc(year, 1);
-
-        // ── Index holidays by date ────────────────────────────────
-        Map<LocalDate, List<HolidayCalendar>> holidayMap = holidays.stream()
-            .filter(h -> h.getHolidayDate() != null)
-            .collect(Collectors.groupingBy(HolidayCalendar::getHolidayDate));
 
         // ── Index leaves by each date they span ───────────────────
         Map<LocalDate, List<LeaveRequest>> leavesByDate = new HashMap<>();
@@ -105,6 +95,11 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
             TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate gridEnd = lastDay.with(
             TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+
+        // Holidays of the whole grid (it reaches into the neighbouring months), recurring ones repeated into this year.
+        Map<LocalDate, List<HolidayCalendar>> holidayMap = workCalendar.holidaysBetween(gridStart, gridEnd).stream()
+            .collect(Collectors.groupingBy(WorkCalendar.Occurrence::date,
+                Collectors.mapping(WorkCalendar.Occurrence::holiday, Collectors.toList())));
 
         List<CalendarDayResponse> days = new ArrayList<>();
         int totalApproved = 0;
@@ -171,10 +166,10 @@ public class LeaveCalendarServiceImpl implements LeaveCalendarService {
             .collect(Collectors.toList());
 
         // ── Holidays count for this month ────────────────────────
-        int thisMonthHolidays = (int) holidays.stream()
-            .filter(h -> h.getHolidayDate() != null
-                && h.getHolidayDate().getMonthValue() == month)
-            .count();
+        int thisMonthHolidays = holidayMap.entrySet().stream()
+            .filter(e -> e.getKey().getMonthValue() == month && e.getKey().getYear() == year)
+            .mapToInt(e -> e.getValue().size())
+            .sum();
 
         String monthName = firstDay.getMonth()
             .getDisplayName(TextStyle.FULL, Locale.ENGLISH) + " " + year;

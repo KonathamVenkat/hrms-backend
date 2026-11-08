@@ -63,4 +63,9 @@ public class SalaryComponent extends Auditable {
     @Column(name = "IS_ACTIVE", nullable = false)
     @Builder.Default
     private Integer isActive = 1;
+
+    /** Optimistic lock: an edit made from a stale screen is refused (HTTP 409). */
+    @jakarta.persistence.Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 }

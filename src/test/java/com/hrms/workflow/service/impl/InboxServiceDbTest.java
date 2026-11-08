@@ -46,6 +46,7 @@ class InboxServiceDbTest extends DatabaseTest {
     @Autowired LeaveRequestRepository requests;
     @Autowired EmployeeRepository employees;
     @Autowired WorkflowDefinitionService definitions;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockitoBean EmployeeAccessGuard guard;
 
     private long me;
@@ -60,6 +61,10 @@ class InboxServiceDbTest extends DatabaseTest {
         me = employee("me", run);
         other = employee("other", run);
         requester = employee("req", run);
+        // a leave request must name a real leave type (foreign key since V26); the empty test database has none
+        jdbc.update("insert into HRMS.LEAVE_TYPES (LEAVE_TYPE_ID, CODE, NAME_EN, NAME_AR) "
+            + "select 990201, 'ANNUAL', 'Annual leave (inbox test)', N'سنوية' from dual "
+            + "where not exists (select 1 from HRMS.LEAVE_TYPES where CODE = 'ANNUAL')");
         definitionId = definitions.publishDefault(RequestType.LEAVE).getDefinitionId();
         when(guard.currentEmployeeId()).thenAnswer(i -> caller);
     }

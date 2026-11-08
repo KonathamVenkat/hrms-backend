@@ -14,7 +14,7 @@ public class HolidayResponse {
     private Boolean isRecurring;
     private Integer year;
     private Boolean isActive;
-    private String  createdBy;
     private String  createdAt;
     private String  updatedAt;
+    private Long    version;
 }

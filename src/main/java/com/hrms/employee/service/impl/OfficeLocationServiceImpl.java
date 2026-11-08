@@ -1,5 +1,8 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
+import com.hrms.employee.service.impl.Versions;
 import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -24,6 +27,9 @@ import java.util.stream.Collectors;
 public class OfficeLocationServiceImpl implements OfficeLocationService {
 
     private final OfficeLocationRepository locationRepository;
+    private final AuditTrail audit;
+
+    private static final String TARGET = "OFFICE_LOCATION";
 
     @Override
     public List<OfficeLocationResponse> getAllLocations() {
@@ -76,8 +82,9 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
             .createdAt(LocalDateTime.now())
             .build();
 
-        OfficeLocation saved = locationRepository.save(entity);
+        OfficeLocation saved = locationRepository.saveAndFlush(entity);
         log.info("Office location created. ID: {}", saved.getLocationId());
+        audit.record("OFFICE_LOCATION_CREATED", TARGET, saved.getLocationId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -86,6 +93,11 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
     public OfficeLocationResponse updateLocation(Long id, OfficeLocationRequest request) {
         log.info("Updating office location id: {}", id);
         OfficeLocation existing = findById(id);
+        if (request.getVersion() == null) {
+            throw new BadRequestException("version is required to update an office location");
+        }
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
+        String before = summary(existing);
 
         if (locationRepository.existsByLocationCodeIgnoreCaseAndLocationIdNot(
                 request.getLocationCode(), id)) {
@@ -116,7 +128,9 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
         existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(locationRepository.save(existing));
+        OfficeLocation saved = locationRepository.saveAndFlush(existing); // so the response carries the new version
+        audit.record("OFFICE_LOCATION_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
 
     @Override @Transactional
@@ -124,6 +138,7 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
         OfficeLocation loc = findById(id);
         loc.setIsActive(0); loc.setUpdatedBy(CurrentAuditor.name()); loc.setUpdatedAt(LocalDateTime.now());
         locationRepository.save(loc);
+        audit.record("OFFICE_LOCATION_DEACTIVATED", TARGET, id, loc.getLocationCode());
     }
 
     @Override @Transactional
@@ -132,6 +147,12 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
             .orElseThrow(() -> new ResourceNotFoundException("OfficeLocation", "id", id));
         loc.setIsActive(1); loc.setUpdatedBy(CurrentAuditor.name()); loc.setUpdatedAt(LocalDateTime.now());
         locationRepository.save(loc);
+        audit.record("OFFICE_LOCATION_ACTIVATED", TARGET, id, loc.getLocationCode());
+    }
+
+    private static String summary(OfficeLocation l) {
+        return "code=" + l.getLocationCode() + ", name=" + l.getLocationName() + ", type=" + l.getLocationType()
+            + ", city=" + l.getCity() + ", country=" + l.getCountry() + ", active=" + l.getIsActive();
     }
 
     private OfficeLocation findById(Long id) {
@@ -159,9 +180,9 @@ public class OfficeLocationServiceImpl implements OfficeLocationService {
             .longitude(loc.getLongitude())
             .isActive(loc.getIsActive() == 1)
             .sortOrder(loc.getSortOrder())
-            .createdBy(loc.getCreatedBy())
             .createdAt(loc.getCreatedAt() != null ? loc.getCreatedAt().toString() : null)
             .updatedAt(loc.getUpdatedAt() != null ? loc.getUpdatedAt().toString() : null)
+            .version(loc.getVersion())
             .build();
     }
 

@@ -10,6 +10,8 @@ public interface WilayaRepository extends JpaRepository<Wilaya, Long> {
     List<Wilaya> findAllByOrderByNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCaseAndRegionId(String name, Long regionId);
+    boolean existsByNameIgnoreCaseAndRegionIdAndIdNot(String name, Long regionId, Long id);
     boolean existsByRegionId(Long regionId);
     boolean existsByRegionIdAndIsActive(Long regionId, Boolean isActive);
 }

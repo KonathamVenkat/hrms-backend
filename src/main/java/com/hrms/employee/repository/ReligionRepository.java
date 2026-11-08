@@ -11,4 +11,6 @@ public interface ReligionRepository extends JpaRepository<Religion, Long> {
     List<Religion> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 }

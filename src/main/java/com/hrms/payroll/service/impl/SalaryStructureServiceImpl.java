@@ -1,6 +1,9 @@
 package com.hrms.payroll.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
 import com.hrms.common.exception.BusinessRuleException;
+import com.hrms.employee.service.impl.Versions;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.payroll.dto.request.SalaryStructureItemRequest;
 import com.hrms.payroll.dto.request.SalaryStructureRequest;
@@ -34,6 +37,9 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
     private final SalaryStructureRepository     structureRepo;
     private final SalaryStructureItemRepository itemRepo;
     private final SalaryComponentRepository     componentRepo;
+    private final AuditTrail                    audit;
+
+    private static final String TARGET = "SALARY_STRUCTURE";
 
     @Override
     public List<SalaryStructureResponse> getAll(Boolean activeOnly) {
@@ -80,6 +86,7 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
         saveItems(structureId, request.items());
 
         log.info("Salary structure created — id={}", structureId);
+        audit.record("SALARY_STRUCTURE_CREATED", TARGET, structureId, summary(structure, request.items().size()));
         return toResponse(findStructure(structureId));
     }
 
@@ -88,6 +95,10 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
     public SalaryStructureResponse update(Long id, SalaryStructureRequest request) {
         log.info("Updating salary structure id={}", id);
         SalaryStructure structure = findStructure(id);
+        if (request.version() == null) {
+            throw new BadRequestException("version is required to update a salary structure");
+        }
+        Versions.requireCurrent(request.version(), structure.getVersion());
 
         // A structure's items feed every EmployeeSalary breakdown live (the totals are
         // frozen at assignment time, but the line-item breakdown is recomputed from the
@@ -110,6 +121,7 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
         saveItems(id, request.items());
 
         log.info("Salary structure updated — id={}", id);
+        audit.record("SALARY_STRUCTURE_UPDATED", TARGET, id, summary(structure, request.items().size()));
         return toResponse(findStructure(id));
     }
 
@@ -131,6 +143,12 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
         structure.setIsActive(active ? 1 : 0);
         structure.setUpdatedAt(LocalDateTime.now());
         structureRepo.save(structure);
+        audit.record(active ? "SALARY_STRUCTURE_ACTIVATED" : "SALARY_STRUCTURE_DEACTIVATED", TARGET, id,
+                structure.getStructureCode());
+    }
+
+    private static String summary(SalaryStructure s, int items) {
+        return "code=" + s.getStructureCode() + ", name=" + s.getStructureName() + ", items=" + items;
     }
 
     // ── Helpers ───────────────────────────────────────────
@@ -213,6 +231,6 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
                 s.getStructureName(), s.getDescription(),
                 s.getIsActive() == 1,
                 itemResponses, empCount,
-                s.getCreatedAt(), s.getUpdatedAt());
+                s.getCreatedAt(), s.getUpdatedAt(), s.getVersion());
     }
 }

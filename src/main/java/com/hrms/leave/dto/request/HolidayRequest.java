@@ -9,10 +9,12 @@ public class HolidayRequest {
 
     @NotBlank(message = "Holiday name is required")
     @Size(max = 200, message = "Name max 200 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Name contains control or invisible characters")
     private String holidayName;
 
     @NotBlank(message = "Arabic holiday name is required")
     @Size(max = 200, message = "Arabic name max 200 characters")
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic name contains control or invisible characters")
     private String holidayNameAr;
 
     @NotNull(message = "Holiday date is required")
@@ -30,4 +32,6 @@ public class HolidayRequest {
 
     private Boolean isRecurring;
     private Boolean isActive;
+    /** The version the screen was loaded with; required to update (400 when missing, 409 when stale). */
+    private Long version;
 }

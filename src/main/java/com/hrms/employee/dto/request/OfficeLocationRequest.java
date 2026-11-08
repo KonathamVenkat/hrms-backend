@@ -15,10 +15,12 @@ public class OfficeLocationRequest {
 
     @NotBlank(message = "Location name is required")
     @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Name contains control or invisible characters")
     private String locationName;
 
     @NotBlank(message = "Arabic location name is required")
     @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic name contains control or invisible characters")
     private String locationNameAr;
 
     @NotBlank(message = "Location type is required")
@@ -48,6 +50,7 @@ public class OfficeLocationRequest {
     private String postalCode;
 
     @Size(max = 30)
+    @Pattern(regexp = "^$|^[0-9+() -]{3,30}$", message = "Phone may contain digits, spaces, + ( ) and - only")
     private String phone;
 
     @Email(message = "Invalid email format")
@@ -56,6 +59,12 @@ public class OfficeLocationRequest {
 
     @Size(max = 50)
     private String timezone;
+
+    /** Not given (null) means the service default; anything else, an empty text included, must be a real time zone. */
+    @AssertTrue(message = "Unknown time zone")
+    public boolean isTimezoneKnown() {
+        return timezone == null || java.time.ZoneId.getAvailableZoneIds().contains(timezone);
+    }
 
     @DecimalMin(value = "-90",  message = "Latitude must be between -90 and 90")
     @DecimalMax(value = "90",   message = "Latitude must be between -90 and 90")
@@ -69,5 +78,7 @@ public class OfficeLocationRequest {
     private Integer sortOrder;
 
     private Boolean isActive;
+    /** The version the screen was loaded with; required to update (400 when missing, 409 when stale). */
+    private Long version;
 }
 

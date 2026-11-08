@@ -1,5 +1,8 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
+import com.hrms.employee.service.impl.Versions;
 import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -26,6 +29,9 @@ import java.util.stream.Collectors;
 public class WorkShiftServiceImpl implements WorkShiftService {
 
     private final WorkShiftRepository workShiftRepository;
+    private final AuditTrail audit;
+
+    private static final String TARGET = "WORK_SHIFT";
 
     // ── Read ──────────────────────────────────────────────────
 
@@ -66,8 +72,9 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         entity.setCreatedBy(CurrentAuditor.name());
         entity.setCreatedAt(LocalDateTime.now());
 
-        WorkShift saved = workShiftRepository.save(entity);
+        WorkShift saved = workShiftRepository.saveAndFlush(entity);
         log.info("Work shift created. ID: {}, Code: {}", saved.getShiftId(), saved.getShiftCode());
+        audit.record("WORK_SHIFT_CREATED", TARGET, saved.getShiftId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -79,6 +86,11 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         log.info("Updating work shift id: {}", id);
 
         WorkShift existing = findById(id);
+        if (request.getVersion() == null) {
+            throw new BadRequestException("version is required to update a work shift");
+        }
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
+        String before = summary(existing);
 
         validateShiftTiming(request);
 
@@ -111,7 +123,9 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(workShiftRepository.save(existing));
+        WorkShift saved = workShiftRepository.saveAndFlush(existing); // so the response carries the new version
+        audit.record("WORK_SHIFT_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
 
     // ── Activate / Deactivate ─────────────────────────────────
@@ -125,6 +139,7 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         ws.setUpdatedAt(LocalDateTime.now());
         workShiftRepository.save(ws);
         log.info("Work shift deactivated. ID: {}", id);
+        audit.record("WORK_SHIFT_DEACTIVATED", TARGET, id, ws.getShiftCode());
     }
 
     @Override
@@ -137,9 +152,16 @@ public class WorkShiftServiceImpl implements WorkShiftService {
         ws.setUpdatedAt(LocalDateTime.now());
         workShiftRepository.save(ws);
         log.info("Work shift activated. ID: {}", id);
+        audit.record("WORK_SHIFT_ACTIVATED", TARGET, id, ws.getShiftCode());
     }
 
     // ── Private helpers ───────────────────────────────────────
+
+    private static String summary(WorkShift w) {
+        return "code=" + w.getShiftCode() + ", name=" + w.getShiftName() + ", type=" + w.getShiftType()
+            + ", time=" + w.getStartTime() + "-" + w.getEndTime() + ", break=" + w.getBreakDuration()
+            + ", hours=" + w.getWorkingHours() + ", days=" + w.getWorkingDays() + ", active=" + w.getIsActive();
+    }
 
     private WorkShift findById(Long id) {
         return workShiftRepository.findById(id)
@@ -222,9 +244,9 @@ public class WorkShiftServiceImpl implements WorkShiftService {
             .description(ws.getDescription())
             .isActive(ws.getIsActive() == 1)
             .sortOrder(ws.getSortOrder())
-            .createdBy(ws.getCreatedBy())
             .createdAt(ws.getCreatedAt() != null ? ws.getCreatedAt().toString() : null)
             .updatedAt(ws.getUpdatedAt() != null ? ws.getUpdatedAt().toString() : null)
+            .version(ws.getVersion())
             .build();
     }
 

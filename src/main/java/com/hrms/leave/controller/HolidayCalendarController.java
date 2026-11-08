@@ -28,7 +28,7 @@ public class HolidayCalendarController {
      * All holidays for a year — admin table view.
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<List<HolidayResponse>>> getHolidaysByYear(
             @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().getYear()}")
             Integer year) {
@@ -68,7 +68,7 @@ public class HolidayCalendarController {
      * GET /api/v1/admin/holiday-calendar/{id}
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<HolidayResponse>> getHolidayById(
             @PathVariable Long id) {
 
@@ -86,7 +86,7 @@ public class HolidayCalendarController {
      * POST /api/v1/admin/holiday-calendar
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<HolidayResponse>> createHoliday(
             @Valid @RequestBody HolidayRequest request) {
 
@@ -107,7 +107,7 @@ public class HolidayCalendarController {
      * PUT /api/v1/admin/holiday-calendar/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<HolidayResponse>> updateHoliday(
             @PathVariable Long id,
             @Valid @RequestBody HolidayRequest request) {
@@ -127,7 +127,7 @@ public class HolidayCalendarController {
      * PATCH /api/v1/admin/holiday-calendar/{id}/deactivate
      */
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deactivateHoliday(@PathVariable Long id) {
         holidayService.deactivateHoliday(id);
         return ResponseEntity.ok(
@@ -140,7 +140,7 @@ public class HolidayCalendarController {
      * PATCH /api/v1/admin/holiday-calendar/{id}/activate
      */
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HR_ADMIN')")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> activateHoliday(@PathVariable Long id) {
         holidayService.activateHoliday(id);
         return ResponseEntity.ok(

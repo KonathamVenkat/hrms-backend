@@ -194,7 +194,8 @@ class GeneratedMastersServiceTest {
     @Test
     void directorate_createNeedsAnActiveCompanyBranch() {
         DirectorateServiceImpl service =
-            new DirectorateServiceImpl(directorateRepository, companyBranchRepository, audit, entityManager);
+            new DirectorateServiceImpl(directorateRepository, companyBranchRepository,
+                org.mockito.Mockito.mock(com.hrms.employee.repository.DepartmentRepository.class), audit, entityManager);
         DirectorateRequest request = DirectorateRequest.builder()
             .companyBranchId(9L).code("D1").name("Finance").nameAr("x").build();
         when(directorateRepository.existsByCodeIgnoreCase("D1")).thenReturn(false);

@@ -11,4 +11,6 @@ public interface ContractTypeRepository extends JpaRepository<ContractType, Long
     List<ContractType> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 }

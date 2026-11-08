@@ -64,6 +64,9 @@ public class SectionServiceImpl implements SectionService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Section", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndDepartmentId(request.getName().trim(), request.getDepartmentId())) {
+            throw new DuplicateResourceException("Section", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getDepartmentId(), active);
 
@@ -89,6 +92,9 @@ public class SectionServiceImpl implements SectionService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Section", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndDepartmentIdAndIdNot(request.getName().trim(), request.getDepartmentId(), id)) {
+            throw new DuplicateResourceException("Section", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getDepartmentId(), active);

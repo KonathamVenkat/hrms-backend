@@ -26,4 +26,12 @@ public interface SalaryComponentRepository
 
     boolean existsByComponentCode(String code);
     boolean existsByComponentName(String name);
+
+    /** Employees whose current salary uses a structure that contains this component. */
+    @Query(value = """
+            SELECT COUNT(DISTINCT es.EMPLOYEE_ID) FROM HRMS.EMPLOYEE_SALARY es
+            JOIN HRMS.SALARY_STRUCTURE_ITEMS i ON i.STRUCTURE_ID = es.STRUCTURE_ID
+            WHERE i.COMPONENT_ID = :componentId AND es.IS_CURRENT = 1
+            """, nativeQuery = true)
+    int countCurrentEmployeesByComponentId(Long componentId);
 }

@@ -52,6 +52,9 @@ public class RegionServiceImpl implements RegionService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Region", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Region", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         Region entity = Region.builder().build();
@@ -76,6 +79,9 @@ public class RegionServiceImpl implements RegionService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Region", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Region", "name", request.getName().trim());
         }
         if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveChildren(existing);
 

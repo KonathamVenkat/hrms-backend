@@ -14,10 +14,12 @@ public class DocumentTypeRequest {
 
     @NotBlank(message = "Document type name is required")
     @Size(max = 100)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Name contains control or invisible characters")
     private String docTypeName;
 
     @NotBlank(message = "Arabic document type name is required")
     @Size(max = 200)
+    @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic name contains control or invisible characters")
     private String docTypeNameAr;
 
     @NotBlank(message = "Category is required")
@@ -36,6 +38,8 @@ public class DocumentTypeRequest {
     private Integer expiryNoticeDays;
 
     @Size(max = 200)
+    @Pattern(regexp = "^[A-Za-z]{2,5}(,[A-Za-z]{2,5})*$",
+             message = "Allowed extensions must be a comma-separated list such as PDF,JPG,PNG")
     private String allowedExtensions;
 
     // The upper bound is the global upload cap (hrms.upload.max-file-size-mb), checked in the service.
@@ -46,5 +50,7 @@ public class DocumentTypeRequest {
     private Integer sortOrder;
 
     private Boolean isActive;
+    /** The version the screen was loaded with; required to update (400 when missing, 409 when stale). */
+    private Long version;
 }
 

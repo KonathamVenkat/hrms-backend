@@ -3,7 +3,6 @@ package com.hrms.leave.service;
 import com.hrms.leave.dto.request.HolidayRequest;
 import com.hrms.leave.dto.response.HolidayResponse;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public interface HolidayCalendarService {
@@ -15,7 +14,4 @@ public interface HolidayCalendarService {
     HolidayResponse       updateHoliday(Long id, HolidayRequest request);
     void                  deactivateHoliday(Long id);
     void                  activateHoliday(Long id);
-
-    /** Used by leave module: count holidays between dates */
-    long countWorkingDayHolidays(LocalDate startDate, LocalDate endDate);
 }

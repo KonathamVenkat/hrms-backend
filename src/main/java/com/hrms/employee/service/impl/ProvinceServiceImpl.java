@@ -63,6 +63,9 @@ public class ProvinceServiceImpl implements ProvinceService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Province", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndWilayaId(request.getName().trim(), request.getWilayaId())) {
+            throw new DuplicateResourceException("Province", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getWilayaId(), active);
 
@@ -88,6 +91,9 @@ public class ProvinceServiceImpl implements ProvinceService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Province", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndWilayaIdAndIdNot(request.getName().trim(), request.getWilayaId(), id)) {
+            throw new DuplicateResourceException("Province", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getWilayaId(), active);

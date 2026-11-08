@@ -1,5 +1,8 @@
 package com.hrms.employee.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
+import com.hrms.employee.service.impl.Versions;
 import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -26,6 +29,9 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
 
     private final DocumentTypeRepository docTypeRepository;
     private final UploadLimits           uploadLimits;
+    private final AuditTrail             audit;
+
+    private static final String TARGET = "DOCUMENT_TYPE";
 
     @Override
     public List<DocumentTypeResponse> getAllDocumentTypes() {
@@ -82,8 +88,9 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
             .createdAt(LocalDateTime.now())
             .build();
 
-        DocumentType saved = docTypeRepository.save(entity);
+        DocumentType saved = docTypeRepository.saveAndFlush(entity);
         log.info("Document type created. ID: {}", saved.getDocTypeId());
+        audit.record("DOCUMENT_TYPE_CREATED", TARGET, saved.getDocTypeId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -92,6 +99,11 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
     public DocumentTypeResponse updateDocumentType(Long id, DocumentTypeRequest request) {
         log.info("Updating document type id: {}", id);
         DocumentType existing = findById(id);
+        if (request.getVersion() == null) {
+            throw new BadRequestException("version is required to update a document type");
+        }
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
+        String before = summary(existing);
 
         if (docTypeRepository.existsByDocTypeCodeIgnoreCaseAndDocTypeIdNot(
                 request.getDocTypeCode(), id)) {
@@ -120,7 +132,9 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
         existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(docTypeRepository.save(existing));
+        DocumentType saved = docTypeRepository.saveAndFlush(existing); // so the response carries the new version
+        audit.record("DOCUMENT_TYPE_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
 
     @Override @Transactional
@@ -128,6 +142,7 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
         DocumentType dt = findById(id);
         dt.setIsActive(0); dt.setUpdatedBy(CurrentAuditor.name()); dt.setUpdatedAt(LocalDateTime.now());
         docTypeRepository.save(dt);
+        audit.record("DOCUMENT_TYPE_DEACTIVATED", TARGET, id, dt.getDocTypeCode());
     }
 
     @Override @Transactional
@@ -136,6 +151,13 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
             .orElseThrow(() -> new ResourceNotFoundException("DocumentType", "id", id));
         dt.setIsActive(1); dt.setUpdatedBy(CurrentAuditor.name()); dt.setUpdatedAt(LocalDateTime.now());
         docTypeRepository.save(dt);
+        audit.record("DOCUMENT_TYPE_ACTIVATED", TARGET, id, dt.getDocTypeCode());
+    }
+
+    private static String summary(DocumentType d) {
+        return "code=" + d.getDocTypeCode() + ", name=" + d.getDocTypeName() + ", category=" + d.getCategory()
+            + ", mandatory=" + d.getIsMandatory() + ", extensions=" + d.getAllowedExtensions()
+            + ", maxMb=" + d.getMaxFileSizeMb() + ", active=" + d.getIsActive();
     }
 
     private DocumentType findById(Long id) {
@@ -158,9 +180,9 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
             .maxFileSizeMb(dt.getMaxFileSizeMb())
             .isActive(dt.getIsActive() == 1)
             .sortOrder(dt.getSortOrder())
-            .createdBy(dt.getCreatedBy())
             .createdAt(dt.getCreatedAt() != null ? dt.getCreatedAt().toString() : null)
             .updatedAt(dt.getUpdatedAt() != null ? dt.getUpdatedAt().toString() : null)
+            .version(dt.getVersion())
             .build();
     }
 

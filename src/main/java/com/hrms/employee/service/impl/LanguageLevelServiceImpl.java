@@ -56,6 +56,9 @@ public class LanguageLevelServiceImpl implements LanguageLevelService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Language level", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Language level", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         LanguageLevel entity = LanguageLevel.builder().build();
@@ -80,6 +83,9 @@ public class LanguageLevelServiceImpl implements LanguageLevelService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Language level", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Language level", "name", request.getName().trim());
         }
 
         String before = summary(existing);

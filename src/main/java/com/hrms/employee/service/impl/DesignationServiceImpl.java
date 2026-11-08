@@ -20,6 +20,7 @@ import com.hrms.employee.service.DesignationService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,8 +49,13 @@ public class DesignationServiceImpl implements DesignationService {
     public List<DesignationResponse> getAllDesignations() {
         Map<Long, String> departmentNames = departmentRepository.findAll().stream()
             .collect(Collectors.toMap(Department::getDeptId, Department::getName, (a, b) -> a));
-        return designationRepository.findAllByOrderByTitleAsc().stream()
-            .map(d -> toResponse(d, departmentNames.get(d.getDepartmentId())))
+        List<Designation> all = designationRepository.findAllByOrderByTitleAsc();
+        // one query for every profession name, not one per row
+        Map<Long, String> professionNames = professionRepository.findAllById(all.stream()
+                .map(Designation::getProfessionId).filter(Objects::nonNull).distinct().toList()).stream()
+            .collect(Collectors.toMap(Profession::getId, Profession::getName, (a, b) -> a));
+        return all.stream()
+            .map(d -> toResponse(d, departmentNames.get(d.getDepartmentId()), professionNames.get(d.getProfessionId())))
             .toList();
     }
 
@@ -75,6 +81,9 @@ public class DesignationServiceImpl implements DesignationService {
         String code = request.getCode().trim().toUpperCase();
         if (designationRepository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Designation", "code", code);
+        }
+        if (designationRepository.existsByTitleIgnoreCaseAndDepartmentId(request.getTitle().trim(), request.getDepartmentId())) {
+            throw new DuplicateResourceException("Designation", "name", request.getTitle().trim());
         }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkDepartment(request.getDepartmentId(), active);
@@ -102,6 +111,9 @@ public class DesignationServiceImpl implements DesignationService {
         String code = request.getCode().trim().toUpperCase();
         if (designationRepository.existsByCodeIgnoreCaseAndDesigIdNot(code, id)) {
             throw new DuplicateResourceException("Designation", "code", code);
+        }
+        if (designationRepository.existsByTitleIgnoreCaseAndDepartmentIdAndDesigIdNot(request.getTitle().trim(), request.getDepartmentId(), id)) {
+            throw new DuplicateResourceException("Designation", "name", request.getTitle().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkDepartment(request.getDepartmentId(), active);
@@ -145,6 +157,14 @@ public class DesignationServiceImpl implements DesignationService {
                     + "Deactivate it instead of deleting it.");
         }
         designationRepository.delete(desig);
+        try {
+            // Flush now so a requisition (or any other row) that points here is reported here, not at commit.
+            designationRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessRuleException("DESIGNATION_IN_USE",
+                "Designation " + desig.getCode() + " is used by job records or requisitions. "
+                    + "Deactivate it instead of deleting it.");
+        }
         log.info("Designation deleted. ID: {}, code: {}", id, desig.getCode());
         audit.record("DESIGNATION_DELETED", TARGET, id, summary(desig));
     }
@@ -227,6 +247,10 @@ public class DesignationServiceImpl implements DesignationService {
     }
 
     private DesignationResponse toResponse(Designation d, String departmentName) {
+        return toResponse(d, departmentName, professionName(d.getProfessionId()));
+    }
+
+    private DesignationResponse toResponse(Designation d, String departmentName, String professionName) {
         return DesignationResponse.builder()
             .desigId(d.getDesigId())
             .code(d.getCode())
@@ -234,7 +258,7 @@ public class DesignationServiceImpl implements DesignationService {
             .titleAr(d.getTitleAr())
             .gradeLevel(d.getGradeLevel())
             .professionId(d.getProfessionId())
-            .professionName(professionName(d.getProfessionId()))
+            .professionName(professionName)
             .departmentId(d.getDepartmentId())
             .departmentName(departmentName)
             .isActive(Boolean.TRUE.equals(d.getIsActive()))

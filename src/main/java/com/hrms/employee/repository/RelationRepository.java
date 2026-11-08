@@ -10,6 +10,8 @@ public interface RelationRepository extends JpaRepository<Relation, Long> {
     List<Relation> findAllByOrderByNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCaseAndRelationTypeId(String name, Long relationTypeId);
+    boolean existsByNameIgnoreCaseAndRelationTypeIdAndIdNot(String name, Long relationTypeId, Long id);
     List<Relation> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByRelationTypeId(Long relationTypeId);
     boolean existsByRelationTypeIdAndIsActive(Long relationTypeId, Boolean isActive);

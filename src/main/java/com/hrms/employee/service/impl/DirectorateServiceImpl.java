@@ -10,6 +10,7 @@ import com.hrms.employee.dto.response.DirectorateResponse;
 import com.hrms.employee.entity.Directorate;
 import com.hrms.employee.repository.DirectorateRepository;
 import com.hrms.employee.repository.CompanyBranchRepository;
+import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.entity.CompanyBranch;
 import com.hrms.employee.service.DirectorateService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class DirectorateServiceImpl implements DirectorateService {
 
     private final DirectorateRepository repository;
     private final CompanyBranchRepository companyBranchRepository;
+    private final DepartmentRepository departmentRepository;
     private final AuditTrail audit;
     private final EntityManager entityManager;
 
@@ -52,6 +54,9 @@ public class DirectorateServiceImpl implements DirectorateService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Directorate", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndCompanyBranchId(request.getName().trim(), request.getCompanyBranchId())) {
+            throw new DuplicateResourceException("Directorate", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getCompanyBranchId(), active);
@@ -79,8 +84,12 @@ public class DirectorateServiceImpl implements DirectorateService {
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Directorate", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndCompanyBranchIdAndIdNot(request.getName().trim(), request.getCompanyBranchId(), id)) {
+            throw new DuplicateResourceException("Directorate", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getCompanyBranchId(), active);
+        if (Boolean.FALSE.equals(request.getIsActive())) checkNoActiveDepartments(existing);
 
         String before = summary(existing);
         apply(existing, request, code);
@@ -127,6 +136,7 @@ public class DirectorateServiceImpl implements DirectorateService {
     private void setActive(Long id, boolean active) {
         Directorate e = findById(id);
         if (active) checkParent(e.getCompanyBranchId(), true);
+        if (!active) checkNoActiveDepartments(e);
         e.setIsActive(active);
         e.setUpdatedAt(LocalDateTime.now());
         repository.save(e);
@@ -134,6 +144,13 @@ public class DirectorateServiceImpl implements DirectorateService {
     }
 
     /** The company branch must exist, and an active directorate needs an active company branch. */
+    private void checkNoActiveDepartments(Directorate e) {
+        if (departmentRepository.existsByDirectorateIdAndIsActive(e.getId(), true)) {
+            throw new BusinessRuleException("MASTER_HAS_ACTIVE_CHILDREN",
+                "Directorate " + e.getCode() + " still has active departments. Deactivate them first.");
+        }
+    }
+
     private void checkParent(Long companyBranchId, boolean childActive) {
         CompanyBranch parent = companyBranchRepository.findById(companyBranchId)
             .orElseThrow(() -> new ResourceNotFoundException("Company branch", "id", companyBranchId));

@@ -59,6 +59,9 @@ public class RelationServiceImpl implements RelationService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Relation", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndRelationTypeId(request.getName().trim(), request.getRelationTypeId())) {
+            throw new DuplicateResourceException("Relation", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getRelationTypeId(), active);
 
@@ -84,6 +87,9 @@ public class RelationServiceImpl implements RelationService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Relation", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndRelationTypeIdAndIdNot(request.getName().trim(), request.getRelationTypeId(), id)) {
+            throw new DuplicateResourceException("Relation", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getRelationTypeId(), active);

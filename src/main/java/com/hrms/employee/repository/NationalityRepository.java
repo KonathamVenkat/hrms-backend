@@ -12,4 +12,6 @@ public interface NationalityRepository extends JpaRepository<Nationality, Long> 
     List<Nationality> findByIsActiveAndCountryNameIsNotNullOrderByCountryNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 }

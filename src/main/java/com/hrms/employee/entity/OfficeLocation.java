@@ -97,4 +97,9 @@ public class OfficeLocation {
 
     @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
+
+    /** Optimistic lock: an edit made from a stale screen is refused (HTTP 409). */
+    @jakarta.persistence.Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
 }

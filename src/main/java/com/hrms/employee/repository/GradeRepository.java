@@ -10,4 +10,6 @@ public interface GradeRepository extends JpaRepository<Grade, Long> {
     List<Grade> findAllByOrderBySortOrderAscNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 }

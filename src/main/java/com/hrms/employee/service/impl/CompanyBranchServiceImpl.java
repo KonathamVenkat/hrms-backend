@@ -56,6 +56,9 @@ public class CompanyBranchServiceImpl implements CompanyBranchService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Company branch", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndCompanyId(request.getName().trim(), request.getCompanyId())) {
+            throw new DuplicateResourceException("Company branch", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getCompanyId(), active);
 
@@ -81,6 +84,9 @@ public class CompanyBranchServiceImpl implements CompanyBranchService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Company branch", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndCompanyIdAndIdNot(request.getName().trim(), request.getCompanyId(), id)) {
+            throw new DuplicateResourceException("Company branch", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getCompanyId(), active);

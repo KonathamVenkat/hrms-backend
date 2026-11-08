@@ -93,6 +93,9 @@ public class CityServiceImpl implements CityService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("City", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndProvinceId(request.getName().trim(), request.getProvinceId())) {
+            throw new DuplicateResourceException("City", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getProvinceId(), active);
 
@@ -118,6 +121,9 @@ public class CityServiceImpl implements CityService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("City", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndProvinceIdAndIdNot(request.getName().trim(), request.getProvinceId(), id)) {
+            throw new DuplicateResourceException("City", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getProvinceId(), active);

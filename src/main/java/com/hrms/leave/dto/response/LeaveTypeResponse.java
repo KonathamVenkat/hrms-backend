@@ -23,8 +23,7 @@ private Integer    maxConsecutiveDays;
 private String     applicableGender;
 private Boolean    isActive;
 private Integer    sortOrder;
-private String     createdBy;
 private String     createdAt;
-private String     updatedBy;
 private String     updatedAt;
+private Long       version;
 }

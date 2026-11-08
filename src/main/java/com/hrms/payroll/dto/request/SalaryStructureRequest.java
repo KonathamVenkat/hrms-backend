@@ -21,5 +21,7 @@ public record SalaryStructureRequest(
 
         @NotEmpty(message = "At least one salary component is required")
         @Valid
-        List<SalaryStructureItemRequest> items
+        List<SalaryStructureItemRequest> items,
+        /** The version the screen was loaded with; required to update (400 when missing, 409 when stale). */
+        Long version
 ) {}

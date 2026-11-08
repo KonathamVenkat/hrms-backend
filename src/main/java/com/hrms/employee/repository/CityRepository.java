@@ -12,6 +12,8 @@ public interface CityRepository extends JpaRepository<City, Long>, JpaSpecificat
     List<City> findByIsActiveOrderByNameAsc(Boolean isActive);
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCaseAndProvinceId(String name, Long provinceId);
+    boolean existsByNameIgnoreCaseAndProvinceIdAndIdNot(String name, Long provinceId, Long id);
     boolean existsByProvinceId(Long provinceId);
     boolean existsByProvinceIdAndIsActive(Long provinceId, Boolean isActive);
 }

@@ -51,6 +51,9 @@ public class GradeServiceImpl implements GradeService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Grade", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Grade", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkSalaryRange(request);
 
@@ -76,6 +79,9 @@ public class GradeServiceImpl implements GradeService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Grade", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Grade", "name", request.getName().trim());
         }
         checkSalaryRange(request);
 

@@ -50,6 +50,9 @@ public class HouseTypeServiceImpl implements HouseTypeService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("House type", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("House type", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         HouseType entity = HouseType.builder().build();
@@ -74,6 +77,9 @@ public class HouseTypeServiceImpl implements HouseTypeService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("House type", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("House type", "name", request.getName().trim());
         }
 
         String before = summary(existing);

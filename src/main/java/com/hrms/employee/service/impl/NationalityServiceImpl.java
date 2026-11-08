@@ -65,6 +65,9 @@ public class NationalityServiceImpl implements NationalityService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Nationality", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Nationality", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         Nationality entity = Nationality.builder().build();
@@ -89,6 +92,9 @@ public class NationalityServiceImpl implements NationalityService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Nationality", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Nationality", "name", request.getName().trim());
         }
 
         String before = summary(existing);

@@ -15,4 +15,6 @@ public interface DesignationRepository extends JpaRepository<Designation, Long> 
     List<Designation> findAllByOrderByTitleAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndDesigIdNot(String code, Long desigId);
+    boolean existsByTitleIgnoreCaseAndDepartmentId(String title, Long departmentId);
+    boolean existsByTitleIgnoreCaseAndDepartmentIdAndDesigIdNot(String title, Long departmentId, Long desigId);
 }

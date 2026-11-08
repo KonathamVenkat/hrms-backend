@@ -8,8 +8,8 @@ public class DepartmentRequest {
 
     @NotBlank(message = "Department code is required")
     @Size(max = 20)
-    @Pattern(regexp = "^[A-Z0-9_]+$",
-             message = "Code must be uppercase letters, numbers and underscores only")
+    @Pattern(regexp = "^[A-Z0-9_-]+$",
+             message = "Code must be uppercase letters, numbers, hyphens and underscores only")
     private String code;
 
     @NotBlank(message = "Department name is required")

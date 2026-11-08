@@ -60,6 +60,9 @@ public class BankBranchServiceImpl implements BankBranchService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Bank branch", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndBankId(request.getName().trim(), request.getBankId())) {
+            throw new DuplicateResourceException("Bank branch", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getBankId(), active);
 
@@ -85,6 +88,9 @@ public class BankBranchServiceImpl implements BankBranchService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Bank branch", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndBankIdAndIdNot(request.getName().trim(), request.getBankId(), id)) {
+            throw new DuplicateResourceException("Bank branch", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getBankId(), active);

@@ -55,6 +55,9 @@ public class WilayaServiceImpl implements WilayaService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Wilaya", "code", code);
         }
+        if (repository.existsByNameIgnoreCaseAndRegionId(request.getName().trim(), request.getRegionId())) {
+            throw new DuplicateResourceException("Wilaya", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
         checkParent(request.getRegionId(), active);
 
@@ -80,6 +83,9 @@ public class WilayaServiceImpl implements WilayaService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Wilaya", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndRegionIdAndIdNot(request.getName().trim(), request.getRegionId(), id)) {
+            throw new DuplicateResourceException("Wilaya", "name", request.getName().trim());
         }
         boolean active = request.getIsActive() != null ? request.getIsActive() : Boolean.TRUE.equals(existing.getIsActive());
         checkParent(request.getRegionId(), active);

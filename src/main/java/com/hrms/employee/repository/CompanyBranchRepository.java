@@ -10,6 +10,8 @@ public interface CompanyBranchRepository extends JpaRepository<CompanyBranch, Lo
     List<CompanyBranch> findAllByOrderByNameAsc();
     boolean existsByCodeIgnoreCase(String code);
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Long id);
+    boolean existsByNameIgnoreCaseAndCompanyId(String name, Long companyId);
+    boolean existsByNameIgnoreCaseAndCompanyIdAndIdNot(String name, Long companyId, Long id);
     boolean existsByCompanyId(Long companyId);
     boolean existsByCompanyIdAndIsActive(Long companyId, Boolean isActive);
 

@@ -58,6 +58,9 @@ public class ContractTypeServiceImpl implements ContractTypeService {
         if (repository.existsByCodeIgnoreCase(code)) {
             throw new DuplicateResourceException("Contract type", "code", code);
         }
+        if (repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new DuplicateResourceException("Contract type", "name", request.getName().trim());
+        }
         boolean active = request.getIsActive() == null || request.getIsActive();
 
         ContractType entity = ContractType.builder().build();
@@ -82,6 +85,9 @@ public class ContractTypeServiceImpl implements ContractTypeService {
         String code = request.getCode().trim().toUpperCase();
         if (repository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
             throw new DuplicateResourceException("Contract type", "code", code);
+        }
+        if (repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new DuplicateResourceException("Contract type", "name", request.getName().trim());
         }
 
         String before = summary(existing);

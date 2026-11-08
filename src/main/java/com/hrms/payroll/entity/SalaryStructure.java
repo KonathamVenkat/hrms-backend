@@ -37,6 +37,11 @@ public class SalaryStructure extends Auditable {
     @Builder.Default
     private Integer isActive = 1;
 
+    /** Optimistic lock: an edit made from a stale screen is refused (HTTP 409). */
+    @jakarta.persistence.Version
+    @Column(name = "VERSION", nullable = false)
+    private Long version;
+
     // Items loaded when building the full structure response
     @OneToMany(mappedBy = "structureId", cascade = CascadeType.ALL,
                orphanRemoval = true, fetch = FetchType.LAZY)

@@ -1,5 +1,8 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BadRequestException;
+import com.hrms.employee.service.impl.Versions;
 import com.hrms.common.audit.CurrentAuditor;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
@@ -13,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +27,9 @@ import java.util.stream.Collectors;
 public class HolidayCalendarServiceImpl implements HolidayCalendarService {
 
     private final HolidayCalendarRepository holidayRepository;
+    private final AuditTrail audit;
+
+    private static final String TARGET = "HOLIDAY";
 
     // ── Read ──────────────────────────────────────────────────
 
@@ -76,8 +81,9 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
             .createdAt(LocalDateTime.now())
             .build();
 
-        HolidayCalendar saved = holidayRepository.save(entity);
+        HolidayCalendar saved = holidayRepository.saveAndFlush(entity);
         log.info("Holiday created. ID: {}", saved.getHolidayId());
+        audit.record("HOLIDAY_CREATED", TARGET, saved.getHolidayId(), summary(saved));
         return toResponse(saved);
     }
 
@@ -89,6 +95,11 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
         log.info("Updating holiday id: {}", id);
 
         HolidayCalendar existing = findById(id);
+        if (request.getVersion() == null) {
+            throw new BadRequestException("version is required to update a holiday");
+        }
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
+        String before = summary(existing);
 
         if (holidayRepository.existsByHolidayDateAndHolidayNameIgnoreCaseAndHolidayIdNot(
                 request.getHolidayDate(), request.getHolidayName(), id)) {
@@ -110,7 +121,9 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
         existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(holidayRepository.save(existing));
+        HolidayCalendar saved = holidayRepository.saveAndFlush(existing); // so the response carries the new version
+        audit.record("HOLIDAY_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
 
     // ── Activate / Deactivate ─────────────────────────────────
@@ -124,6 +137,7 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
         h.setUpdatedAt(LocalDateTime.now());
         holidayRepository.save(h);
         log.info("Holiday deactivated. ID: {}", id);
+        audit.record("HOLIDAY_DEACTIVATED", TARGET, id, h.getHolidayName());
     }
 
     @Override
@@ -136,16 +150,15 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
         h.setUpdatedAt(LocalDateTime.now());
         holidayRepository.save(h);
         log.info("Holiday activated. ID: {}", id);
-    }
-
-    // ── Leave module utility ──────────────────────────────────
-
-    @Override
-    public long countWorkingDayHolidays(LocalDate startDate, LocalDate endDate) {
-        return holidayRepository.countHolidaysBetween(startDate, endDate);
+        audit.record("HOLIDAY_ACTIVATED", TARGET, id, h.getHolidayName());
     }
 
     // ── Private helpers ───────────────────────────────────────
+
+    private static String summary(HolidayCalendar h) {
+        return "name=" + h.getHolidayName() + ", date=" + h.getHolidayDate() + ", type=" + h.getHolidayType()
+            + ", recurring=" + h.getIsRecurring() + ", active=" + h.getIsActive();
+    }
 
     private HolidayCalendar findById(Long id) {
         return holidayRepository.findById(id)
@@ -164,11 +177,11 @@ public class HolidayCalendarServiceImpl implements HolidayCalendarService {
             .isRecurring(h.getIsRecurring() == 1)
             .year(h.getYear())
             .isActive(h.getIsActive() == 1)
-            .createdBy(h.getCreatedBy())
             .createdAt(h.getCreatedAt() != null
                 ? h.getCreatedAt().toString() : null)
             .updatedAt(h.getUpdatedAt() != null
                 ? h.getUpdatedAt().toString() : null)
+            .version(h.getVersion())
             .build();
     }
 

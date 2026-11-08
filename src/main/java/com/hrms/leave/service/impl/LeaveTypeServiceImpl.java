@@ -1,9 +1,15 @@
 package com.hrms.leave.service.impl;
 
+import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.audit.CurrentAuditor;
+import com.hrms.common.exception.BadRequestException;
+import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.config.UploadLimits;
+import com.hrms.employee.service.impl.Versions;
+import com.hrms.leave.repository.LeaveBalanceRepository;
+import com.hrms.leave.repository.LeaveRequestRepository;
 import com.hrms.leave.dto.request.LeaveTypeRequest;
 import com.hrms.leave.dto.response.LeaveTypeResponse;
 import com.hrms.leave.entity.LeaveType;
@@ -25,9 +31,14 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class LeaveTypeServiceImpl implements LeaveTypeService {
  
-    private final LeaveTypeRepository leaveTypeRepository;
-    private final UploadLimits        uploadLimits;
- 
+    private static final String TARGET = "LEAVE_TYPE";
+
+    private final LeaveTypeRepository    leaveTypeRepository;
+    private final UploadLimits           uploadLimits;
+    private final AuditTrail             audit;
+    private final LeaveRequestRepository requestRepository;
+    private final LeaveBalanceRepository balanceRepository;
+
     // ── Read ──────────────────────────────────────────────────
  
     @Override
@@ -66,8 +77,9 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         entity.setCreatedBy(CurrentAuditor.name());
         entity.setCreatedAt(LocalDateTime.now());
  
-        LeaveType saved = leaveTypeRepository.save(entity);
+        LeaveType saved = leaveTypeRepository.saveAndFlush(entity);
         log.info("Leave type created. ID: {}, Code: {}", saved.getLeaveTypeId(), saved.getCode());
+        audit.record("LEAVE_TYPE_CREATED", TARGET, saved.getLeaveTypeId(), summary(saved));
         return toResponse(saved);
     }
  
@@ -80,7 +92,21 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         uploadLimits.assertWithinCap(request.getDocMaxFileSizeMb());
  
         LeaveType existing = findById(id);
- 
+        if (request.getVersion() == null) {
+            throw new BadRequestException("version is required to update a leave type");
+        }
+        Versions.requireCurrent(request.getVersion(), existing.getVersion());
+
+        // Requests and balances hold the code as text, so a code that is in use must stay as it is.
+        String newCode = request.getCode().toUpperCase().trim();
+        if (!newCode.equals(existing.getCode())
+                && (requestRepository.existsByLeaveTypeCode(existing.getCode())
+                    || balanceRepository.existsByLeaveTypeCode(existing.getCode()))) {
+            throw new BusinessRuleException("LEAVE_TYPE_CODE_IN_USE",
+                "Leave type " + existing.getCode() + " is used by leave requests or balances, so its code cannot change.");
+        }
+        String before = summary(existing);
+
         if (leaveTypeRepository.existsByCodeIgnoreCaseAndLeaveTypeIdNot(
                 request.getCode(), id)) {
             throw new DuplicateResourceException("LeaveType", "code", request.getCode());
@@ -116,7 +142,9 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         existing.setUpdatedBy(CurrentAuditor.name());
         existing.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(leaveTypeRepository.save(existing));
+        LeaveType saved = leaveTypeRepository.saveAndFlush(existing); // so the response carries the new version
+        audit.record("LEAVE_TYPE_UPDATED", TARGET, id, before + " -> " + summary(saved));
+        return toResponse(saved);
     }
  
     // ── Activate / Deactivate ─────────────────────────────────
@@ -130,6 +158,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         lt.setUpdatedBy(CurrentAuditor.name());
         lt.setUpdatedAt(LocalDateTime.now());
         leaveTypeRepository.save(lt);
+        audit.record("LEAVE_TYPE_DEACTIVATED", TARGET, id, lt.getCode());
     }
 
     @Override
@@ -142,6 +171,13 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         lt.setUpdatedBy(CurrentAuditor.name());
         lt.setUpdatedAt(LocalDateTime.now());
         leaveTypeRepository.save(lt);
+        audit.record("LEAVE_TYPE_ACTIVATED", TARGET, id, lt.getCode());
+    }
+
+    private static String summary(LeaveType lt) {
+        return "code=" + lt.getCode() + ", name=" + lt.getNameEn() + ", defaultDays=" + lt.getDefaultDays()
+            + ", paid=" + lt.getIsPaid() + ", carry=" + lt.getIsCarryForward() + "/" + lt.getMaxCarryDays()
+            + ", gender=" + lt.getApplicableGender() + ", active=" + lt.getIsActive();
     }
  
     // ── Private helpers ───────────────────────────────────────
@@ -207,10 +243,9 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
             .applicableGender(lt.getApplicableGender())
             .isActive(lt.getIsActive() == 1)
             .sortOrder(lt.getSortOrder())
-            .createdBy(lt.getCreatedBy())
             .createdAt(lt.getCreatedAt() != null ? lt.getCreatedAt().toString() : null)
-            .updatedBy(lt.getUpdatedBy())
             .updatedAt(lt.getUpdatedAt() != null ? lt.getUpdatedAt().toString() : null)
+            .version(lt.getVersion())
             .build();
     }
  

@@ -12,5 +12,8 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     List<Department> findByHeadEmployeeId(Long headEmployeeId);
     List<Department> findBySecretaryEmployeeId(Long secretaryEmployeeId);
     boolean existsByCodeIgnoreCase(String code);
+    boolean existsByDirectorateIdAndIsActive(Long directorateId, Boolean isActive);
     boolean existsByCodeIgnoreCaseAndDeptIdNot(String code, Long deptId);
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCaseAndDeptIdNot(String name, Long deptId);
 }

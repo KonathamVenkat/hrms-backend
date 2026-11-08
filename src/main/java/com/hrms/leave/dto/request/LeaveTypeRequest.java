@@ -15,10 +15,12 @@ public class LeaveTypeRequest {
 
  @NotBlank(message = "English name is required")
  @Size(max = 100, message = "Name max 100 characters")
+ @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Name contains control or invisible characters")
  private String nameEn;
 
  @NotBlank(message = "Arabic name is required")
  @Size(max = 200, message = "Arabic name max 200 characters")
+ @Pattern(regexp = "^[^\\p{Cc}\\p{Cf}]*$", message = "Arabic name contains control or invisible characters")
  private String nameAr;
 
  @Size(max = 500, message = "Description max 500 characters")
@@ -65,6 +67,8 @@ public class LeaveTypeRequest {
  private Integer sortOrder;
 
  private Boolean isActive;
+ /** The version the screen was loaded with; required to update (400 when missing, 409 when stale). */
+ private Long version;
 }
 
 

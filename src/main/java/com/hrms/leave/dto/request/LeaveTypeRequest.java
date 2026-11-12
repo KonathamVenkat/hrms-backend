@@ -38,6 +38,7 @@ public class LeaveTypeRequest {
  private Boolean isCarryForward;
 
  @DecimalMin(value = "0", message = "Max carry days cannot be negative")
+ @DecimalMax(value = "365", message = "Max carry days cannot exceed 365")
  private BigDecimal maxCarryDays;
 
  @NotNull(message = "Requires document field is required")
@@ -53,9 +54,11 @@ public class LeaveTypeRequest {
  private String docAllowedExtensions;
 
  @Min(value = 0, message = "Min notice days cannot be negative")
+ @Max(value = 365, message = "Min notice days cannot exceed 365")
  private Integer minNoticeDays;
 
  @Min(value = 0, message = "Max consecutive days cannot be negative")
+ @Max(value = 365, message = "Max consecutive days cannot exceed 365")
  private Integer maxConsecutiveDays;
 
  @NotBlank(message = "Applicable gender is required")

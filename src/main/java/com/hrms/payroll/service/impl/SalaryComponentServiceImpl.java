@@ -100,7 +100,7 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
     @Transactional
     public SalaryComponentResponse update(Long id, SalaryComponentRequest request) {
         log.info("Updating salary component id={}", id);
-        SalaryComponent comp = findComponent(id);
+        SalaryComponent comp = findComponentForUpdate(id);
         if (request.version() == null) {
             throw new BadRequestException("version is required to update a salary component");
         }
@@ -154,7 +154,7 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
     @Transactional
     public void toggleActive(Long id, boolean active) {
         log.info("Toggling salary component id={} active={}", id, active);
-        SalaryComponent comp = findComponent(id);
+        SalaryComponent comp = findComponentForUpdate(id);
         if (!active) {
             int employees = componentRepo.countCurrentEmployeesByComponentId(id);
             if (employees > 0) {
@@ -188,6 +188,12 @@ public class SalaryComponentServiceImpl implements SalaryComponentService {
     }
 
     // ── Helper ────────────────────────────────────────────
+    /** Locked read for writes: waits for a salary assignment or structure save that uses this component. */
+    private SalaryComponent findComponentForUpdate(Long id) {
+        return componentRepo.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SalaryComponent", "id", id));
+    }
+
     private SalaryComponent findComponent(Long id) {
         return componentRepo.findById(id)
                 .orElseThrow(() -> {

@@ -22,5 +22,7 @@ public record SalaryStructureItemRequest(
         @DecimalMax(value = "100.0", message = "Percentage cannot exceed 100")
         BigDecimal percentage,
 
+        @Min(value = 0, message = "Sort order cannot be negative")
+        @Max(value = 1000, message = "Sort order cannot exceed 1000")
         Integer sortOrder
 ) {}

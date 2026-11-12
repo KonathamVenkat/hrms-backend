@@ -73,7 +73,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         // The row lock makes the second wait and see the first; the unique index (V24) is the backstop.
         Employee employee = employeeRepo.findByIdForUpdate(request.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.employeeId()));
-        SalaryStructure structure = findStructure(request.structureId());
+        // Lock order is employee, structure, components (structure and component edits take theirs in the same order),
+        // so an edit or deactivation of what is being assigned waits until this assignment is committed.
+        SalaryStructure structure = structureRepo.findByIdForUpdate(request.structureId())
+                .orElseThrow(() -> new ResourceNotFoundException("SalaryStructure", "id", request.structureId()));
 
         if (structure.getIsActive() != 1) {
             throw new BusinessRuleException("STRUCTURE_INACTIVE",
@@ -107,9 +110,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                         structure.getStructureId(), 1);
 
         Map<Long, SalaryComponent> componentMap = componentRepo
-                .findAllById(items.stream()
+                .findAllByIdForUpdate(items.stream()
                         .map(SalaryStructureItem::getComponentId)
-                        .collect(Collectors.toList()))
+                        .collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(SalaryComponent::getComponentId, c -> c));
 

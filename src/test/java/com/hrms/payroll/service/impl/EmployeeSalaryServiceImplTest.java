@@ -64,6 +64,7 @@ class EmployeeSalaryServiceImplTest {
         when(structure.getIsActive()).thenReturn(1);
         when(structure.getStructureId()).thenReturn(3L);
         when(structure.getStructureName()).thenReturn("Standard");
+        when(structures.findByIdForUpdate(3L)).thenReturn(Optional.of(structure));
         when(structures.findById(3L)).thenReturn(Optional.of(structure));
         when(items.findByStructureIdAndIsActiveOrderBySortOrderAsc(3L, 1)).thenReturn(List.of());
         when(salaries.findNextSequenceValue()).thenReturn(900L);
@@ -82,10 +83,12 @@ class EmployeeSalaryServiceImplTest {
 
         service.assign(request());
 
-        InOrder order = inOrder(employees, salaries);
+        InOrder order = inOrder(employees, structures, salaries);
         order.verify(employees).findByIdForUpdate(5L);
+        order.verify(structures).findByIdForUpdate(3L);
         order.verify(salaries).deactivateCurrent(5L);
         order.verify(salaries).save(any());
+        verify(components).findAllByIdForUpdate(any());
     }
 
     @Test

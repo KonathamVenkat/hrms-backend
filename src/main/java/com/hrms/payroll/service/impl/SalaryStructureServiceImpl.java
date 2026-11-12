@@ -94,7 +94,7 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
     @Transactional
     public SalaryStructureResponse update(Long id, SalaryStructureRequest request) {
         log.info("Updating salary structure id={}", id);
-        SalaryStructure structure = findStructure(id);
+        SalaryStructure structure = findStructureForUpdate(id);
         if (request.version() == null) {
             throw new BadRequestException("version is required to update a salary structure");
         }
@@ -129,7 +129,7 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
     @Transactional
     public void toggleActive(Long id, boolean active) {
         log.info("Toggling salary structure id={} active={}", id, active);
-        SalaryStructure structure = findStructure(id);
+        SalaryStructure structure = findStructureForUpdate(id);
 
         if (!active) {
             int empCount = structureRepo.countCurrentEmployeesByStructureId(id);
@@ -155,14 +155,24 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
 
     private void saveItems(Long structureId, List<SalaryStructureItemRequest> items) {
         Set<Long> seenComponentIds = new HashSet<>();
+        // Lock the components in id order: one being edited or deactivated at this moment waits for this save.
+        Map<Long, SalaryComponent> components = componentRepo
+                .findAllByIdForUpdate(items.stream().map(SalaryStructureItemRequest::componentId)
+                        .collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(SalaryComponent::getComponentId, c -> c));
 
         for (int i = 0; i < items.size(); i++) {
             SalaryStructureItemRequest req = items.get(i);
 
-            // Validate component exists
-            if (!componentRepo.existsById(req.componentId())) {
+            SalaryComponent component = components.get(req.componentId());
+            if (component == null) {
                 throw new BusinessRuleException(
                         "Salary component not found: id=" + req.componentId());
+            }
+            if (component.getIsActive() != 1) {
+                throw new BusinessRuleException("COMPONENT_INACTIVE",
+                        "Salary component '" + component.getComponentName()
+                        + "' is not active, so it cannot be in a structure.");
             }
             if (!seenComponentIds.add(req.componentId())) {
                 throw new BusinessRuleException(
@@ -185,6 +195,11 @@ public class SalaryStructureServiceImpl implements SalaryStructureService {
             itemRepo.save(item);
         }
         log.debug("Saved {} structure items for structureId={}", items.size(), structureId);
+    }
+
+    private SalaryStructure findStructureForUpdate(Long id) {
+        return structureRepo.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SalaryStructure", "id", id));
     }
 
     private SalaryStructure findStructure(Long id) {

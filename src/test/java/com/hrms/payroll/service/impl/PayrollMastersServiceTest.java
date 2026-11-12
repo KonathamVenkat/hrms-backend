@@ -66,7 +66,7 @@ class PayrollMastersServiceTest {
     }
 
     private void componentFound() {
-        when(components.findById(5L)).thenReturn(Optional.of(basic()));
+        when(components.findByIdForUpdate(5L)).thenReturn(Optional.of(basic()));
     }
 
     private void componentSaves() {
@@ -167,19 +167,46 @@ class PayrollMastersServiceTest {
 
     @Test
     void structureUpdate_withoutAVersion_isRefused() {
-        when(structures.findById(9L)).thenReturn(Optional.of(standard()));
+        when(structures.findByIdForUpdate(9L)).thenReturn(Optional.of(standard()));
         assertThrows(BadRequestException.class, () -> structureService.update(9L, structureRequest(null)));
     }
 
     @Test
     void structureUpdate_withAStaleVersion_isAConflict() {
-        when(structures.findById(9L)).thenReturn(Optional.of(standard()));
+        when(structures.findByIdForUpdate(9L)).thenReturn(Optional.of(standard()));
         assertThrows(OptimisticLockingFailureException.class, () -> structureService.update(9L, structureRequest(3L)));
     }
 
     @Test
+    void aStructureCannotHoldAnInactiveComponent() {
+        when(structures.findByIdForUpdate(9L)).thenReturn(Optional.of(standard()));
+        when(structures.countCurrentEmployeesByStructureId(9L)).thenReturn(0);
+        SalaryComponent inactive = basic();
+        inactive.setIsActive(0);
+        when(components.findAllByIdForUpdate(any())).thenReturn(List.of(inactive));
+
+        BusinessRuleException refused = assertThrows(BusinessRuleException.class,
+            () -> structureService.update(9L, structureRequest(4L)));
+
+        assertEquals("COMPONENT_INACTIVE", refused.getRuleCode());
+        verify(items, never()).save(any());
+    }
+
+    @Test
+    void theStructureAndItsComponentsAreLockedForTheEdit() {
+        when(structures.findByIdForUpdate(9L)).thenReturn(Optional.of(standard()));
+        when(structures.countCurrentEmployeesByStructureId(9L)).thenReturn(0);
+        when(components.findAllByIdForUpdate(any())).thenReturn(List.of());
+
+        assertThrows(BusinessRuleException.class, () -> structureService.update(9L, structureRequest(4L)));
+
+        verify(structures).findByIdForUpdate(9L);
+        verify(components).findAllByIdForUpdate(any());
+    }
+
+    @Test
     void structureToggle_isAudited() {
-        when(structures.findById(9L)).thenReturn(Optional.of(standard()));
+        when(structures.findByIdForUpdate(9L)).thenReturn(Optional.of(standard()));
         when(structures.countCurrentEmployeesByStructureId(9L)).thenReturn(0);
         when(structures.save(any(SalaryStructure.class))).thenAnswer(i -> i.getArgument(0));
 

@@ -317,7 +317,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setMaritalStatus(request.getMaritalStatus());
         employee.setNationality(request.getNationality());
         employee.setReligion(request.getReligion());
-        employee.setProfilePhotoUrl(EmployeeRules.validatePhotoUrl(request.getProfilePhotoUrl(), id));
+        // The photo address is written by the photo upload and removed by the photo delete; an edit that does not
+        // send it must leave it alone (the form never does), and an explicit blank still clears it.
+        if (request.getProfilePhotoUrl() != null) {
+            employee.setProfilePhotoUrl(EmployeeRules.validatePhotoUrl(request.getProfilePhotoUrl(), id));
+        }
         employee.setPersonalEmail(request.getPersonalEmail().trim().toLowerCase());
         employee.setPersonalPhone(request.getPersonalPhone());
         employee.setWorkPhone(request.getWorkPhone());

@@ -462,6 +462,46 @@ class EmployeeServiceImplTest {
     }
 
     @Test
+    void anEditThatDoesNotSendThePhotoAddressKeepsTheStoredOne() {
+        loginAs("admin", "HR_ADMIN");
+        Employee e = employee(5, EmploymentStatus.ACTIVE, true);
+        e.setProfilePhotoUrl("/api/v1/employees/5/photo?v=1700000000000");
+        when(employeeRepository.findById(5L)).thenReturn(Optional.of(e));
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(i -> i.getArgument(0));
+
+        try {
+            service.updateEmployee(5L, updateRequest());
+        } catch (RuntimeException ignored) {
+            // the detail read at the end is not set up here; only the writes matter
+        }
+
+        assertEquals("/api/v1/employees/5/photo?v=1700000000000", e.getProfilePhotoUrl());
+    }
+
+    @Test
+    void anExplicitBlankPhotoAddressStillClearsIt_andAForeignOneIsStillRefused() {
+        loginAs("admin", "HR_ADMIN");
+        Employee e = employee(5, EmploymentStatus.ACTIVE, true);
+        e.setProfilePhotoUrl("/api/v1/employees/5/photo?v=1700000000000");
+        when(employeeRepository.findById(5L)).thenReturn(Optional.of(e));
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(i -> i.getArgument(0));
+        UpdateEmployeeRequest blank = updateRequest();
+        blank.setProfilePhotoUrl("");
+
+        try {
+            service.updateEmployee(5L, blank);
+        } catch (RuntimeException ignored) {
+            // the detail read at the end is not set up here; only the writes matter
+        }
+        assertNull(e.getProfilePhotoUrl());
+
+        UpdateEmployeeRequest foreign = updateRequest();
+        foreign.setProfilePhotoUrl("//evil.example/p.png");
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateEmployee(5L, foreign));
+        assertEquals("INVALID_PHOTO_URL", ex.getRuleCode());
+    }
+
+    @Test
     void creatingAnAccountIsAuditedWithItsRoleButNotItsPassword() {
         loginAs("manager", "HR_MANAGER");
         org.springframework.test.util.ReflectionTestUtils.setField(service, "entityManager", mock(jakarta.persistence.EntityManager.class));

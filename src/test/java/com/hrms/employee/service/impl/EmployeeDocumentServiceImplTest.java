@@ -219,4 +219,41 @@ class EmployeeDocumentServiceImplTest {
         assertThrows(BusinessRuleException.class, () -> service.uploadDocument(5L, request(), null));
         verify(audit, never()).record(eq("EMPLOYEE_DOCUMENT_UPLOADED"), any(), any(), any());
     }
+
+    private EmployeeDocument verifiedPassport() {
+        EmployeeDocument doc = stored(9, 5, 1);
+        doc.setDocumentName("Passport");
+        doc.setDocumentNumber("P123");
+        doc.setIsVerified(1);
+        doc.setVerifiedBy("hr");
+        doc.setVerifiedAt(java.time.LocalDateTime.now());
+        when(documents.findById(9L)).thenReturn(Optional.of(doc));
+        return doc;
+    }
+
+    @Test
+    void changingWhatIdentifiesAVerifiedDocumentVoidsTheVerification() {
+        EmployeeDocument doc = verifiedPassport();
+
+        service.updateDocumentInfo(5L, 9L, EmployeeDocumentRequest.builder()
+            .docTypeId(3L).documentName("Passport").documentNumber("P999").build());
+
+        assertEquals(0, doc.getIsVerified());
+        assertNull(doc.getVerifiedBy());
+        assertNull(doc.getVerifiedAt());
+        verify(audit).record("EMPLOYEE_DOCUMENT_UPDATED", "EMPLOYEE_DOCUMENT", 9L, "employeeId=5, verificationReset=true");
+    }
+
+    @Test
+    void editingOnlyTheNotesKeepsTheVerification() {
+        EmployeeDocument doc = verifiedPassport();
+
+        service.updateDocumentInfo(5L, 9L, EmployeeDocumentRequest.builder()
+            .docTypeId(3L).documentName(" Passport ").documentNumber("P123").notes("scanned twice").build());
+
+        assertEquals(1, doc.getIsVerified());
+        assertEquals("hr", doc.getVerifiedBy());
+        assertNotNull(doc.getVerifiedAt());
+        verify(audit).record("EMPLOYEE_DOCUMENT_UPDATED", "EMPLOYEE_DOCUMENT", 9L, "employeeId=5");
+    }
 }

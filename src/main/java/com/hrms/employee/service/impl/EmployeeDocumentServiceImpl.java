@@ -35,6 +35,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -220,16 +221,33 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
                                                         EmployeeDocumentRequest request) {
         EmployeeDocument doc = findEntity(employeeId, documentId);
 
-        doc.setDocumentName(request.getDocumentName().trim());
-        doc.setDocumentNumber(Strings.trimToNull(request.getDocumentNumber()));
+        String name = request.getDocumentName().trim();
+        String number = Strings.trimToNull(request.getDocumentNumber());
+        String issuedBy = Strings.trimToNull(request.getIssuedBy());
+        // What HR verified was the document as it read then; changing what identifies it voids that.
+        boolean verificationReset = Integer.valueOf(1).equals(doc.getIsVerified())
+            && !(Objects.equals(name, doc.getDocumentName())
+                && Objects.equals(number, doc.getDocumentNumber())
+                && Objects.equals(request.getIssueDate(), doc.getIssueDate())
+                && Objects.equals(request.getExpiryDate(), doc.getExpiryDate())
+                && Objects.equals(issuedBy, doc.getIssuedBy()));
+
+        doc.setDocumentName(name);
+        doc.setDocumentNumber(number);
         doc.setIssueDate(request.getIssueDate());
         doc.setExpiryDate(request.getExpiryDate());
-        doc.setIssuedBy(Strings.trimToNull(request.getIssuedBy()));
+        doc.setIssuedBy(issuedBy);
         doc.setNotes(Strings.trimToNull(request.getNotes()));
+        if (verificationReset) {
+            doc.setIsVerified(0);
+            doc.setVerifiedBy(null);
+            doc.setVerifiedAt(null);
+        }
         doc.setUpdatedAt(LocalDateTime.now());
 
         documentRepository.save(doc);
-        audit.record("EMPLOYEE_DOCUMENT_UPDATED", TARGET, documentId, "employeeId=" + employeeId);
+        audit.record("EMPLOYEE_DOCUMENT_UPDATED", TARGET, documentId,
+            "employeeId=" + employeeId + (verificationReset ? ", verificationReset=true" : ""));
         return toResponse(findProjection(employeeId, documentId));
     }
 

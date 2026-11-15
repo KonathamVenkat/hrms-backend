@@ -6,6 +6,20 @@ on:
   pull_request:
 
 jobs:
+  # Fails the run when a commit in this push or pull request contains a secret
+  # (JWT secret, database password, API key...). It reads the commits only: nothing is built or run.
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks needs the commit history, not just the latest snapshot
+
+      - name: Scan commits for secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # provided by GitHub automatically, nothing to set up
+
   backend:
     runs-on: ubuntu-latest
     steps:

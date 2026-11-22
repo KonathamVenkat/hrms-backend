@@ -49,6 +49,11 @@ public class SalaryComponent extends Auditable {
     @Builder.Default
     private Integer isTaxable = 0;
 
+    /** 1 = a loan type (V33): offered on Payroll > Employee Loans and repaid by instalments. */
+    @Column(name = "IS_LOAN", nullable = false)
+    @Builder.Default
+    private Integer isLoan = 0;
+
     @Column(name = "IS_NSSF_APPLICABLE", nullable = false)
     @Builder.Default
     private Integer isNssfApplicable = 0;

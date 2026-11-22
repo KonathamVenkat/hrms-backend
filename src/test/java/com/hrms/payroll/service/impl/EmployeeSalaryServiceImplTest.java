@@ -22,6 +22,7 @@ import com.hrms.payroll.entity.SalaryStructure;
 import com.hrms.payroll.entity.SalaryStructureItem;
 import com.hrms.payroll.enums.CalculationType;
 import com.hrms.payroll.enums.ComponentType;
+import com.hrms.payroll.repository.EmployeeLoanRepository;
 import com.hrms.payroll.repository.EmployeeSalaryRepository;
 import com.hrms.payroll.repository.QualificationLevelRepository;
 import com.hrms.payroll.repository.SalaryComponentRepository;
@@ -62,12 +63,13 @@ class EmployeeSalaryServiceImplTest {
     AuditTrail                    audit       = mock(AuditTrail.class);
     GradeService                  grades      = mock(GradeService.class);
     QualificationLevelRepository  qualificationLevels = mock(QualificationLevelRepository.class);
+    EmployeeLoanRepository        loans       = mock(EmployeeLoanRepository.class);
     EmployeeSalaryServiceImpl     service;
 
     @BeforeEach
     void setUp() {
         service = new EmployeeSalaryServiceImpl(salaries, structures, items, components, employees, jobs,
-                departments, designations, guard, grades, qualificationLevels, audit);
+                departments, designations, guard, grades, qualificationLevels, loans, audit);
         Employee employee = new Employee();
         employee.setId(5L);
         employee.setEmployeeCode("EMP-5");

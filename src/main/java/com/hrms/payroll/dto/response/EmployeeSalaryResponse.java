@@ -34,7 +34,10 @@ public record EmployeeSalaryResponse(
         Long                              qualificationLevelId,
         String                            qualificationLevelName,
         String                            qualificationLevelNameAr,
-        BigDecimal                        qualificationAmount
+        BigDecimal                        qualificationAmount,
+        // Current record only: what the employee's running loans take this month (absent when none). Deducted from
+        // net by the payroll run (step 5), not part of netSalary here.
+        BigDecimal                        loanInstalments
 ) {
     // Inner record for the salary breakdown table
     public record SalaryBreakdownItem(

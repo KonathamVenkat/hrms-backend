@@ -28,6 +28,11 @@ public interface SalaryComponentRepository
 
     Optional<SalaryComponent> findByComponentCode(String code);
 
+    /** Active loan types (IS_LOAN = 1 deductions), in their sort order. */
+    @Query("SELECT c FROM SalaryComponent c WHERE c.isLoan = 1 AND c.isActive = 1 "
+            + "AND c.componentType = com.hrms.payroll.enums.ComponentType.DEDUCTION ORDER BY c.sortOrder, c.componentName")
+    List<SalaryComponent> findLoanTypes();
+
     /** Row lock for one component: its edit or deactivation waits for salary assignments and structure edits using it. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM SalaryComponent c WHERE c.componentId = :id")

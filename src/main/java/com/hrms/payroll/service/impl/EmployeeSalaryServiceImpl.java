@@ -27,6 +27,7 @@ import com.hrms.payroll.entity.SalaryStructure;
 import com.hrms.payroll.entity.SalaryStructureItem;
 import com.hrms.payroll.enums.CalculationType;
 import com.hrms.payroll.enums.ComponentType;
+import com.hrms.payroll.repository.EmployeeLoanRepository;
 import com.hrms.payroll.repository.EmployeeSalaryRepository;
 import com.hrms.payroll.repository.QualificationLevelRepository;
 import com.hrms.payroll.repository.SalaryComponentRepository;
@@ -65,6 +66,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final EmployeeAccessGuard           employeeAccessGuard;
     private final GradeService                  grades;
     private final QualificationLevelRepository  qualificationLevels;
+    private final EmployeeLoanRepository        loans;
     private final AuditTrail audit;
 
     /** Components of the per-employee allowances (step 4a); their amounts live on the salary, not in a structure. */
@@ -432,6 +434,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         BigDecimal payScaleBasic = empSalary.getIsCurrent() == 1 && isGraded(jd)
                 ? scaleBasic(jd, LocalDate.now()).orElse(null)
                 : null;
+        BigDecimal loanInstalments = empSalary.getIsCurrent() == 1
+                ? loans.monthlyInstalments(employee.getId(), LocalDate.now().withDayOfMonth(1))
+                : null;
 
         return new EmployeeSalaryResponse(
                 empSalary.getEmpSalaryId(),
@@ -458,7 +463,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 empSalary.getQualificationLevelId(),
                 qualification == null ? null : qualification.getName(),
                 qualification == null ? null : qualification.getNameAr(),
-                empSalary.getQualificationAmount());
+                empSalary.getQualificationAmount(),
+                loanInstalments == null || loanInstalments.signum() == 0 ? null : loanInstalments);
     }
 
     private List<SalaryBreakdownItem> buildBreakdown(

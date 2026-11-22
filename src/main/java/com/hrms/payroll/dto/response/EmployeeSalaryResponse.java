@@ -25,7 +25,10 @@ public record EmployeeSalaryResponse(
         // Computed salary breakdown for display
         List<SalaryBreakdownItem>         breakdown,
         LocalDateTime                     createdAt,
-        LocalDateTime                     updatedAt
+        LocalDateTime                     updatedAt,
+        // Current record only: today's starting scale for the employee's current grade and increment (absent without
+        // a grade). When it differs from basicSalary the grade or increment changed and a new salary is due.
+        BigDecimal                        payScaleBasic
 ) {
     // Inner record for the salary breakdown table
     public record SalaryBreakdownItem(

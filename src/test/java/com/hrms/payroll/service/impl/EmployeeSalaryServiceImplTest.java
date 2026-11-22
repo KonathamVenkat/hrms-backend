@@ -2,7 +2,13 @@ package com.hrms.payroll.service.impl;
 
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.auth.service.AuditTrail;
+import com.hrms.common.exception.BusinessRuleException;
 import com.hrms.common.exception.ResourceNotFoundException;
+import com.hrms.employee.dto.response.GradeResponse;
+import com.hrms.employee.entity.EmployeeJobDetails;
+import com.hrms.employee.service.GradeService;
+import com.hrms.payroll.dto.response.EmployeeSalaryResponse;
+import com.hrms.payroll.dto.response.PayScaleBasisResponse;
 import com.hrms.employee.entity.Employee;
 import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
@@ -10,7 +16,11 @@ import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.payroll.dto.request.EmployeeSalaryRequest;
 import com.hrms.payroll.entity.EmployeeSalary;
+import com.hrms.payroll.entity.SalaryComponent;
 import com.hrms.payroll.entity.SalaryStructure;
+import com.hrms.payroll.entity.SalaryStructureItem;
+import com.hrms.payroll.enums.CalculationType;
+import com.hrms.payroll.enums.ComponentType;
 import com.hrms.payroll.repository.EmployeeSalaryRepository;
 import com.hrms.payroll.repository.SalaryComponentRepository;
 import com.hrms.payroll.repository.SalaryStructureItemRepository;
@@ -48,12 +58,13 @@ class EmployeeSalaryServiceImplTest {
     DesignationRepository         designations = mock(DesignationRepository.class);
     EmployeeAccessGuard           guard       = mock(EmployeeAccessGuard.class);
     AuditTrail                    audit       = mock(AuditTrail.class);
+    GradeService                  grades      = mock(GradeService.class);
     EmployeeSalaryServiceImpl     service;
 
     @BeforeEach
     void setUp() {
         service = new EmployeeSalaryServiceImpl(salaries, structures, items, components, employees, jobs,
-                departments, designations, guard, audit);
+                departments, designations, guard, grades, audit);
         Employee employee = new Employee();
         employee.setId(5L);
         employee.setEmployeeCode("EMP-5");
@@ -133,5 +144,150 @@ class EmployeeSalaryServiceImplTest {
                 new EmployeeSalaryRequest(6L, 3L, new BigDecimal("1500.00"), LocalDate.now().toString(), null)));
         verify(salaries, never()).save(any());
         verify(salaries, never()).deactivateCurrent(any());
+    }
+
+    // ── Pay scale (step 3): a graded employee's basic comes from the scale, on the grade's structure ──
+
+    /** In the past, so the scale on the effective date is told apart from today's (the current-salary flag). */
+    private static final LocalDate DAY = LocalDate.now().minusDays(10);
+
+    /** Employee 5's current job: grade 8, increment 1; grade 8 is paid on structure 3 and scales 460,462 on DAY. */
+    private void graded() {
+        EmployeeJobDetails job = EmployeeJobDetails.builder().employeeId(5L).departmentId(1L).designationId(1L)
+            .locationId(1L).gradeId(8L).incrementNo(1).build();
+        when(jobs.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(job));
+        SalaryStructure gradeStructure = structures.findById(3L).orElseThrow();
+        when(structures.findByGradeId(8L)).thenReturn(Optional.of(gradeStructure));
+        when(grades.findStartingScale(8L, 1, DAY)).thenReturn(Optional.of(new BigDecimal("460462")));
+    }
+
+    private EmployeeSalaryRequest request(BigDecimal basic) {
+        return new EmployeeSalaryRequest(5L, 3L, basic, DAY.toString(), null);
+    }
+
+    private void assertRefused(String rule, EmployeeSalaryRequest req) {
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assign(req));
+        assertEquals(rule, ex.getRuleCode());
+        verify(salaries, never()).deactivateCurrent(any());
+        verify(salaries, never()).save(any());
+    }
+
+    @Test
+    void withoutAGradeTheBasicMustBeTyped() {
+        assertRefused("BASIC_REQUIRED", request(null));
+    }
+
+    @Test
+    void aGradedEmployeesBasicIsTheScaleAmountOnTheEffectiveDate() {
+        graded();
+        EmployeeSalaryResponse saved = service.assign(request(null));
+        assertEquals(0, new BigDecimal("460462").compareTo(saved.basicSalary()));
+        verify(grades).findStartingScale(8L, 1, DAY);
+    }
+
+    @Test
+    void theScaleAmountMayBeSentAsWell_butAnyOtherAmountIsRefused() {
+        graded();
+        assertEquals(0, new BigDecimal("460462").compareTo(service.assign(request(new BigDecimal("460462.00"))).basicSalary()));
+    }
+
+    @Test
+    void aTypedAmountOtherThanTheScaleIsRefusedBeforeAnythingIsWritten() {
+        graded();
+        assertRefused("BASIC_NOT_FROM_SCALE", request(new BigDecimal("500000")));
+    }
+
+    @Test
+    void aGradedEmployeeIsPaidOnTheGradesOwnStructure() {
+        graded();
+        SalaryStructure other = mock(SalaryStructure.class);
+        when(other.getStructureId()).thenReturn(4L);
+        when(other.getStructureName()).thenReturn("Grade 8");
+        when(structures.findByGradeId(8L)).thenReturn(Optional.of(other));
+        assertRefused("STRUCTURE_GRADE_MISMATCH", request(null));
+    }
+
+    @Test
+    void aGradeWithoutALinkedStructureOrWithoutAScaleOnTheDateIsRefused() {
+        graded();
+        when(structures.findByGradeId(8L)).thenReturn(Optional.empty());
+        assertRefused("GRADE_STRUCTURE_MISSING", request(null));
+    }
+
+    @Test
+    void noScaleAmountOnTheEffectiveDateIsRefused() {
+        graded();
+        when(grades.findStartingScale(8L, 1, DAY)).thenReturn(Optional.empty());
+        assertRefused("PAY_SCALE_MISSING", request(null));
+    }
+
+    @Test
+    void theBasisTellsTheScreenWhatToFillIn() {
+        Employee employee = new Employee();
+        employee.setId(5L);
+        when(employees.findById(5L)).thenReturn(Optional.of(employee));
+        PayScaleBasisResponse none = service.getPayScaleBasis(5L, DAY);
+        assertEquals(false, none.graded());
+        assertEquals(null, none.basicSalary());
+
+        graded();
+        GradeResponse grade = GradeResponse.builder().name("Grade 8").nameAr("الدرجة 8").build();
+        when(grades.findGrade(8L)).thenReturn(Optional.of(grade));
+        PayScaleBasisResponse basis = service.getPayScaleBasis(5L, DAY);
+        assertEquals(true, basis.graded());
+        assertEquals("Grade 8", basis.gradeName());
+        assertEquals(1, basis.incrementNo());
+        assertEquals(3L, basis.structureId());
+        assertEquals(0, new BigDecimal("460462").compareTo(basis.basicSalary()));
+    }
+
+    @Test
+    void theCurrentSalaryCarriesTodaysScaleAmountSoAChangedIncrementShows() {
+        graded();
+        when(grades.findStartingScale(8L, 1, LocalDate.now())).thenReturn(Optional.of(new BigDecimal("483485")));
+        EmployeeSalaryResponse saved = service.assign(request(null));
+        // paid 460,462 from the effective date, while today's scale for the same step is 483,485: a new salary is due
+        assertEquals(0, new BigDecimal("460462").compareTo(saved.basicSalary()));
+        assertEquals(0, new BigDecimal("483485").compareTo(saved.payScaleBasic()));
+    }
+
+    // ── Rates with 10 decimals (V31): Armed Forces is 1/30 of gross, as in the salary sheet ──
+
+    private SalaryComponent component(long id, String code, ComponentType type, CalculationType calc) {
+        return SalaryComponent.builder().componentId(id).componentCode(code).componentName(code).componentNameAr(code)
+            .componentType(type).calcType(calc).build();
+    }
+
+    @Test
+    void armedForcesAtOneThirtiethOfGrossMatchesTheSalarySheet() {
+        // Grade 5, increment 1 from the screenshot: gross 2,298,356.80 (basic 700,306 + 1,598,050.80 of allowances)
+        SalaryStructureItem allowances = SalaryStructureItem.builder().structureId(3L).componentId(1L)
+            .amount(new BigDecimal("1598050.80")).build();
+        SalaryStructureItem insurance = SalaryStructureItem.builder().structureId(3L).componentId(2L)
+            .percentage(new BigDecimal("8")).build();
+        SalaryStructureItem armedForces = SalaryStructureItem.builder().structureId(3L).componentId(3L)
+            .percentage(new BigDecimal("3.3333333333")).build();
+        when(items.findByStructureIdAndIsActiveOrderBySortOrderAsc(3L, 1)).thenReturn(List.of(allowances, insurance, armedForces));
+        when(components.findAllByIdForUpdate(any())).thenReturn(List.of(
+            component(1L, "ALLOWANCES", ComponentType.EARNING, CalculationType.FIXED),
+            component(2L, "INSURANCE", ComponentType.STATUTORY, CalculationType.PERCENTAGE_OF_GROSS),
+            component(3L, "ARMED_FORCES", ComponentType.STATUTORY, CalculationType.PERCENTAGE_OF_GROSS)));
+
+        EmployeeSalaryResponse saved = service.assign(request(new BigDecimal("700306")));
+
+        assertEquals(0, new BigDecimal("2298356.80").compareTo(saved.grossSalary()));
+        // sheet: gross - gross*8% - gross/30 = 2,298,356.80 - 183,868.544 - 76,611.893 (was 76,535.281 at 3.33%)
+        assertEquals(0, new BigDecimal("2037876.363").compareTo(saved.netSalary()));
+        var armed = saved.breakdown().stream().filter(b -> "ARMED_FORCES".equals(b.componentCode())).findFirst().orElseThrow();
+        assertEquals(0, new BigDecimal("76611.893").compareTo(armed.amount()));
+        assertEquals("3.3333% of Gross", armed.calcBasis());
+    }
+
+    @Test
+    void ratesAreShownWithAtMostFourDecimals() {
+        assertEquals("3.3333", EmployeeSalaryServiceImpl.shownPercent(new BigDecimal("3.3333333333")));
+        assertEquals("20", EmployeeSalaryServiceImpl.shownPercent(new BigDecimal("20.0000000000")));
+        assertEquals("3.33", EmployeeSalaryServiceImpl.shownPercent(new BigDecimal("3.33")));
+        assertEquals("0", EmployeeSalaryServiceImpl.shownPercent(BigDecimal.ZERO));
     }
 }

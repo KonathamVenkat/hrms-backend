@@ -6,17 +6,20 @@ import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.PagedResponse;
 import com.hrms.payroll.dto.request.EmployeeSalaryRequest;
 import com.hrms.payroll.dto.response.EmployeeSalaryResponse;
+import com.hrms.payroll.dto.response.PayScaleBasisResponse;
 import com.hrms.payroll.service.EmployeeSalaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -51,6 +54,15 @@ public class EmployeeSalaryController {
             audit.record("SALARY_VIEWED", "EMPLOYEE", employeeId, null);
         }
         return ResponseEntity.ok(ApiResponse.success("Success", salary));
+    }
+
+    // ── What the pay scale gives the employee on a date ──
+    @GetMapping("/{employeeId}/pay-scale")
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    public ResponseEntity<ApiResponse<PayScaleBasisResponse>> getPayScaleBasis(
+            @PathVariable Long employeeId,
+            @RequestParam("on") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate onDate) {
+        return ResponseEntity.ok(ApiResponse.success("Success", service.getPayScaleBasis(employeeId, onDate)));
     }
 
     // ── Salary history for one employee ──────────────────

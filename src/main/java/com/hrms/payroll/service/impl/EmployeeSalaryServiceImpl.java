@@ -14,9 +14,12 @@ import com.hrms.employee.repository.DepartmentRepository;
 import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.employee.dto.response.GradeResponse;
+import com.hrms.employee.service.GradeService;
 import com.hrms.payroll.dto.request.EmployeeSalaryRequest;
 import com.hrms.payroll.dto.response.EmployeeSalaryResponse;
 import com.hrms.payroll.dto.response.EmployeeSalaryResponse.SalaryBreakdownItem;
+import com.hrms.payroll.dto.response.PayScaleBasisResponse;
 import com.hrms.payroll.entity.EmployeeSalary;
 import com.hrms.payroll.entity.SalaryComponent;
 import com.hrms.payroll.entity.SalaryStructure;
@@ -58,6 +61,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final DepartmentRepository          departmentRepo;
     private final DesignationRepository         designationRepo;
     private final EmployeeAccessGuard           employeeAccessGuard;
+    private final GradeService                  grades;
     private final AuditTrail audit;
 
     // ────────────────────────────────────────────────────
@@ -84,6 +88,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         }
 
         LocalDate effectiveFrom = LocalDate.parse(request.effectiveFrom());
+        EmployeeJobDetails job = currentJob(employee.getId());
+        BigDecimal basicSalary = resolveBasic(job, structure, request.basicSalary(), effectiveFrom);
 
         // A new salary record must postdate whichever record it's replacing as "current" —
         // otherwise the history ends up with an earlier-dated record marked current.
@@ -116,19 +122,20 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 .stream()
                 .collect(Collectors.toMap(SalaryComponent::getComponentId, c -> c));
 
-        SalaryCalculation calc = calculateSalary(request.basicSalary(), items, componentMap);
+        SalaryCalculation calc = calculateSalary(basicSalary, items, componentMap);
 
         log.info("Calculated salary — basic={}, gross={}, net={}",
-                request.basicSalary(), calc.grossSalary(), calc.netSalary());
+                basicSalary, calc.grossSalary(), calc.netSalary());
 
         audit.record("SALARY_ASSIGNED", "EMPLOYEE", employee.getId(),
-            "structure " + structure.getStructureId() + ", effective " + effectiveFrom);
+            "structure " + structure.getStructureId() + ", effective " + effectiveFrom
+                + (isGraded(job) ? ", basic from pay scale grade " + job.getGradeId() + " increment " + job.getIncrementNo() : ""));
         Long newId = salaryRepo.findNextSequenceValue();
         EmployeeSalary empSalary = EmployeeSalary.builder()
                 .empSalaryId(newId)
                 .employeeId(employee.getId())
                 .structureId(structure.getStructureId())
-                .basicSalary(request.basicSalary())
+                .basicSalary(basicSalary)
                 .grossSalary(calc.grossSalary())
                 .netSalary(calc.netSalary())
                 .currency("SSP")
@@ -205,6 +212,72 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             Map<Long, SalaryComponent> componentMap = buildComponentMap(items);
             return buildResponse(empSalary, employee, structure, items, componentMap);
         }));
+    }
+
+    // ── Pay scale ─────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public PayScaleBasisResponse getPayScaleBasis(Long employeeId, LocalDate onDate) {
+        findEmployee(employeeId);
+        EmployeeJobDetails job = currentJob(employeeId);
+        if (!isGraded(job)) {
+            return new PayScaleBasisResponse(false, onDate, null, null, null, null, null, null, null);
+        }
+        Optional<GradeResponse> grade = grades.findGrade(job.getGradeId());
+        Optional<SalaryStructure> structure = structureRepo.findByGradeId(job.getGradeId());
+        return new PayScaleBasisResponse(true, onDate, job.getGradeId(),
+                grade.map(GradeResponse::getName).orElse(null),
+                grade.map(GradeResponse::getNameAr).orElse(null),
+                job.getIncrementNo(),
+                structure.map(SalaryStructure::getStructureId).orElse(null),
+                structure.map(SalaryStructure::getStructureName).orElse(null),
+                scaleBasic(job, onDate).orElse(null));
+    }
+
+    /**
+     * The basic of the salary being assigned. Without a grade on the current job it is the one typed (required).
+     * With a grade it is the pay-scale amount on the effective date, on the grade's own structure: a different
+     * structure, a different typed amount, no linked structure or no scale amount on that date are refused.
+     */
+    private BigDecimal resolveBasic(EmployeeJobDetails job, SalaryStructure structure, BigDecimal requested,
+                                    LocalDate effectiveFrom) {
+        if (!isGraded(job)) {
+            if (requested == null) {
+                throw new BusinessRuleException("BASIC_REQUIRED",
+                        "Enter the basic salary: this employee has no grade on the pay scale.");
+            }
+            return requested;
+        }
+        SalaryStructure gradeStructure = structureRepo.findByGradeId(job.getGradeId())
+                .orElseThrow(() -> new BusinessRuleException("GRADE_STRUCTURE_MISSING",
+                        "No salary structure is linked to this employee's grade yet."));
+        if (!gradeStructure.getStructureId().equals(structure.getStructureId())) {
+            throw new BusinessRuleException("STRUCTURE_GRADE_MISMATCH",
+                    "This employee's grade is paid on structure '" + gradeStructure.getStructureName() + "'.");
+        }
+        BigDecimal basic = scaleBasic(job, effectiveFrom)
+                .orElseThrow(() -> new BusinessRuleException("PAY_SCALE_MISSING",
+                        "The pay scale has no amount for this employee's grade and increment on " + effectiveFrom + "."));
+        if (requested != null && requested.compareTo(basic) != 0) {
+            throw new BusinessRuleException("BASIC_NOT_FROM_SCALE",
+                    "The basic salary of a graded employee comes from the pay scale and cannot be typed.");
+        }
+        return basic;
+    }
+
+    /** The column holds 2 decimals; the scale's amounts are whole numbers, so this never changes one. */
+    private Optional<BigDecimal> scaleBasic(EmployeeJobDetails job, LocalDate onDate) {
+        return grades.findStartingScale(job.getGradeId(), job.getIncrementNo(), onDate)
+                .map(amount -> amount.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private EmployeeJobDetails currentJob(Long employeeId) {
+        return jobDetailsRepo.findByEmployeeIdAndIsCurrent(employeeId, 1).orElse(null);
+    }
+
+    private static boolean isGraded(EmployeeJobDetails job) {
+        return job != null && job.getGradeId() != null;
     }
 
     // ── Salary Calculation ────────────────────────────────
@@ -311,6 +384,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
 
         List<SalaryBreakdownItem> breakdown = buildBreakdown(
                 empSalary.getBasicSalary(), empSalary.getGrossSalary(), items, componentMap);
+        // ponytail: one scale query per current row; the list already queries per row, batch them if pages grow.
+        BigDecimal payScaleBasic = empSalary.getIsCurrent() == 1 && isGraded(jd)
+                ? scaleBasic(jd, LocalDate.now()).orElse(null)
+                : null;
 
         return new EmployeeSalaryResponse(
                 empSalary.getEmpSalaryId(),
@@ -331,7 +408,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 empSalary.getRemarks(),
                 breakdown,
                 empSalary.getCreatedAt(),
-                empSalary.getUpdatedAt());
+                empSalary.getUpdatedAt(),
+                payScaleBasic);
     }
 
     private List<SalaryBreakdownItem> buildBreakdown(
@@ -367,8 +445,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
 
             String calcBasis = switch (calcType) {
                 case FIXED               -> "Fixed";
-                case PERCENTAGE_OF_BASIC -> item.getPercentage() + "% of Basic";
-                case PERCENTAGE_OF_GROSS -> item.getPercentage() + "% of Gross";
+                case PERCENTAGE_OF_BASIC -> shownPercent(item.getPercentage()) + "% of Basic";
+                case PERCENTAGE_OF_GROSS -> shownPercent(item.getPercentage()) + "% of Gross";
                 case FORMULA             -> "Computed at payroll run";
             };
 
@@ -379,6 +457,11 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         }
 
         return breakdown;
+    }
+
+    /** A rate as people read it: at most 4 decimals, no trailing zeros (3.3333333333 -> "3.3333", 20.0000000000 -> "20"). */
+    static String shownPercent(BigDecimal percentage) {
+        return percentage.setScale(4, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
     }
 
     private Map<Long, SalaryComponent> buildComponentMap(List<SalaryStructureItem> items) {

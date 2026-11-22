@@ -41,7 +41,7 @@ public class SalaryComponent extends Auditable {
     @Column(name = "CALC_TYPE", nullable = false, length = 30)
     private CalculationType calcType;
 
-    @Column(name = "DEFAULT_VALUE", nullable = false, precision = 12, scale = 2)
+    @Column(name = "DEFAULT_VALUE", nullable = false, precision = 20, scale = 10)
     @Builder.Default
     private BigDecimal defaultValue = BigDecimal.ZERO;
 

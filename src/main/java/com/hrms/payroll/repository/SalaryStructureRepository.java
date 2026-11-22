@@ -22,6 +22,9 @@ public interface SalaryStructureRepository
     List<SalaryStructure> findByIsActiveOrderByStructureNameAsc(Integer isActive);
 
     /** Row lock: edits, deactivation and salary assignment of one structure wait for each other. */
+    /** The structure linked to a grade (V30 keeps it to one). */
+    Optional<SalaryStructure> findByGradeId(Long gradeId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM SalaryStructure s WHERE s.structureId = :id")
     Optional<SalaryStructure> findByIdForUpdate(@Param("id") Long id);

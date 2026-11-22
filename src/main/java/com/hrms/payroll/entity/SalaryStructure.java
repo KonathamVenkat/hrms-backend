@@ -33,6 +33,10 @@ public class SalaryStructure extends Auditable {
     @Column(name = "DESCRIPTION", length = 500)
     private String description;
 
+    /** The grade this structure is for (V30); null for a structure of people without a grade. One per grade. */
+    @Column(name = "GRADE_ID")
+    private Long gradeId;
+
     @Column(name = "IS_ACTIVE", nullable = false)
     @Builder.Default
     private Integer isActive = 1;

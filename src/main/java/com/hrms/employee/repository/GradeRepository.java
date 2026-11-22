@@ -7,8 +7,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface GradeRepository extends JpaRepository<Grade, Long> {
@@ -39,6 +41,18 @@ public interface GradeRepository extends JpaRepository<Grade, Long> {
         ORDER BY g.SORT_ORDER NULLS LAST, g.GRADES_NAME, s.INCREMENT_NO
         """, nativeQuery = true)
     List<GradeScaleStepProjection> findScaleOn(@Param("onDate") LocalDate onDate);
+
+    /** The starting scale of a grade and increment on a date: the latest row from on or before it (any grade state). */
+    @Query(value = """
+        SELECT s.STARTING_SCALE
+        FROM HRMS.SALARY_GRADE_SCALE s
+        WHERE s.GRADE_ID = :gradeId AND s.INCREMENT_NO = :incrementNo
+          AND s.EFFECTIVE_FROM = (SELECT MAX(s2.EFFECTIVE_FROM) FROM HRMS.SALARY_GRADE_SCALE s2
+                                   WHERE s2.GRADE_ID = :gradeId AND s2.INCREMENT_NO = :incrementNo
+                                     AND s2.EFFECTIVE_FROM <= :onDate)
+        """, nativeQuery = true)
+    Optional<BigDecimal> findStartingScale(@Param("gradeId") Long gradeId, @Param("incrementNo") Integer incrementNo,
+                                           @Param("onDate") LocalDate onDate);
 
     /** True when the grade is active and the pay scale has this increment for it in effect on the date. */
     @Query(value = """

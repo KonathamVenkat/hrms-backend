@@ -14,7 +14,8 @@ public record EmployeeSalaryRequest(
         @NotNull(message = "Structure ID is required")
         Long structureId,
 
-        @NotNull(message = "Basic salary is required")
+        // Required for an employee without a grade; for a graded one it comes from the pay scale (may be left out,
+        // and is refused when it differs). Checked in the service, which knows which case applies.
         @DecimalMin(value = "0.01", message = "Basic salary must be greater than zero")
         BigDecimal basicSalary,
 

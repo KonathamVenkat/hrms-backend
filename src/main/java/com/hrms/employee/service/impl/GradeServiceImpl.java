@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -47,6 +48,16 @@ public class GradeServiceImpl implements GradeService {
             .map(p -> new GradeScaleStepResponse(p.getGradeId(), p.getGradeCode(), p.getGradeName(), p.getGradeNameAr(),
                 p.getIncrementNo(), p.getStartingScale(), p.getEffectiveFrom()))
             .toList();
+    }
+
+    @Override
+    public Optional<BigDecimal> findStartingScale(Long gradeId, Integer incrementNo, LocalDate onDate) {
+        return repository.findStartingScale(gradeId, incrementNo, onDate);
+    }
+
+    @Override
+    public Optional<GradeResponse> findGrade(Long gradeId) {
+        return repository.findById(gradeId).map(this::toResponse);
     }
 
     @Override

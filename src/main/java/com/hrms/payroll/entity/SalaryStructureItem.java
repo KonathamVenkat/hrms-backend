@@ -40,7 +40,7 @@ public class SalaryStructureItem extends Auditable {
     @Builder.Default
     private BigDecimal amount = BigDecimal.ZERO;
 
-    @Column(name = "PERCENTAGE", nullable = false, precision = 6, scale = 2)
+    @Column(name = "PERCENTAGE", nullable = false, precision = 14, scale = 10)
     @Builder.Default
     private BigDecimal percentage = BigDecimal.ZERO;
 

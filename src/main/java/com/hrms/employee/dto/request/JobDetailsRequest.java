@@ -23,6 +23,17 @@ public class JobDetailsRequest {
     /** Optional: the section of the chosen department the employee works in. */
     private Long sectionId;
 
+    /**
+     * Optional place on the pay scale: give both or neither. Left out (both null) keeps what the record has, so an
+     * older screen that does not know the fields cannot clear them; a set grade is changed with a new assignment.
+     */
+    @Positive(message = "Grade is invalid")
+    private Long gradeId;
+
+    @Min(value = 1, message = "Increment must be 1 or more")
+    @Max(value = 99, message = "Increment must be 99 or less")
+    private Integer incrementNo;
+
     /** Optional: the specialization (a master) of the employee; it must be active when it is set. */
     private Long specializationId;
 

@@ -109,6 +109,13 @@ public class EmployeeJobDetails {
     @Column(name = "CURRENT_WORK_PHONE", length = 30)
     private String currentWorkPhone;
 
+    /** Place on the pay scale (V29): both set or both null; the pair must exist in SALARY_GRADE_SCALE. */
+    @Column(name = "GRADE_ID")
+    private Long gradeId;
+
+    @Column(name = "INCREMENT_NO")
+    private Integer incrementNo;
+
     /** The branch the employee belongs to; null until HR assigns one (V8). */
     @Column(name = "COMPANY_BRANCH_ID")
     private Long companyBranchId;

@@ -15,6 +15,7 @@ import com.hrms.employee.repository.DesignationRepository;
 import com.hrms.employee.repository.ProfessionRepository;
 import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
+import com.hrms.employee.repository.GradeRepository;
 import com.hrms.employee.repository.OfficeLocationRepository;
 import com.hrms.employee.repository.WorkShiftRepository;
 import com.hrms.employee.repository.projection.JobDetailsProjection;
@@ -58,6 +59,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private final SectionRepository            sectionRepository;
     private final SpecializationRepository     specializationRepository;
     private final ContractTypeRepository       contractTypeRepository;
+    private final GradeRepository              gradeRepository;
     private final ApplicationEventPublisher    events;
     private final AuditTrail                   audit;
 
@@ -125,6 +127,15 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         LocalDate contractEnd   = keep(request.getContractEndDate(), prev, EmployeeJobDetails::getContractEndDate);
         requireContractDatesInOrder(contractStart, contractEnd);
 
+        // Grade and increment left out are carried over; a new pair is checked against the pay scale.
+        requireGradePair(request);
+        boolean gradeGiven = request.getGradeId() != null;
+        Long gradeId = gradeGiven ? request.getGradeId() : prev == null ? null : prev.getGradeId();
+        Integer incrementNo = gradeGiven ? request.getIncrementNo() : prev == null ? null : prev.getIncrementNo();
+        if (gradeGiven && (prev == null || !samePlace(prev, gradeId, incrementNo))) {
+            requireScaleStep(gradeId, incrementNo);
+        }
+
         if (currentRecord.isPresent()) {
             // The new assignment must move the SCD chain forward — an effectiveFrom on or
             // before the current record's own effectiveFrom would close that record with an
@@ -159,6 +170,8 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .designationId(request.getDesignationId())
             .professionId(professionId)
             .sectionId(request.getSectionId())
+            .gradeId(gradeId)
+            .incrementNo(incrementNo)
             .jobPositionId(Strings.trimToNull(request.getJobPositionId()))
             .reportingManagerId(request.getReportingManagerId())
             .functionalManagerId(request.getFunctionalManagerId())
@@ -220,6 +233,9 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         Versions.requireSentAndCurrent(request.getVersion(), current.getVersion(),
             "Reload the job details and try again.");
 
+        requireGradePair(request);
+        boolean gradeGiven = request.getGradeId() != null;
+
         // Structural fields are history-bearing: changing one here would rewrite the past
         // instead of starting a new SCD record, and the old code silently ignored the change
         // while reporting success. Refuse it explicitly.
@@ -231,6 +247,9 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                 || !Objects.equals(request.getLocationId(), current.getLocationId())
                 // A record without a section may be given one (nothing recorded is rewritten); changing a set one is a new assignment.
                 || (current.getSectionId() != null && !Objects.equals(request.getSectionId(), current.getSectionId()))
+                // Not sent means "keep"; a record without a grade may be given one; changing a set one is a new assignment.
+                || (gradeGiven && current.getGradeId() != null
+                    && !samePlace(current, request.getGradeId(), request.getIncrementNo()))
                 || !Objects.equals(request.getCompanyBranchId(), current.getCompanyBranchId())
                 || !Objects.equals(request.getReportingManagerId(), current.getReportingManagerId())
                 || !Objects.equals(request.getFunctionalManagerId(), current.getFunctionalManagerId())
@@ -238,7 +257,7 @@ public class JobDetailsServiceImpl implements JobDetailsService {
                                    Strings.trimToNull(current.getJobPositionId()))) {
             throw new BusinessRuleException(
                 "STRUCTURAL_CHANGE_NOT_ALLOWED",
-                "Department, section, designation, position, location, branch and managers can only be changed "
+                "Department, section, designation, grade, increment, position, location, branch and managers can only be changed "
                     + "with a new assignment. This update may change shift, work mode, remarks, contract, specialization and the appointment references only.");
         }
         if (request.getShiftId() != null) {
@@ -252,6 +271,12 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         if (current.getSectionId() == null && request.getSectionId() != null) {
             requireSectionInDepartment(request.getSectionId(), current.getDepartmentId());
             current.setSectionId(request.getSectionId());
+        }
+
+        if (gradeGiven && current.getGradeId() == null) {
+            requireScaleStep(request.getGradeId(), request.getIncrementNo());
+            current.setGradeId(request.getGradeId());
+            current.setIncrementNo(request.getIncrementNo());
         }
 
         requireAppointmentReferences(request);
@@ -389,6 +414,25 @@ public class JobDetailsServiceImpl implements JobDetailsService {
         requireContractDatesInOrder(request.getContractStartDate(), request.getContractEndDate());
     }
 
+    /** Grade and increment go together: both given or both left out. */
+    private static void requireGradePair(JobDetailsRequest request) {
+        if ((request.getGradeId() == null) != (request.getIncrementNo() == null)) {
+            throw new BusinessRuleException("GRADE_INCREMENT_PAIR", "Choose both a grade and an increment, or neither.");
+        }
+    }
+
+    private static boolean samePlace(EmployeeJobDetails job, Long gradeId, Integer incrementNo) {
+        return Objects.equals(job.getGradeId(), gradeId) && Objects.equals(job.getIncrementNo(), incrementNo);
+    }
+
+    /** The grade must be active and the pay scale must have this increment for it today. */
+    private void requireScaleStep(Long gradeId, Integer incrementNo) {
+        if (gradeRepository.countScaleSteps(gradeId, incrementNo, LocalDate.now()) == 0) {
+            throw new BusinessRuleException("GRADE_STEP_UNKNOWN",
+                "The selected grade is inactive or has no such increment on the pay scale.");
+        }
+    }
+
     private static void requireContractDatesInOrder(LocalDate start, LocalDate end) {
         if (start != null && end != null && end.isBefore(start)) {
             throw new BusinessRuleException("INVALID_CONTRACT_DATES", "The contract end date cannot be before its start date.");
@@ -399,7 +443,8 @@ public class JobDetailsServiceImpl implements JobDetailsService {
     private static String jobSummary(EmployeeJobDetails j) {
         return "employeeId=" + j.getEmployeeId() + ", departmentId=" + j.getDepartmentId()
             + ", designationId=" + j.getDesignationId() + ", locationId=" + j.getLocationId()
-            + ", reportingManagerId=" + j.getReportingManagerId() + ", effectiveFrom=" + j.getEffectiveFrom();
+            + ", reportingManagerId=" + j.getReportingManagerId() + ", gradeId=" + j.getGradeId()
+            + ", incrementNo=" + j.getIncrementNo() + ", effectiveFrom=" + j.getEffectiveFrom();
     }
 
     /** A section is optional; when given it must exist, be active and belong to the chosen department. */
@@ -487,6 +532,12 @@ public class JobDetailsServiceImpl implements JobDetailsService {
             .sectionCode(p.getSectionCode())
             .sectionName(p.getSectionName())
             .sectionNameAr(p.getSectionNameAr())
+            // Grade and increment
+            .gradeId(p.getGradeId())
+            .gradeCode(p.getGradeCode())
+            .gradeName(p.getGradeName())
+            .gradeNameAr(p.getGradeNameAr())
+            .incrementNo(p.getIncrementNo())
             .professionId(p.getProfessionId())
             .professionName(p.getProfessionName())
             .professionNameAr(p.getProfessionNameAr())

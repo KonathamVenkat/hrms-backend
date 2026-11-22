@@ -44,13 +44,14 @@ class JobDetailsServiceImplTest {
     @Mock ContractTypeRepository contractTypeRepository;
     @Mock org.springframework.context.ApplicationEventPublisher events;
     @Mock com.hrms.auth.service.AuditTrail audit;
+    @Mock GradeRepository gradeRepository;
 
     JobDetailsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new JobDetailsServiceImpl(jobDetailsRepository, employeeRepository,
-            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, sectionRepository, specializationRepository, contractTypeRepository, events, audit);
+            departmentRepository, designationRepository, professionRepository, locationRepository, shiftRepository, departmentHeads, departmentSecretaries, branchRepository, sectionRepository, specializationRepository, contractTypeRepository, gradeRepository, events, audit);
 
         // Happy-path references: active employee 5, department 10, designation 20 in 10, location 30.
         when(employeeRepository.findByIdAndIsActive(5L, true)).thenReturn(Optional.of(mock(Employee.class)));
@@ -729,5 +730,112 @@ class JobDetailsServiceImplTest {
         BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
         assertEquals("SPECIALIZATION_INACTIVE", ex.getRuleCode());
         verify(jobDetailsRepository, never()).save(any());
+    }
+
+    // ── Grade and increment (V29) ─────────────────────────────
+
+    /** Grade 3 has increment 2 on the pay scale today; nothing else does. */
+    private void payScaleHasGrade3Increment2() {
+        when(gradeRepository.countScaleSteps(eq(3L), eq(2), any())).thenReturn(1L);
+    }
+
+    private EmployeeJobDetails currentJob(Long gradeId, Integer incrementNo, LocalDate from) {
+        EmployeeJobDetails current = EmployeeJobDetails.builder().version(0L).employeeId(5L).departmentId(10L)
+            .designationId(20L).locationId(30L).workMode("ON_SITE").effectiveFrom(from)
+            .gradeId(gradeId).incrementNo(incrementNo).build();
+        when(jobDetailsRepository.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(current));
+        return current;
+    }
+
+    private JobDetailsRequest withPlace(Long gradeId, Integer incrementNo) {
+        JobDetailsRequest req = request(LocalDate.now());
+        req.setWorkMode("ON_SITE");
+        req.setGradeId(gradeId);
+        req.setIncrementNo(incrementNo);
+        return req;
+    }
+
+    @Test
+    void aGradeWithoutAnIncrementOrTheOtherWayRoundIsRefused() {
+        for (JobDetailsRequest req : java.util.List.of(withPlace(3L, null), withPlace(null, 2))) {
+            BusinessRuleException assign = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, req));
+            assertEquals("GRADE_INCREMENT_PAIR", assign.getRuleCode());
+        }
+        currentJob(null, null, LocalDate.now().minusDays(30));
+        BusinessRuleException update = assertThrows(BusinessRuleException.class,
+            () -> service.updateCurrentJob(5L, withPlace(3L, null)));
+        assertEquals("GRADE_INCREMENT_PAIR", update.getRuleCode());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void aNewAssignmentStoresAPairThatIsOnThePayScale() {
+        payScaleHasGrade3Increment2();
+        EmployeeJobDetails saved = savedJobFor(withPlace(3L, 2));
+        assertEquals(3L, saved.getGradeId());
+        assertEquals(2, saved.getIncrementNo());
+    }
+
+    @Test
+    void aPairThatIsNotOnThePayScaleIsRefusedBeforeAnythingIsWritten() {
+        payScaleHasGrade3Increment2();
+        currentJob(null, null, LocalDate.now().minusDays(30));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assignJob(5L, withPlace(3L, 9)));
+        assertEquals("GRADE_STEP_UNKNOWN", ex.getRuleCode());
+        verify(jobDetailsRepository, never()).closeCurrentRecord(anyLong(), any(), anyString());
+        verify(jobDetailsRepository, never()).save(any());
+    }
+
+    @Test
+    void aNewAssignmentThatLeavesTheGradeOutCarriesTheCurrentOneOver() {
+        currentJob(3L, 2, LocalDate.now().minusDays(30));
+        when(jobDetailsRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        assertThrows(java.util.NoSuchElementException.class, () -> service.assignJob(5L, withPlace(null, null)));
+        var captor = org.mockito.ArgumentCaptor.forClass(EmployeeJobDetails.class);
+        verify(jobDetailsRepository).save(captor.capture());
+        assertEquals(3L, captor.getValue().getGradeId());
+        assertEquals(2, captor.getValue().getIncrementNo());
+        // the carried-over pair is not re-checked, so a grade deactivated since does not block the move
+        verify(gradeRepository, never()).countScaleSteps(any(), any(), any());
+    }
+
+    @Test
+    void aCurrentJobWithoutAGradeCanBeGivenOneByEdit() {
+        payScaleHasGrade3Increment2();
+        EmployeeJobDetails current = currentJob(null, null, LocalDate.now().minusDays(30));
+
+        assertThrows(java.util.NoSuchElementException.class, () -> service.updateCurrentJob(5L, withPlace(3L, 2)));
+        assertEquals(3L, current.getGradeId());
+        assertEquals(2, current.getIncrementNo());
+    }
+
+    @Test
+    void anEditCannotGiveAGradeThatIsNotOnThePayScale() {
+        payScaleHasGrade3Increment2();
+        EmployeeJobDetails current = currentJob(null, null, LocalDate.now().minusDays(30));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+            () -> service.updateCurrentJob(5L, withPlace(4L, 1)));
+        assertEquals("GRADE_STEP_UNKNOWN", ex.getRuleCode());
+        assertNull(current.getGradeId());
+    }
+
+    @Test
+    void changingASetGradeOrIncrementByEditIsAStructuralChange_butLeavingItOutOrSendingItUnchangedIsNot() {
+        EmployeeJobDetails current = currentJob(3L, 2, LocalDate.now().minusDays(30));
+
+        for (JobDetailsRequest req : java.util.List.of(withPlace(3L, 3), withPlace(4L, 2))) {
+            BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.updateCurrentJob(5L, req));
+            assertEquals("STRUCTURAL_CHANGE_NOT_ALLOWED", ex.getRuleCode());
+        }
+        // left out (an older screen) or unchanged: the edit goes through and the pair stays
+        for (JobDetailsRequest req : java.util.List.of(withPlace(null, null), withPlace(3L, 2))) {
+            assertThrows(java.util.NoSuchElementException.class, () -> service.updateCurrentJob(5L, req));
+            assertEquals(3L, current.getGradeId());
+            assertEquals(2, current.getIncrementNo());
+        }
+        verify(gradeRepository, never()).countScaleSteps(any(), any(), any());
     }
 }

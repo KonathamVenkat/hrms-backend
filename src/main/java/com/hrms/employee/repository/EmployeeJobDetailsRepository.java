@@ -94,6 +94,11 @@ public interface EmployeeJobDetailsRepository
             sec.SECTION_CODE          AS sectionCode,
             sec.SECTION_NAME          AS sectionName,
             sec.SECTION_NAME_AR       AS sectionNameAr,
+            ejd.GRADE_ID              AS gradeId,
+            gr.GRADES_CODE            AS gradeCode,
+            gr.GRADES_NAME            AS gradeName,
+            gr.GRADES_NAME_AR         AS gradeNameAr,
+            ejd.INCREMENT_NO          AS incrementNo,
             ejd.PROFESSION_ID         AS professionId,
             pf.PROFESSIONS_NAME       AS professionName,
             pf.PROFESSIONS_NAME_AR    AS professionNameAr,
@@ -144,6 +149,7 @@ public interface EmployeeJobDetailsRepository
         LEFT JOIN HRMS.DEPARTMENTS     d   ON d.DEPT_ID       = ejd.DEPARTMENT_ID
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
         LEFT JOIN HRMS.SECTIONS        sec ON sec.SECTION_ID  = ejd.SECTION_ID
+        LEFT JOIN HRMS.GRADES          gr  ON gr.GRADE_ID     = ejd.GRADE_ID
         LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
         LEFT JOIN HRMS.SPECIALIZATIONS sp  ON sp.SPECIALIZATION_ID = ejd.SPECIALIZATION_ID
         LEFT JOIN HRMS.CONTRACT_TYPES  ct  ON ct.CONTRACT_TYPE_ID = ejd.CONTRACT_TYPE_ID
@@ -176,6 +182,11 @@ public interface EmployeeJobDetailsRepository
             sec.SECTION_CODE          AS sectionCode,
             sec.SECTION_NAME          AS sectionName,
             sec.SECTION_NAME_AR       AS sectionNameAr,
+            ejd.GRADE_ID              AS gradeId,
+            gr.GRADES_CODE            AS gradeCode,
+            gr.GRADES_NAME            AS gradeName,
+            gr.GRADES_NAME_AR         AS gradeNameAr,
+            ejd.INCREMENT_NO          AS incrementNo,
             ejd.PROFESSION_ID         AS professionId,
             pf.PROFESSIONS_NAME       AS professionName,
             pf.PROFESSIONS_NAME_AR    AS professionNameAr,
@@ -226,6 +237,7 @@ public interface EmployeeJobDetailsRepository
         LEFT JOIN HRMS.DEPARTMENTS     d   ON d.DEPT_ID       = ejd.DEPARTMENT_ID
         LEFT JOIN HRMS.DESIGNATIONS    ds  ON ds.DESIG_ID     = ejd.DESIGNATION_ID
         LEFT JOIN HRMS.SECTIONS        sec ON sec.SECTION_ID  = ejd.SECTION_ID
+        LEFT JOIN HRMS.GRADES          gr  ON gr.GRADE_ID     = ejd.GRADE_ID
         LEFT JOIN HRMS.PROFESSIONS     pf  ON pf.PROFESSION_ID = ejd.PROFESSION_ID
         LEFT JOIN HRMS.SPECIALIZATIONS sp  ON sp.SPECIALIZATION_ID = ejd.SPECIALIZATION_ID
         LEFT JOIN HRMS.CONTRACT_TYPES  ct  ON ct.CONTRACT_TYPE_ID = ejd.CONTRACT_TYPE_ID

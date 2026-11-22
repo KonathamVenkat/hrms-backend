@@ -7,6 +7,7 @@ import com.hrms.common.exception.DuplicateResourceException;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.request.GradeRequest;
 import com.hrms.employee.dto.response.GradeResponse;
+import com.hrms.employee.dto.response.GradeScaleStepResponse;
 import com.hrms.employee.entity.Grade;
 import com.hrms.employee.repository.GradeRepository;
 import com.hrms.employee.service.GradeService;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -38,6 +40,14 @@ public class GradeServiceImpl implements GradeService {
         return repository.findAllByOrderBySortOrderAscNameAsc().stream().map(this::toResponse).toList();
     }
 
+
+    @Override
+    public List<GradeScaleStepResponse> getPayScale() {
+        return repository.findScaleOn(LocalDate.now()).stream()
+            .map(p -> new GradeScaleStepResponse(p.getGradeId(), p.getGradeCode(), p.getGradeName(), p.getGradeNameAr(),
+                p.getIncrementNo(), p.getStartingScale(), p.getEffectiveFrom()))
+            .toList();
+    }
 
     @Override
     public GradeResponse getById(Long id) {

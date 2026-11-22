@@ -30,6 +30,13 @@ public class JobDetailsResponse {
     private String  sectionName;
     private String  sectionNameAr;
 
+    // Grade and increment on the pay scale (null when the record has none)
+    private Long    gradeId;
+    private String  gradeCode;
+    private String  gradeName;
+    private String  gradeNameAr;
+    private Integer incrementNo;
+
     // Profession (null when the record has none)
     private Long    professionId;
     private String  professionName;

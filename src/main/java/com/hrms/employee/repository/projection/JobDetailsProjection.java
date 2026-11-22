@@ -29,6 +29,13 @@ public interface JobDetailsProjection {
     String  getSectionName();
     String  getSectionNameAr();
 
+    // ── Grade and increment ───────────────────────────────────
+    Long    getGradeId();
+    String  getGradeCode();
+    String  getGradeName();
+    String  getGradeNameAr();
+    Integer getIncrementNo();
+
     // ── Profession ────────────────────────────────────────────
     Long    getProfessionId();
     String  getProfessionName();

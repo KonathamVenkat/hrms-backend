@@ -56,4 +56,15 @@ public class EmployeeSalary extends Auditable {
 
     @Column(name = "REMARKS", length = 500)
     private String remarks;
+
+    /** Social Allowance of this salary (V32), copied from the component's default at assignment; null when not paid. */
+    @Column(name = "SOCIAL_AMOUNT", precision = 12, scale = 2)
+    private BigDecimal socialAmount;
+
+    /** Qualification level of this salary and its amount copied at assignment (V32); both null when none. */
+    @Column(name = "QUALIFICATION_LEVEL_ID")
+    private Long qualificationLevelId;
+
+    @Column(name = "QUALIFICATION_AMOUNT", precision = 12, scale = 2)
+    private BigDecimal qualificationAmount;
 }

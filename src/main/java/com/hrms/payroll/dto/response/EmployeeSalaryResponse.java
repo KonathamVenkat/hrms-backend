@@ -28,7 +28,13 @@ public record EmployeeSalaryResponse(
         LocalDateTime                     updatedAt,
         // Current record only: today's starting scale for the employee's current grade and increment (absent without
         // a grade). When it differs from basicSalary the grade or increment changed and a new salary is due.
-        BigDecimal                        payScaleBasic
+        BigDecimal                        payScaleBasic,
+        // The allowances of this salary with the amounts it was given (absent when not paid).
+        BigDecimal                        socialAmount,
+        Long                              qualificationLevelId,
+        String                            qualificationLevelName,
+        String                            qualificationLevelNameAr,
+        BigDecimal                        qualificationAmount
 ) {
     // Inner record for the salary breakdown table
     public record SalaryBreakdownItem(

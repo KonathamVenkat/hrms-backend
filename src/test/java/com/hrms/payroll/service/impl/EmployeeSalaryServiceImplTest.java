@@ -16,12 +16,14 @@ import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.payroll.dto.request.EmployeeSalaryRequest;
 import com.hrms.payroll.entity.EmployeeSalary;
+import com.hrms.payroll.entity.QualificationLevel;
 import com.hrms.payroll.entity.SalaryComponent;
 import com.hrms.payroll.entity.SalaryStructure;
 import com.hrms.payroll.entity.SalaryStructureItem;
 import com.hrms.payroll.enums.CalculationType;
 import com.hrms.payroll.enums.ComponentType;
 import com.hrms.payroll.repository.EmployeeSalaryRepository;
+import com.hrms.payroll.repository.QualificationLevelRepository;
 import com.hrms.payroll.repository.SalaryComponentRepository;
 import com.hrms.payroll.repository.SalaryStructureItemRepository;
 import com.hrms.payroll.repository.SalaryStructureRepository;
@@ -59,12 +61,13 @@ class EmployeeSalaryServiceImplTest {
     EmployeeAccessGuard           guard       = mock(EmployeeAccessGuard.class);
     AuditTrail                    audit       = mock(AuditTrail.class);
     GradeService                  grades      = mock(GradeService.class);
+    QualificationLevelRepository  qualificationLevels = mock(QualificationLevelRepository.class);
     EmployeeSalaryServiceImpl     service;
 
     @BeforeEach
     void setUp() {
         service = new EmployeeSalaryServiceImpl(salaries, structures, items, components, employees, jobs,
-                departments, designations, guard, grades, audit);
+                departments, designations, guard, grades, qualificationLevels, audit);
         Employee employee = new Employee();
         employee.setId(5L);
         employee.setEmployeeCode("EMP-5");
@@ -83,7 +86,7 @@ class EmployeeSalaryServiceImplTest {
     }
 
     private EmployeeSalaryRequest request() {
-        return new EmployeeSalaryRequest(5L, 3L, new BigDecimal("1500.00"), LocalDate.now().toString(), null);
+        return new EmployeeSalaryRequest(5L, 3L, new BigDecimal("1500.00"), LocalDate.now().toString(), null, null, null);
     }
 
     @Test
@@ -141,7 +144,7 @@ class EmployeeSalaryServiceImplTest {
         when(employees.findByIdForUpdate(6L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.assign(
-                new EmployeeSalaryRequest(6L, 3L, new BigDecimal("1500.00"), LocalDate.now().toString(), null)));
+                new EmployeeSalaryRequest(6L, 3L, new BigDecimal("1500.00"), LocalDate.now().toString(), null, null, null)));
         verify(salaries, never()).save(any());
         verify(salaries, never()).deactivateCurrent(any());
     }
@@ -162,7 +165,7 @@ class EmployeeSalaryServiceImplTest {
     }
 
     private EmployeeSalaryRequest request(BigDecimal basic) {
-        return new EmployeeSalaryRequest(5L, 3L, basic, DAY.toString(), null);
+        return new EmployeeSalaryRequest(5L, 3L, basic, DAY.toString(), null, null, null);
     }
 
     private void assertRefused(String rule, EmployeeSalaryRequest req) {
@@ -289,5 +292,76 @@ class EmployeeSalaryServiceImplTest {
         assertEquals("20", EmployeeSalaryServiceImpl.shownPercent(new BigDecimal("20.0000000000")));
         assertEquals("3.33", EmployeeSalaryServiceImpl.shownPercent(new BigDecimal("3.33")));
         assertEquals("0", EmployeeSalaryServiceImpl.shownPercent(BigDecimal.ZERO));
+    }
+
+    // ── Per-employee allowances (step 4a): Social and Qualification are earnings of this salary ──
+
+    private EmployeeSalaryRequest withAllowances(Boolean social, Long qualificationLevelId) {
+        return new EmployeeSalaryRequest(5L, 3L, new BigDecimal("700306"), DAY.toString(), null, social, qualificationLevelId);
+    }
+
+    /** Structure 3 charges Insurance 8% of gross; Social pays 135,000; level 3 pays 202,500. */
+    private void allowancesSetUp() {
+        SalaryStructureItem insurance = SalaryStructureItem.builder().structureId(3L).componentId(2L)
+            .percentage(new BigDecimal("8")).build();
+        when(items.findByStructureIdAndIsActiveOrderBySortOrderAsc(3L, 1)).thenReturn(List.of(insurance));
+        when(components.findAllByIdForUpdate(any())).thenReturn(List.of(
+            component(2L, "INSURANCE", ComponentType.STATUTORY, CalculationType.PERCENTAGE_OF_GROSS)));
+        SalaryComponent social = component(14L, "SOCIAL_ALLOW", ComponentType.EARNING, CalculationType.FIXED);
+        social.setDefaultValue(new BigDecimal("135000.0000000000"));
+        when(components.findByComponentCode("SOCIAL_ALLOW")).thenReturn(Optional.of(social));
+        when(qualificationLevels.findById(3L)).thenReturn(Optional.of(QualificationLevel.builder().id(3L).code("QL_202500")
+            .name("Qualification 202,500").nameAr("x").monthlyAmount(new BigDecimal("202500.00")).isActive(true).build()));
+    }
+
+    @Test
+    void socialAndQualificationAreEarningsOfTheSalary_soInsuranceIsChargedOnThem() {
+        allowancesSetUp();
+        EmployeeSalaryResponse saved = service.assign(withAllowances(true, 3L));
+
+        // gross 700,306 + 135,000 + 202,500 = 1,037,806; Insurance 8% = 83,024.48; net 954,781.52 (sheet: Q = ... + M + N)
+        assertEquals(0, new BigDecimal("1037806").compareTo(saved.grossSalary()));
+        assertEquals(0, new BigDecimal("954781.52").compareTo(saved.netSalary()));
+        assertEquals(0, new BigDecimal("135000").compareTo(saved.socialAmount()));
+        assertEquals(3L, saved.qualificationLevelId());
+        assertEquals("Qualification 202,500", saved.qualificationLevelName());
+        assertEquals(0, new BigDecimal("202500").compareTo(saved.qualificationAmount()));
+        assertEquals(List.of("BASIC", "SOCIAL_ALLOW", "QUALIFICATION", "INSURANCE"),
+            saved.breakdown().stream().map(EmployeeSalaryResponse.SalaryBreakdownItem::componentCode).toList());
+
+        var captor = ArgumentCaptor.forClass(EmployeeSalary.class);
+        verify(salaries).save(captor.capture());
+        assertEquals(0, new BigDecimal("135000").compareTo(captor.getValue().getSocialAmount()));
+        assertEquals(0, new BigDecimal("202500").compareTo(captor.getValue().getQualificationAmount()));
+    }
+
+    @Test
+    void notChosen_nothingIsAddedAndNothingIsStored() {
+        allowancesSetUp();
+        EmployeeSalaryResponse saved = service.assign(withAllowances(null, null));
+        assertEquals(0, new BigDecimal("700306").compareTo(saved.grossSalary()));
+        assertEquals(null, saved.socialAmount());
+        assertEquals(null, saved.qualificationLevelId());
+        verify(components, never()).findByComponentCode("SOCIAL_ALLOW");
+    }
+
+    @Test
+    void anInactiveSocialComponentOrOneWithoutAnAmountIsRefused() {
+        allowancesSetUp();
+        SalaryComponent social = components.findByComponentCode("SOCIAL_ALLOW").orElseThrow();
+        social.setIsActive(0);
+        assertRefused("SOCIAL_ALLOWANCE_UNAVAILABLE", withAllowances(true, null));
+        social.setIsActive(1);
+        social.setDefaultValue(BigDecimal.ZERO);
+        assertRefused("SOCIAL_ALLOWANCE_UNAVAILABLE", withAllowances(true, null));
+    }
+
+    @Test
+    void anInactiveOrUnknownQualificationLevelIsRefused() {
+        allowancesSetUp();
+        qualificationLevels.findById(3L).orElseThrow().setIsActive(false);
+        assertRefused("QUALIFICATION_LEVEL_INACTIVE", withAllowances(null, 3L));
+        assertThrows(ResourceNotFoundException.class, () -> service.assign(withAllowances(null, 99L)));
+        verify(salaries, never()).save(any());
     }
 }

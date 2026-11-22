@@ -1,0 +1,9 @@
+-- UNDO of db/qualification_levels_menu.sql: removes the Qualification Levels sidebar entry and its rights.
+-- Run as the HRMS user.
+
+DELETE FROM HRMS.ROLE_RIGHTS
+ WHERE MENU_ID IN (SELECT SUB_MENU_ID FROM HRMS.SUB_MENU WHERE SUB_MENU_CODE = 'ADMIN_QUALIFICATION_LEVELS');
+
+DELETE FROM HRMS.SUB_MENU WHERE SUB_MENU_CODE = 'ADMIN_QUALIFICATION_LEVELS';
+
+COMMIT;

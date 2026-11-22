@@ -21,12 +21,14 @@ import com.hrms.payroll.dto.response.EmployeeSalaryResponse;
 import com.hrms.payroll.dto.response.EmployeeSalaryResponse.SalaryBreakdownItem;
 import com.hrms.payroll.dto.response.PayScaleBasisResponse;
 import com.hrms.payroll.entity.EmployeeSalary;
+import com.hrms.payroll.entity.QualificationLevel;
 import com.hrms.payroll.entity.SalaryComponent;
 import com.hrms.payroll.entity.SalaryStructure;
 import com.hrms.payroll.entity.SalaryStructureItem;
 import com.hrms.payroll.enums.CalculationType;
 import com.hrms.payroll.enums.ComponentType;
 import com.hrms.payroll.repository.EmployeeSalaryRepository;
+import com.hrms.payroll.repository.QualificationLevelRepository;
 import com.hrms.payroll.repository.SalaryComponentRepository;
 import com.hrms.payroll.repository.SalaryStructureItemRepository;
 import com.hrms.payroll.repository.SalaryStructureRepository;
@@ -62,7 +64,12 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final DesignationRepository         designationRepo;
     private final EmployeeAccessGuard           employeeAccessGuard;
     private final GradeService                  grades;
+    private final QualificationLevelRepository  qualificationLevels;
     private final AuditTrail audit;
+
+    /** Components of the per-employee allowances (step 4a); their amounts live on the salary, not in a structure. */
+    static final String SOCIAL_ALLOWANCE = "SOCIAL_ALLOW";
+    static final String QUALIFICATION_ALLOWANCE = "QUALIFICATION";
 
     // ────────────────────────────────────────────────────
     // ASSIGN SALARY STRUCTURE TO EMPLOYEE
@@ -90,6 +97,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         LocalDate effectiveFrom = LocalDate.parse(request.effectiveFrom());
         EmployeeJobDetails job = currentJob(employee.getId());
         BigDecimal basicSalary = resolveBasic(job, structure, request.basicSalary(), effectiveFrom);
+        BigDecimal socialAmount = Boolean.TRUE.equals(request.socialAllowance()) ? socialAllowanceAmount() : null;
+        QualificationLevel qualification = request.qualificationLevelId() == null
+                ? null : activeQualificationLevel(request.qualificationLevelId());
+        BigDecimal qualificationAmount = qualification == null ? null : qualification.getMonthlyAmount();
 
         // A new salary record must postdate whichever record it's replacing as "current" —
         // otherwise the history ends up with an earlier-dated record marked current.
@@ -122,14 +133,16 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 .stream()
                 .collect(Collectors.toMap(SalaryComponent::getComponentId, c -> c));
 
-        SalaryCalculation calc = calculateSalary(basicSalary, items, componentMap);
+        SalaryCalculation calc = calculateSalary(basicSalary, sum(socialAmount, qualificationAmount), items, componentMap);
 
         log.info("Calculated salary — basic={}, gross={}, net={}",
                 basicSalary, calc.grossSalary(), calc.netSalary());
 
         audit.record("SALARY_ASSIGNED", "EMPLOYEE", employee.getId(),
             "structure " + structure.getStructureId() + ", effective " + effectiveFrom
-                + (isGraded(job) ? ", basic from pay scale grade " + job.getGradeId() + " increment " + job.getIncrementNo() : ""));
+                + (isGraded(job) ? ", basic from pay scale grade " + job.getGradeId() + " increment " + job.getIncrementNo() : "")
+                + (socialAmount != null ? ", social allowance" : "")
+                + (qualification != null ? ", qualification level " + qualification.getId() : ""));
         Long newId = salaryRepo.findNextSequenceValue();
         EmployeeSalary empSalary = EmployeeSalary.builder()
                 .empSalaryId(newId)
@@ -142,6 +155,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 .effectiveFrom(effectiveFrom)
                 .isCurrent(1)
                 .remarks(request.remarks())
+                .socialAmount(socialAmount)
+                .qualificationLevelId(qualification == null ? null : qualification.getId())
+                .qualificationAmount(qualificationAmount)
                 .build();
 
         empSalary.setCreatedBy(CurrentAuditor.name());
@@ -266,6 +282,29 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         return basic;
     }
 
+    /** The Social Allowance component's current default, copied into the salary; it must be an active earning above 0. */
+    private BigDecimal socialAllowanceAmount() {
+        return componentRepo.findByComponentCode(SOCIAL_ALLOWANCE)
+                .filter(c -> c.getIsActive() == 1 && c.getComponentType() == ComponentType.EARNING
+                        && c.getDefaultValue() != null && c.getDefaultValue().signum() > 0)
+                .map(c -> c.getDefaultValue().setScale(2, RoundingMode.HALF_UP))
+                .orElseThrow(() -> new BusinessRuleException("SOCIAL_ALLOWANCE_UNAVAILABLE",
+                        "The Social Allowance component is inactive or has no amount. Ask the payroll administrator."));
+    }
+
+    private QualificationLevel activeQualificationLevel(Long id) {
+        QualificationLevel level = qualificationLevels.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Qualification level", "id", id));
+        if (!Boolean.TRUE.equals(level.getIsActive())) {
+            throw new BusinessRuleException("QUALIFICATION_LEVEL_INACTIVE", "The selected qualification level is inactive.");
+        }
+        return level;
+    }
+
+    private static BigDecimal sum(BigDecimal a, BigDecimal b) {
+        return (a == null ? BigDecimal.ZERO : a).add(b == null ? BigDecimal.ZERO : b);
+    }
+
     /** The column holds 2 decimals; the scale's amounts are whole numbers, so this never changes one. */
     private Optional<BigDecimal> scaleBasic(EmployeeJobDetails job, LocalDate onDate) {
         return grades.findStartingScale(job.getGradeId(), job.getIncrementNo(), onDate)
@@ -292,10 +331,12 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
      */
     private SalaryCalculation calculateSalary(
             BigDecimal basicSalary,
+            BigDecimal employeeEarnings,
             List<SalaryStructureItem> items,
             Map<Long, SalaryComponent> componentMap) {
 
-        BigDecimal totalEarnings   = basicSalary; // basic is always an earning
+        // Basic and the employee's own allowances (Social, Qualification) are always earnings, part of gross.
+        BigDecimal totalEarnings   = basicSalary.add(employeeEarnings);
         BigDecimal totalDeductions = BigDecimal.ZERO;
         BigDecimal totalStatutory  = BigDecimal.ZERO;
 
@@ -384,6 +425,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
 
         List<SalaryBreakdownItem> breakdown = buildBreakdown(
                 empSalary.getBasicSalary(), empSalary.getGrossSalary(), items, componentMap);
+        QualificationLevel qualification = empSalary.getQualificationLevelId() == null
+                ? null : qualificationLevels.findById(empSalary.getQualificationLevelId()).orElse(null);
+        addEmployeeAllowances(breakdown, empSalary, qualification);
         // ponytail: one scale query per current row; the list already queries per row, batch them if pages grow.
         BigDecimal payScaleBasic = empSalary.getIsCurrent() == 1 && isGraded(jd)
                 ? scaleBasic(jd, LocalDate.now()).orElse(null)
@@ -409,7 +453,12 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 breakdown,
                 empSalary.getCreatedAt(),
                 empSalary.getUpdatedAt(),
-                payScaleBasic);
+                payScaleBasic,
+                empSalary.getSocialAmount(),
+                empSalary.getQualificationLevelId(),
+                qualification == null ? null : qualification.getName(),
+                qualification == null ? null : qualification.getNameAr(),
+                empSalary.getQualificationAmount());
     }
 
     private List<SalaryBreakdownItem> buildBreakdown(
@@ -457,6 +506,27 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         }
 
         return breakdown;
+    }
+
+    /** Social and Qualification, right after Basic, with the amounts the salary was given (not today's). */
+    private void addEmployeeAllowances(List<SalaryBreakdownItem> breakdown, EmployeeSalary empSalary,
+                                       QualificationLevel qualification) {
+        int at = 1; // after Basic
+        if (empSalary.getSocialAmount() != null) {
+            SalaryComponent social = componentRepo.findByComponentCode(SOCIAL_ALLOWANCE).orElse(null);
+            breakdown.add(at++, new SalaryBreakdownItem(SOCIAL_ALLOWANCE,
+                    social != null ? social.getComponentName() : "Social Allowance",
+                    social != null ? social.getComponentNameAr() : "بدل اجتماعي",
+                    "EARNING", empSalary.getSocialAmount(), "Fixed"));
+        }
+        if (empSalary.getQualificationAmount() != null) {
+            SalaryComponent component = componentRepo.findByComponentCode(QUALIFICATION_ALLOWANCE).orElse(null);
+            breakdown.add(at, new SalaryBreakdownItem(QUALIFICATION_ALLOWANCE,
+                    component != null ? component.getComponentName() : "Qualification Allowance",
+                    component != null ? component.getComponentNameAr() : "بدل مؤهل",
+                    "EARNING", empSalary.getQualificationAmount(),
+                    qualification != null ? qualification.getName() : "Qualification level"));
+        }
     }
 
     /** A rate as people read it: at most 4 decimals, no trailing zeros (3.3333333333 -> "3.3333", 20.0000000000 -> "20"). */

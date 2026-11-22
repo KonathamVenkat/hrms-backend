@@ -23,5 +23,10 @@ public record EmployeeSalaryRequest(
         String effectiveFrom,   // "yyyy-MM-dd"
 
         @Size(max = 500)
-        String remarks
+        String remarks,
+
+        // Per-employee allowances, part of this salary (step 4a). Social: true pays the Social Allowance component's
+        // default amount. Qualification: an active level, or null for none. Left out = not paid.
+        Boolean socialAllowance,
+        Long qualificationLevelId
 ) {}

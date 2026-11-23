@@ -4,6 +4,7 @@ import com.hrms.workflow.enums.RequestType;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -24,7 +25,12 @@ public interface WorkflowRequestAccess {
     /** Who asked and a one-line description, for the status response (name and summary may be null). */
     Brief brief(long requestId);
 
-    record Brief(long requesterEmployeeId, String requesterName, String summary) {
+    /** {@code details}: the summary's facts, language-neutral (see {@link InboxSource.Row}). */
+    record Brief(long requesterEmployeeId, String requesterName, String summary, Map<String, Object> details) {
+
+        public Brief(long requesterEmployeeId, String requesterName, String summary) {
+            this(requesterEmployeeId, requesterName, summary, Map.of());
+        }
     }
 
     /** The request's workflow stage (PENDING_..., APPROVED, ...); empty = a legacy request that never entered the flow. */

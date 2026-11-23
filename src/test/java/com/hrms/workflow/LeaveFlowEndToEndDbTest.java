@@ -253,6 +253,16 @@ class LeaveFlowEndToEndDbTest extends DatabaseTest {
         assertEquals(0.0, balance().getUsedDays());
         assertInboxOnlyFor(id, branchManager);
         assertEquals("PENDING_BRANCH", stageSeenBy(requester, id));
+        // the summary's facts travel language-neutral, for the screen to word in the user's language
+        LeaveType type = types.findByCodeIgnoreCase(TYPE).orElseThrow();
+        String inbox = body(call(branchManager, get("/api/v1/inbox?size=100")));
+        assertEquals(List.of(type.getNameEn()), JsonPath.read(inbox,
+            "$.data.content[?(@.requestId == " + id + ")].summaryDetails.leaveTypeNameEn"));
+        assertEquals(List.of(type.getNameAr()), JsonPath.read(inbox,
+            "$.data.content[?(@.requestId == " + id + ")].summaryDetails.leaveTypeNameAr"));
+        String detail = body(call(requester, get(BASE + id + "/workflow")));
+        assertEquals(TYPE, JsonPath.read(detail, "$.data.summaryDetails.leaveTypeCode"));
+        assertEquals(monday.toString(), JsonPath.read(detail, "$.data.summaryDetails.startDate"));
         assertTrue(body(call(branchManager, get(BASE + id + "/workflow"))).contains("\"pickTargetDepartment\":true"));
         assertTrue(body(call(requester, get(BASE + id + "/workflow"))).contains("\"allowedOutcomes\":[]"));
         call(other, get(BASE + id + "/workflow")).andExpect(status().isForbidden());
@@ -292,6 +302,7 @@ class LeaveFlowEndToEndDbTest extends DatabaseTest {
         List<Number> actors = JsonPath.read(body(call(hr, get(BASE + id + "/history"))), "$.data[*].actorEmployeeId");
         assertEquals(List.of(requester, branchManager, secretary, head, gm, hr),
             actors.stream().map(Number::longValue).toList());
+        assertEquals(List.of("E2e req", "E2e bm", "E2e sec", "E2e head", "E2e gm", "E2e hr"), history(id, "actorName"));
         List<String> roles = history(id, "actorRole");
         assertEquals("EMPLOYEE", roles.get(0));
         assertEquals("GENERAL_MANAGER", roles.get(4));

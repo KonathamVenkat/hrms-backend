@@ -1,6 +1,7 @@
 package com.hrms.workflow.service.impl;
 
 import com.hrms.auth.security.EmployeeAccessGuard;
+import com.hrms.employee.service.OrganisationLookup;
 import com.hrms.workflow.dto.response.RequestHistoryResponse;
 import com.hrms.workflow.entity.RequestHistory;
 import com.hrms.workflow.enums.HistoryAction;
@@ -13,6 +14,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /** Appends REQUEST_HISTORY rows. The actor always comes from the security context, never from the request. */
 @Component
@@ -23,6 +27,7 @@ class HistoryWriter {
 
     private final RequestHistoryRepository repository;
     private final EmployeeAccessGuard accessGuard;
+    private final OrganisationLookup organisation;
 
     /** A row by the signed-in caller: their employee id and their role name without the ROLE_ prefix. */
     void byCaller(RequestType type, long requestId, String stepKey, HistoryAction action, String comment,
@@ -35,9 +40,15 @@ class HistoryWriter {
         save(type, requestId, stepKey, HistoryAction.AUTO_ROUTED, null, null, null, reasonCode);
     }
 
+    /** The rows in order, each actor named (one name lookup for all actors; system rows have none). */
     List<RequestHistoryResponse> list(RequestType type, long requestId) {
-        return repository.findTop200ByRequestTypeAndRequestIdOrderByActedAtAscHistoryIdAsc(type, requestId).stream()
-            .map(h -> new RequestHistoryResponse(h.getStepKey(), h.getAction(), h.getActorEmployeeId(), null,
+        List<RequestHistory> rows =
+            repository.findTop200ByRequestTypeAndRequestIdOrderByActedAtAscHistoryIdAsc(type, requestId);
+        Map<Long, String> names = organisation.namesOf(rows.stream()
+            .map(RequestHistory::getActorEmployeeId).filter(Objects::nonNull).collect(Collectors.toSet()));
+        return rows.stream()
+            .map(h -> new RequestHistoryResponse(h.getStepKey(), h.getAction(), h.getActorEmployeeId(),
+                h.getActorEmployeeId() == null ? null : names.get(h.getActorEmployeeId()),
                 h.getActorRole(), h.getComment(), h.getActedAt()))
             .toList();
     }

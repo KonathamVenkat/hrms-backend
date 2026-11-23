@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * One history row. {@code actorEmployeeId} / {@code actorRole} are null for system rows (AUTO_ROUTED);
- * {@code actorName} is not filled by the workflow module (it has no access to employee names).
+ * {@code actorName} is the actor's full name (English), resolved from the employee module.
  */
 public record RequestHistoryResponse(
     String stepKey,

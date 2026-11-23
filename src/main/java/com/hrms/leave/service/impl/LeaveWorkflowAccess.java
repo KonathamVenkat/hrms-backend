@@ -4,6 +4,7 @@ import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.leave.entity.LeaveRequest;
 import com.hrms.leave.repository.LeaveRequestRepository;
+import com.hrms.leave.repository.LeaveTypeRepository;
 import com.hrms.workflow.enums.RequestType;
 import com.hrms.workflow.service.WorkflowRequestAccess;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ class LeaveWorkflowAccess implements WorkflowRequestAccess {
 
     private final LeaveRequestRepository requests;
     private final EmployeeRepository employees;
+    private final LeaveTypeRepository leaveTypes;
 
     @Override
     public RequestType type() {
@@ -43,7 +45,9 @@ class LeaveWorkflowAccess implements WorkflowRequestAccess {
         LeaveRequest lr = load(requestId);
         return new Brief(lr.getEmployeeId(),
             LeaveRequestSummary.name(employees.findById(lr.getEmployeeId()).orElse(null)),
-            LeaveRequestSummary.text(lr));
+            LeaveRequestSummary.text(lr),
+            LeaveRequestSummary.details(lr, lr.getLeaveTypeCode() == null ? null
+                : leaveTypes.findByCodeIgnoreCase(lr.getLeaveTypeCode()).orElse(null)));
     }
 
     @Override

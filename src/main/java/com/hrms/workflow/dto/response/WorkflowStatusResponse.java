@@ -4,6 +4,7 @@ import com.hrms.workflow.enums.RequestType;
 import com.hrms.workflow.enums.StepOutcome;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Where a request stands. {@code stage} is PENDING_&lt;STEP_KEY&gt; while open, else APPROVED / REJECTED / CANCELLED;
@@ -27,5 +28,15 @@ public record WorkflowStatusResponse(
     String requesterName,
     String summary,
     boolean mayOverride,
-    boolean overridePicksTargetDepartment) {
+    boolean overridePicksTargetDepartment,
+    Map<String, Object> summaryDetails) {
+
+    /** Without details (the summary line only). */
+    public WorkflowStatusResponse(RequestType type, long requestId, String stage, String stepKey, String stepLabelEn,
+                                  String stepLabelAr, List<StepOutcome> allowedOutcomes, boolean pickTargetDepartment,
+                                  long requesterEmployeeId, String requesterName, String summary, boolean mayOverride,
+                                  boolean overridePicksTargetDepartment) {
+        this(type, requestId, stage, stepKey, stepLabelEn, stepLabelAr, allowedOutcomes, pickTargetDepartment,
+            requesterEmployeeId, requesterName, summary, mayOverride, overridePicksTargetDepartment, Map.of());
+    }
 }

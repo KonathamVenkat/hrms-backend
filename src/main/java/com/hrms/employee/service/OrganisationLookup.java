@@ -1,5 +1,7 @@
 package com.hrms.employee.service;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -23,6 +25,9 @@ public interface OrganisationLookup {
 
     /** The role of the employee's login (e.g. "HR_ADMIN", "GENERAL_MANAGER"); empty when the employee has no login. */
     Optional<String> accountRoleOf(long employeeId);
+
+    /** Full names (English) of the given employees, by id; unknown ids are left out. One query for the whole set. */
+    Map<Long, String> namesOf(Collection<Long> employeeIds);
 
     /** Whether the employee heads at least one active department. */
     boolean headsActiveDepartment(long employeeId);

@@ -12,8 +12,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hrms.employee.entity.Employee;
+
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -58,6 +63,15 @@ public class OrganisationLookupImpl implements OrganisationLookup {
     @Override
     public Optional<Long> secretaryOf(long departmentId) {
         return personOf(departmentId, Department::getSecretaryEmployeeId);
+    }
+
+    @Override
+    public Map<Long, String> namesOf(Collection<Long> employeeIds) {
+        if (employeeIds.isEmpty()) {
+            return Map.of();
+        }
+        return employeeRepository.findAllById(employeeIds).stream()
+            .collect(Collectors.toMap(Employee::getId, Employee::getFullName, (a, b) -> a));
     }
 
     @Override

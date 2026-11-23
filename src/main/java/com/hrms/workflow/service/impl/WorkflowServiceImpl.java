@@ -249,7 +249,8 @@ public class WorkflowServiceImpl implements WorkflowService {
             step.getLabelEn(), step.getLabelAr(), List.copyOf(offered),
             Boolean.TRUE.equals(step.getPicksTargetDepartment()) && offered.contains(StepOutcome.FORWARD),
             brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), callerMayOverride,
-            Boolean.TRUE.equals(step.getPicksTargetDepartment()) && allowed.contains(StepOutcome.FORWARD));
+            Boolean.TRUE.equals(step.getPicksTargetDepartment()) && allowed.contains(StepOutcome.FORWARD),
+            brief.details());
     }
 
     /** Downstream effects first, then the request's terminal stage: a handler failure leaves the stage untouched. */
@@ -303,6 +304,6 @@ public class WorkflowServiceImpl implements WorkflowService {
     private WorkflowStatusResponse closed(RequestType type, long requestId, String stage) {
         WorkflowRequestAccess.Brief brief = ports.access(type).brief(requestId);
         return new WorkflowStatusResponse(type, requestId, stage, null, null, null, List.of(), false,
-            brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), false, false);
+            brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), false, false, brief.details());
     }
 }

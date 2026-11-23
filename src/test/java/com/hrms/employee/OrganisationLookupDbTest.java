@@ -121,6 +121,15 @@ class OrganisationLookupDbTest extends DatabaseTest {
     }
 
     @Test
+    void namesOfReturnsFullNamesByIdAndSkipsUnknownIds() {
+        Long a = employee("na");
+        Long b = employee("nb");
+
+        assertEquals(java.util.Map.of(a, "Olkna Test", b, "Olknb Test"), lookup.namesOf(java.util.List.of(a, b, -1L)));
+        assertEquals(java.util.Map.of(), lookup.namesOf(java.util.List.of()));
+    }
+
+    @Test
     void approverPostsForTheSidebar() {
         Long manager = employee("m");
         Long head = employee("h");

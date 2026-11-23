@@ -43,6 +43,7 @@ class RequestScope {
     private final RequestHistoryRepository historyRows;
     private final WorkflowAuthorization authorization;
     private final EmployeeAccessGuard accessGuard;
+    private final ApproverResolver resolver;
 
     /** The live step of a request: its context, the open Flowable task and that task's step row. */
     record Live(Ctx ctx, FlowEngine.OpenTask task, WorkflowStep step) {
@@ -82,9 +83,19 @@ class RequestScope {
         if (caller != null && caller == requester) {
             return true;
         }
-        boolean holdsDecidingStep = live.filter(l -> authorization.holdsAny(deciding(l.ctx().flow().steps().values()),
+        boolean holdsDecidingStep = live.filter(l -> authorization.holdsAny(deciding(applicable(l, requester)),
             requester, l.ctx().targetDepartmentId())).isPresent();
         return holdsDecidingStep || (caller != null && actedAtDecidingStep(type, requestId, caller, access));
+    }
+
+    /**
+     * The steps of the request's flow that can involve someone: a branch-manager step does not apply to a Head Office
+     * applicant (it is skipped), so its holder is not involved, unless it is the live step (a request that entered
+     * before the Head Office rule still waits there).
+     */
+    private List<WorkflowStep> applicable(Live live, long requester) {
+        return live.ctx().flow().steps().values().stream()
+            .filter(s -> s.equals(live.step()) || !resolver.branchStepNotApplicable(s, requester)).toList();
     }
 
     private static List<WorkflowStep> deciding(Collection<WorkflowStep> all) {
@@ -132,7 +143,7 @@ class RequestScope {
         }
         return caller == requester
             || historyRows.existsByRequestTypeAndRequestIdAndActorEmployeeId(type, requestId, caller)
-            || live.filter(l -> authorization.holdsAny(l.ctx().flow().steps().values(), requester,
+            || live.filter(l -> authorization.holdsAny(applicable(l, requester), requester,
                 l.ctx().targetDepartmentId())).isPresent();
     }
 

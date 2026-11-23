@@ -436,6 +436,53 @@ class LeaveFlowEndToEndDbTest extends DatabaseTest {
         call(hr, get(BASE + id + "/attachment")).andExpect(status().isOk());
     }
 
+    /**
+     * The branch-manager step does not apply to Head Office staff, so the Head Office branch manager is NOT involved in
+     * their requests: no page, no history, no document (a step that cannot be reached must not grant access).
+     */
+    @Test
+    void theHeadOfficeBranchManagerCannotSeeAHeadOfficeEmployeesRequest() throws Exception {
+        jdbc.update("""
+            insert into HRMS.COMPANY_BRANCHES (COMPANY_BRANCH_ID, COMPANY_ID, COMPANY_BRANCHES_CODE, COMPANY_BRANCHES_NAME,
+                COMPANY_BRANCHES_NAME_AR, LOCATION_ID, BRANCH_MANAGER_EMPLOYEE_ID, IS_ACTIVE)
+            values (?, ?, 'TEST_HO', 'E2e Head Office', N'x', ?, ?, 1)""", ID + 1, ID, ID, branchManager);
+        jdbc.update("update HRMS.EMPLOYEE_JOB_DETAILS set COMPANY_BRANCH_ID = ? where EMPLOYEE_ID = ? and IS_CURRENT = 1",
+            ID + 1, requester);
+        em.clear();
+        long id = apply();
+        em.flush();   // the workflow's writes to the request first, or the clear below would drop them
+        jdbc.update("update HRMS.LEAVE_REQUESTS set ATTACHMENT_NAME = 'sick-note.pdf', ATTACHMENT_SIZE = 4 where LEAVE_REQ_ID = ?", id);
+        jdbc.update("insert into HRMS.LEAVE_REQUEST_ATTACHMENT_CONTENT (LEAVE_REQ_ID, CONTENT) values (?, ?)", id,
+            "%PDF".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        em.clear();
+
+        call(branchManager, get(BASE + id + "/workflow")).andExpect(status().isForbidden());
+        call(branchManager, get(BASE + id + "/history")).andExpect(status().isForbidden());
+        call(branchManager, get(BASE + id + "/attachment")).andExpect(status().isForbidden());
+        call(head, get(BASE + id + "/attachment")).andExpect(status().isOk());   // the head still decides
+    }
+
+    /**
+     * A request already waiting at the branch step when its applicant counts as Head Office (entered before the rule, or
+     * the employee moved) stays with that branch manager: the live step still involves them, so it is not stranded.
+     */
+    @Test
+    void aRequestAlreadyAtTheBranchStepStaysWithTheBranchManagerAfterAMoveToHeadOffice() throws Exception {
+        long id = apply();
+        assertEquals("PENDING_BRANCH", stageSeenBy(requester, id));
+        em.flush();
+        jdbc.update("""
+            insert into HRMS.COMPANY_BRANCHES (COMPANY_BRANCH_ID, COMPANY_ID, COMPANY_BRANCHES_CODE, COMPANY_BRANCHES_NAME,
+                COMPANY_BRANCHES_NAME_AR, LOCATION_ID, BRANCH_MANAGER_EMPLOYEE_ID, IS_ACTIVE)
+            values (?, ?, 'TEST_HO', 'E2e Head Office', N'x', ?, ?, 1)""", ID + 1, ID, ID, branchManager);
+        jdbc.update("update HRMS.EMPLOYEE_JOB_DETAILS set COMPANY_BRANCH_ID = ? where EMPLOYEE_ID = ? and IS_CURRENT = 1",
+            ID + 1, requester);
+        em.clear();
+
+        call(branchManager, get(BASE + id + "/workflow")).andExpect(status().isOk());
+        actOk(id, branchManager, "BRANCH", "FORWARD", ID, null, "PENDING_SECRETARY");
+    }
+
     /** At the branch step the branch manager is offered the requester's own department to start from. */
     @Test
     void theBranchManagerIsOfferedTheRequestersOwnDepartment() throws Exception {

@@ -73,7 +73,7 @@ class WorkflowServiceImplTest {
         when(handler.type()).thenReturn(RequestType.LEAVE);
         WorkflowPorts ports = new WorkflowPorts(List.of(access), List.of(handler), definitions);
         RequestScope scope = new RequestScope(ports, engine, definitions, steps, routes, historyRows, authorization,
-            accessGuard);
+            accessGuard, resolver);
         service = new WorkflowServiceImpl(ports, engine, stepEntry, history, authorization,
             new WorkflowInputs(organisation, settings), accessGuard, definitionService, scope, steps, routes, audit, resolver, departments);
         when(authorization.isOverseer()).thenReturn(true); // related; the participant rule has its own tests

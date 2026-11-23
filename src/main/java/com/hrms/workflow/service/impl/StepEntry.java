@@ -13,7 +13,8 @@ import java.util.Set;
 
 /**
  * Entering the next step after a transition (spec 7.3 as ruled for v1): a person step the requester holds is skipped,
- * a secretary step with nobody is skipped, a branch or head step with nobody waits for an HR_ADMIN override.
+ * a secretary step with nobody is skipped, a branch step of a Head Office employee is skipped (their own department
+ * handles it), a branch or head step with nobody waits for an HR_ADMIN override.
  * ROLE steps are never skipped (the requester simply cannot act on them). Every skip and wait writes AUTO_ROUTED.
  * The loop is bounded by the number of steps: the validator forbids loops, so more turns is a bug.
  */
@@ -25,6 +26,7 @@ class StepEntry {
     static final String SKIP_REQUESTER = "SKIP_REQUESTER_IS_APPROVER";
     static final String SKIP_NO_APPROVER = "SKIP_NO_APPROVER";
     static final String SKIP_WOULD_APPROVE = "SKIP_WOULD_APPROVE";
+    static final String SKIP_HEAD_OFFICE = "SKIP_HEAD_OFFICE";
 
     private final FlowEngine engine;
     private final ApproverResolver resolver;
@@ -69,10 +71,12 @@ class StepEntry {
         if (step.getApproverType() == ApproverType.ROLE) {
             return new Rest(task, step, null);
         }
-        Optional<Long> approver = resolver.resolve(step, ctx.requesterId(), ctx.targetDepartmentId());
+        boolean headOffice = resolver.branchStepNotApplicable(step, ctx.requesterId());
+        Optional<Long> approver = headOffice ? Optional.empty()
+            : resolver.resolve(step, ctx.requesterId(), ctx.targetDepartmentId());
         boolean requesterHolds = approver.filter(id -> id == ctx.requesterId()).isPresent();
         boolean nobodyNeeded = approver.isEmpty() && step.getApproverType() == ApproverType.DEPARTMENT_SECRETARY;
-        if (!requesterHolds && !nobodyNeeded) {
+        if (!requesterHolds && !nobodyNeeded && !headOffice) {
             if (approver.isEmpty()) {
                 history.bySystem(ctx.type(), ctx.requestId(), step.getStepKey(), NO_APPROVER);
             }
@@ -89,7 +93,8 @@ class StepEntry {
             return new Rest(task, step, approver.orElse(null));
         }
         engine.complete(task.id(), outcome);
-        history.bySystem(ctx.type(), ctx.requestId(), step.getStepKey(), requesterHolds ? SKIP_REQUESTER : SKIP_NO_APPROVER);
+        history.bySystem(ctx.type(), ctx.requestId(), step.getStepKey(),
+            headOffice ? SKIP_HEAD_OFFICE : requesterHolds ? SKIP_REQUESTER : SKIP_NO_APPROVER);
         return null;
     }
 

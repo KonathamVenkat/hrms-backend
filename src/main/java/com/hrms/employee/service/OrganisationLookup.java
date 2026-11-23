@@ -29,6 +29,12 @@ public interface OrganisationLookup {
     /** Full names (English) of the given employees, by id; unknown ids are left out. One query for the whole set. */
     Map<Long, String> namesOf(Collection<Long> employeeIds);
 
+    /**
+     * Whether the employee's current job is at a Head Office branch ({@code hrms.workflow.head-office-branch-codes}).
+     * Head Office staff have no branch step in approvals: their own department handles their requests.
+     */
+    boolean worksAtHeadOffice(long employeeId);
+
     /** Whether the employee heads at least one active department. */
     boolean headsActiveDepartment(long employeeId);
 

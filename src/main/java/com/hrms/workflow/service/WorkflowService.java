@@ -50,4 +50,11 @@ public interface WorkflowService {
      * HR_ADMIN / HR_MANAGER / GENERAL_MANAGER; anyone else 403), so the HTTP layer needs no extra check.
      */
     List<RequestHistoryResponse> history(RequestType type, long requestId);
+
+    /**
+     * The request's attachment (e.g. a sick-leave certificate) for those who decide on it: the requester, the holders
+     * of its deciding steps (branch manager, head, GM / CEO, HR) and the overseers. A department secretary only
+     * forwards and does not get it; nor does anyone unrelated (403). 404 when there is none. Each download is audited.
+     */
+    WorkflowRequestAccess.Attachment attachment(RequestType type, long requestId);
 }

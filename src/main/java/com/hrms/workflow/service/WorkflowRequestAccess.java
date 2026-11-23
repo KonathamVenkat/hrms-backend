@@ -33,6 +33,20 @@ public interface WorkflowRequestAccess {
         }
     }
 
+    /** A document attached to a request (e.g. a sick-leave certificate), with the name to download it as. */
+    record Attachment(String fileName, byte[] content) {
+    }
+
+    /** The request's attachment, if it has one; request types without attachments keep the default. */
+    default Optional<Attachment> attachment(long requestId) {
+        return Optional.empty();
+    }
+
+    /** The flow version the request entered (for the types of the steps in its history); empty = never entered. */
+    default Optional<Long> definitionId(long requestId) {
+        return Optional.empty();
+    }
+
     /** The request's workflow stage (PENDING_..., APPROVED, ...); empty = a legacy request that never entered the flow. */
     Optional<String> stage(long requestId);
 

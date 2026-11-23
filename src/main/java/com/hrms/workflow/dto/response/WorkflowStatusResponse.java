@@ -14,6 +14,10 @@ import java.util.Map;
  * {@code mayOverride}: the CALLER (an HR_ADMIN, not the requester) may override the open step because nobody else can
  * act on it. {@code overridePicksTargetDepartment}: the open step chooses the department, so an override that forwards
  * must send one (same for every caller). Both false once closed.
+ * {@code suggestedTargetDepartmentId}: when the CALLER picks the department, the requester's own department, to start
+ * the choice from (null otherwise).
+ * {@code mayDownloadAttachment}: the CALLER may open the request's attachment (those who decide, not the department
+ * secretary); false when there is none.
  */
 public record WorkflowStatusResponse(
     RequestType type,
@@ -29,7 +33,9 @@ public record WorkflowStatusResponse(
     String summary,
     boolean mayOverride,
     boolean overridePicksTargetDepartment,
-    Map<String, Object> summaryDetails) {
+    Map<String, Object> summaryDetails,
+    Long suggestedTargetDepartmentId,
+    boolean mayDownloadAttachment) {
 
     /** Without details (the summary line only). */
     public WorkflowStatusResponse(RequestType type, long requestId, String stage, String stepKey, String stepLabelEn,
@@ -37,6 +43,6 @@ public record WorkflowStatusResponse(
                                   long requesterEmployeeId, String requesterName, String summary, boolean mayOverride,
                                   boolean overridePicksTargetDepartment) {
         this(type, requestId, stage, stepKey, stepLabelEn, stepLabelAr, allowedOutcomes, pickTargetDepartment,
-            requesterEmployeeId, requesterName, summary, mayOverride, overridePicksTargetDepartment, Map.of());
+            requesterEmployeeId, requesterName, summary, mayOverride, overridePicksTargetDepartment, Map.of(), null, false);
     }
 }

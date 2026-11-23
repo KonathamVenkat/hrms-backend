@@ -9,6 +9,7 @@ import com.hrms.employee.repository.EmployeeJobDetailsRepository;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.employee.service.OrganisationLookup;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import com.hrms.employee.entity.Employee;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -32,6 +34,10 @@ public class OrganisationLookupImpl implements OrganisationLookup {
     private final EmployeeJobDetailsRepository jobDetailsRepository;
     private final EmployeeRepository employeeRepository;
     private final com.hrms.auth.repository.AuthUserRepository authUserRepository;
+
+    /** Branch codes that are Head Office (comma-separated setting; empty = no branch is Head Office). */
+    @Value("${hrms.workflow.head-office-branch-codes:}")
+    private Set<String> headOfficeBranchCodes = Set.of();
 
     @Override
     public Optional<String> accountRoleOf(long employeeId) {
@@ -72,6 +78,18 @@ public class OrganisationLookupImpl implements OrganisationLookup {
         }
         return employeeRepository.findAllById(employeeIds).stream()
             .collect(Collectors.toMap(Employee::getId, Employee::getFullName, (a, b) -> a));
+    }
+
+    @Override
+    public boolean worksAtHeadOffice(long employeeId) {
+        if (headOfficeBranchCodes.isEmpty()) {
+            return false;
+        }
+        return jobDetailsRepository.findByEmployeeIdAndIsCurrent(employeeId, CURRENT)
+            .map(EmployeeJobDetails::getCompanyBranchId)
+            .flatMap(branchRepository::findById)
+            .map(b -> b.getCode() != null && headOfficeBranchCodes.stream().anyMatch(c -> c.trim().equalsIgnoreCase(b.getCode())))
+            .orElse(false);
     }
 
     @Override

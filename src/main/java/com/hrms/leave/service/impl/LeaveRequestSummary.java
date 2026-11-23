@@ -20,7 +20,8 @@ final class LeaveRequestSummary {
 
     /**
      * The same facts, language-neutral, for the screen to word in the user's language: the type code and its English
-     * and Arabic names (names left out when the type is unknown), ISO dates and the day count.
+     * and Arabic names (names left out when the type is unknown), ISO dates, the day count and the attachment's file
+     * name when one was uploaded (the file itself through the workflow's attachment endpoint).
      */
     static Map<String, Object> details(LeaveRequest lr, LeaveType type) {
         Map<String, Object> d = new LinkedHashMap<>();
@@ -32,6 +33,9 @@ final class LeaveRequestSummary {
         d.put("startDate", String.valueOf(lr.getStartDate()));
         d.put("endDate", String.valueOf(lr.getEndDate()));
         d.put("totalDays", lr.getTotalDays());
+        if (lr.getAttachmentName() != null) {
+            d.put("attachmentName", lr.getAttachmentName());
+        }
         return d;
     }
 

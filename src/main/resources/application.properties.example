@@ -89,6 +89,9 @@ hrms.work-email-domain=${HRMS_WORK_EMAIL_DOMAIN}
 # Business time zone: sets the JVM default so "today", expiry checks and the nightly attendance jobs
 # follow local time even on a UTC server.
 hrms.business-zone=${HRMS_BUSINESS_ZONE:Africa/Juba}
+# Approval workflow: branches that are Head Office (comma-separated COMPANY_BRANCHES codes). Their staff skip the
+# branch-manager step and their own department handles the request. Empty = no branch is Head Office.
+hrms.workflow.head-office-branch-codes=${HRMS_HEAD_OFFICE_BRANCH_CODES:JUBA_HO}
 
 # Document / attachment storage is in the database; this is the global upload size cap (MB).
 hrms.upload.max-file-size-mb=25

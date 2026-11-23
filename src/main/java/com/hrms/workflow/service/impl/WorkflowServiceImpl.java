@@ -3,6 +3,7 @@ package com.hrms.workflow.service.impl;
 import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.auth.service.AuditTrail;
 import com.hrms.common.exception.BusinessRuleException;
+import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.dto.response.DepartmentLookupResponse;
 import com.hrms.employee.service.DepartmentService;
 import com.hrms.workflow.dto.request.WorkflowActionRequest;
@@ -46,6 +47,9 @@ public class WorkflowServiceImpl implements WorkflowService {
     static final String CANCELLED = "CANCELLED";
     private static final Map<StepOutcome, HistoryAction> ACTION_OF = Map.of(StepOutcome.FORWARD,
         HistoryAction.FORWARDED, StepOutcome.APPROVE, HistoryAction.APPROVED, StepOutcome.REJECT, HistoryAction.REJECTED);
+
+    /** Key of the attachment's file name in a request's summary details (set by the request module). */
+    private static final String ATTACHMENT_NAME = "attachmentName";
 
     private final WorkflowPorts ports;
     private final FlowEngine engine;
@@ -100,11 +104,15 @@ public class WorkflowServiceImpl implements WorkflowService {
     /**
      * The applicant's department counts only when the step that picks it is held by the applicant (so it will be
      * skipped) or the flow has no step that picks it; otherwise it is dropped and that step's holder picks it on forward.
-     * Otherwise any applicant could pre-route the request to a department of their choice.
+     * Otherwise any applicant could pre-route the request to a department of their choice. A Head Office employee's
+     * picking branch step is skipped, so their own department is the target whatever they sent.
      */
     private Long applicantTarget(LoadedFlow flow, long requesterId, Long given) {
         List<WorkflowStep> pickers = flow.steps().values().stream()
             .filter(s -> Boolean.TRUE.equals(s.getPicksTargetDepartment())).toList();
+        if (pickers.stream().anyMatch(s -> resolver.branchStepNotApplicable(s, requesterId))) {
+            return resolver.departmentOf(requesterId).orElse(null);
+        }
         boolean requesterPicks = pickers.stream()
             .anyMatch(s -> resolver.resolve(s, requesterId, null).filter(id -> id == requesterId).isPresent());
         if (given == null) {
@@ -192,6 +200,16 @@ public class WorkflowServiceImpl implements WorkflowService {
     }
 
     @Override
+    @Transactional
+    public WorkflowRequestAccess.Attachment attachment(RequestType type, long requestId) {
+        scope.requireDecider(type, requestId);
+        WorkflowRequestAccess.Attachment file = ports.access(type).attachment(requestId)
+            .orElseThrow(() -> new ResourceNotFoundException("Attachment", "requestId", requestId));
+        audit.record("WORKFLOW_ATTACHMENT_DOWNLOADED", type.name(), requestId, "attachment downloaded");
+        return file;
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<RequestHistoryResponse> history(RequestType type, long requestId) {
         scope.related(type, requestId); // the participant check of spec 10: the HTTP layer needs no other
@@ -245,12 +263,15 @@ public class WorkflowServiceImpl implements WorkflowService {
                                            boolean callerMayOverride) {
         Set<StepOutcome> offered = callerMayAct ? allowed : Set.of();
         WorkflowRequestAccess.Brief brief = ports.access(type).brief(requestId);
+        boolean callerPicks = Boolean.TRUE.equals(step.getPicksTargetDepartment()) && offered.contains(StepOutcome.FORWARD);
         return new WorkflowStatusResponse(type, requestId, PENDING_PREFIX + step.getStepKey(), step.getStepKey(),
             step.getLabelEn(), step.getLabelAr(), List.copyOf(offered),
-            Boolean.TRUE.equals(step.getPicksTargetDepartment()) && offered.contains(StepOutcome.FORWARD),
+            callerPicks,
             brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), callerMayOverride,
             Boolean.TRUE.equals(step.getPicksTargetDepartment()) && allowed.contains(StepOutcome.FORWARD),
-            brief.details());
+            brief.details(),
+            callerPicks || callerMayOverride ? resolver.departmentOf(brief.requesterEmployeeId()).orElse(null) : null,
+            mayDownloadAttachment(type, requestId, brief));
     }
 
     /** Downstream effects first, then the request's terminal stage: a handler failure leaves the stage untouched. */
@@ -301,9 +322,16 @@ public class WorkflowServiceImpl implements WorkflowService {
         audit.record("WORKFLOW_" + action.name(), type.name(), requestId, detail);
     }
 
+    /** Only when there is a file: whether the caller decides on the request (not the forwarding secretary). */
+    private boolean mayDownloadAttachment(RequestType type, long requestId, WorkflowRequestAccess.Brief brief) {
+        return brief.details().containsKey(ATTACHMENT_NAME)
+            && scope.isDecider(type, requestId, scope.related(type, requestId));
+    }
+
     private WorkflowStatusResponse closed(RequestType type, long requestId, String stage) {
         WorkflowRequestAccess.Brief brief = ports.access(type).brief(requestId);
         return new WorkflowStatusResponse(type, requestId, stage, null, null, null, List.of(), false,
-            brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), false, false, brief.details());
+            brief.requesterEmployeeId(), brief.requesterName(), brief.summary(), false, false, brief.details(), null,
+            mayDownloadAttachment(type, requestId, brief));
     }
 }

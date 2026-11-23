@@ -8,13 +8,20 @@ import com.hrms.workflow.dto.response.RequestHistoryResponse;
 import com.hrms.workflow.dto.response.WorkflowStatusResponse;
 import com.hrms.workflow.enums.RequestType;
 import com.hrms.workflow.service.WorkflowDefinitionService;
+import com.hrms.workflow.service.WorkflowRequestAccess;
 import com.hrms.workflow.service.WorkflowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -71,6 +78,23 @@ public class WorkflowController {
     public ResponseEntity<ApiResponse<List<RequestHistoryResponse>>> history(@PathVariable RequestType type,
                                                                             @PathVariable long requestId) {
         return ok("History fetched", workflowService.history(type, requestId));
+    }
+
+    /**
+     * The request's attachment (e.g. a sick-leave certificate) for everyone involved in the request: the requester,
+     * its approvers and the overseers; 403 for anyone else (checked in the service). Always a download, never shown
+     * inline, so an uploaded file cannot run in the browser.
+     */
+    @GetMapping("/requests/{type}/{requestId}/attachment")
+    @PreAuthorize(PARTICIPANT_ROLES)
+    public ResponseEntity<Resource> attachment(@PathVariable RequestType type, @PathVariable long requestId) {
+        WorkflowRequestAccess.Attachment file = workflowService.attachment(type, requestId);
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename(file.fileName(), StandardCharsets.UTF_8).build().toString())
+            .header("X-Content-Type-Options", "nosniff")
+            .body(new ByteArrayResource(file.content()));
     }
 
     /** HR_ADMIN, and SYSTEM_ADMIN only while the SYSTEM_ADMIN_CAN_MANAGE_WORKFLOWS setting is true. */

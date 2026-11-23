@@ -3,6 +3,7 @@ package com.hrms.leave.service.impl;
 import com.hrms.common.exception.ResourceNotFoundException;
 import com.hrms.employee.repository.EmployeeRepository;
 import com.hrms.leave.entity.LeaveRequest;
+import com.hrms.leave.repository.LeaveRequestAttachmentContentRepository;
 import com.hrms.leave.repository.LeaveRequestRepository;
 import com.hrms.leave.repository.LeaveTypeRepository;
 import com.hrms.workflow.enums.RequestType;
@@ -24,6 +25,7 @@ class LeaveWorkflowAccess implements WorkflowRequestAccess {
     private final LeaveRequestRepository requests;
     private final EmployeeRepository employees;
     private final LeaveTypeRepository leaveTypes;
+    private final LeaveRequestAttachmentContentRepository attachments;
 
     @Override
     public RequestType type() {
@@ -48,6 +50,20 @@ class LeaveWorkflowAccess implements WorkflowRequestAccess {
             LeaveRequestSummary.text(lr),
             LeaveRequestSummary.details(lr, lr.getLeaveTypeCode() == null ? null
                 : leaveTypes.findByCodeIgnoreCase(lr.getLeaveTypeCode()).orElse(null)));
+    }
+
+    @Override
+    public Optional<Long> definitionId(long requestId) {
+        return Optional.ofNullable(load(requestId).getWorkflowDefinitionId());
+    }
+
+    @Override
+    public Optional<Attachment> attachment(long requestId) {
+        LeaveRequest lr = load(requestId);
+        if (lr.getAttachmentName() == null) {
+            return Optional.empty();
+        }
+        return attachments.findById(requestId).map(c -> new Attachment(lr.getAttachmentName(), c.getContent()));
     }
 
     @Override

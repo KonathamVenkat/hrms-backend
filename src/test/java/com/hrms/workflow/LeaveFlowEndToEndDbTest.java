@@ -42,6 +42,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -375,6 +376,72 @@ class LeaveFlowEndToEndDbTest extends DatabaseTest {
         assertEquals("PENDING_SECRETARY", stageSeenBy(branchManager, id));
         assertEquals(ID, leave(id).getTargetDepartmentId());
         assertInboxOnlyFor(id, secretary);
+    }
+
+    /**
+     * Head Office staff (branch code in hrms.workflow.head-office-branch-codes) skip the branch manager: their own
+     * department is the target, whatever department they sent, and the request starts at its secretary.
+     */
+    @Test
+    void aHeadOfficeEmployeeSkipsTheBranchManagerAndTheirOwnDepartmentIsUsed() throws Exception {
+        jdbc.update("""
+            insert into HRMS.COMPANY_BRANCHES (COMPANY_BRANCH_ID, COMPANY_ID, COMPANY_BRANCHES_CODE, COMPANY_BRANCHES_NAME,
+                COMPANY_BRANCHES_NAME_AR, LOCATION_ID, BRANCH_MANAGER_EMPLOYEE_ID)
+            values (?, ?, 'TEST_HO', 'E2e Head Office', N'x', ?, ?)""", ID + 1, ID, ID, branchManager);
+        jdbc.update("update HRMS.EMPLOYEE_JOB_DETAILS set COMPANY_BRANCH_ID = ? where EMPLOYEE_ID = ? and IS_CURRENT = 1",
+            ID + 1, requester);
+        em.clear();
+
+        long id = apply();
+
+        assertEquals("PENDING_SECRETARY", stageSeenBy(requester, id));
+        assertEquals(ID, leave(id).getTargetDepartmentId());
+        assertInboxOnlyFor(id, secretary);
+        assertEquals(List.of("SUBMITTED", "AUTO_ROUTED"), history(id, "action"));
+    }
+
+    /**
+     * The sick note travels with the request: its name is in the summary facts and those who decide (branch manager,
+     * head, HR) can download it through the workflow (the leave endpoint is owner-or-HR only); the department
+     * secretary, who only forwards, and anyone unrelated get 403; a request without a file 404.
+     */
+    @Test
+    void decidersCanDownloadTheAttachmentButNotTheSecretaryOrOutsiders() throws Exception {
+        long id = apply();
+        call(branchManager, get(BASE + id + "/attachment")).andExpect(status().isNotFound());
+        jdbc.update("update HRMS.LEAVE_REQUESTS set ATTACHMENT_NAME = 'sick-note.pdf', ATTACHMENT_SIZE = 4 where LEAVE_REQ_ID = ?", id);
+        jdbc.update("insert into HRMS.LEAVE_REQUEST_ATTACHMENT_CONTENT (LEAVE_REQ_ID, CONTENT) values (?, ?)", id,
+            "%PDF".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        em.clear();
+
+        assertEquals("sick-note.pdf", JsonPath.read(body(call(branchManager, get(BASE + id + "/workflow"))),
+            "$.data.summaryDetails.attachmentName"));
+        var download = call(branchManager, get(BASE + id + "/attachment")).andExpect(status().isOk()).andReturn().getResponse();
+        assertEquals("%PDF", download.getContentAsString());
+        assertTrue(download.getHeader("Content-Disposition").startsWith("attachment"));
+        assertEquals("nosniff", download.getHeader("X-Content-Type-Options"));
+        call(requester, get(BASE + id + "/attachment")).andExpect(status().isOk());
+        call(other, get(BASE + id + "/attachment")).andExpect(status().isForbidden());
+
+        // the department secretary only forwards: never the document, neither while it is her turn nor afterwards
+        actOk(id, branchManager, "BRANCH", "FORWARD", ID, null, "PENDING_SECRETARY");
+        assertTrue(body(call(secretary, get(BASE + id + "/workflow")).andExpect(status().isOk()))
+            .contains("\"mayDownloadAttachment\":false"));
+        call(secretary, get(BASE + id + "/attachment")).andExpect(status().isForbidden());
+        actOk(id, secretary, "SECRETARY", "FORWARD", null, null, "PENDING_HEAD");
+        call(secretary, get(BASE + id + "/attachment")).andExpect(status().isForbidden());
+        assertTrue(body(call(head, get(BASE + id + "/workflow"))).contains("\"mayDownloadAttachment\":true"));
+        call(head, get(BASE + id + "/attachment")).andExpect(status().isOk());
+        call(branchManager, get(BASE + id + "/attachment")).andExpect(status().isOk());   // past actor at a deciding step
+        call(hr, get(BASE + id + "/attachment")).andExpect(status().isOk());
+    }
+
+    /** At the branch step the branch manager is offered the requester's own department to start from. */
+    @Test
+    void theBranchManagerIsOfferedTheRequestersOwnDepartment() throws Exception {
+        long id = apply();
+        assertTrue(body(call(branchManager, get(BASE + id + "/workflow"))).contains("\"suggestedTargetDepartmentId\":" + ID));
+        assertFalse(body(call(requester, get(BASE + id + "/workflow"))).contains("suggestedTargetDepartmentId"));
     }
 
     /** I2: replacing the head mid-flight moves the request to the new head's inbox; the old head is refused. */

@@ -58,6 +58,14 @@ public class ApproverResolver {
         return Optional.of(ApprovalRouting.stepRole(step.getApproverRole(), requesterRole));
     }
 
+    /**
+     * A branch-manager step does not apply to Head Office staff: their own department handles the request (the step is
+     * skipped and the target is their department).
+     */
+    public boolean branchStepNotApplicable(WorkflowStep step, long requesterEmployeeId) {
+        return step.getApproverType() == ApproverType.BRANCH_MANAGER && organisation.worksAtHeadOffice(requesterEmployeeId);
+    }
+
     /** The requester's own current active department (default target for a requester who picks it themselves). */
     public Optional<Long> departmentOf(long employeeId) {
         return organisation.departmentOf(employeeId);

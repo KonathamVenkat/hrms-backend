@@ -121,6 +121,31 @@ class OrganisationLookupDbTest extends DatabaseTest {
     }
 
     @Test
+    void approverPostsForTheSidebar() {
+        Long manager = employee("m");
+        Long head = employee("h");
+        Long secretary = employee("s");
+        Long worker = employee("w");
+        fixtures(manager, head, secretary, 1, worker);
+
+        assertTrue(lookup.holdsApproverPost(manager));
+        assertTrue(lookup.holdsApproverPost(head));
+        assertTrue(lookup.holdsApproverPost(secretary));
+        assertFalse(lookup.holdsApproverPost(worker));
+        assertTrue(lookup.headsActiveDepartment(head));
+        assertFalse(lookup.headsActiveDepartment(manager));
+        assertFalse(lookup.headsActiveDepartment(secretary));
+
+        jdbc.update("update HRMS.DEPARTMENTS set IS_ACTIVE = 0 where DEPT_ID = 990201");
+        jdbc.update("update HRMS.COMPANY_BRANCHES set IS_ACTIVE = 0 where COMPANY_BRANCH_ID = 990201");
+        em.clear();
+        assertFalse(lookup.headsActiveDepartment(head), "inactive department");
+        assertFalse(lookup.holdsApproverPost(head), "inactive department");
+        assertFalse(lookup.holdsApproverPost(secretary), "inactive department");
+        assertFalse(lookup.holdsApproverPost(manager), "inactive branch");
+    }
+
+    @Test
     void employeeWhoseOnlyJobRowIsNotCurrentHasNoBranchManager() {
         Long manager = employee("m");
         Long worker = employee("w");

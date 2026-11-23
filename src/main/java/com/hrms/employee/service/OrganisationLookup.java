@@ -24,6 +24,13 @@ public interface OrganisationLookup {
     /** The role of the employee's login (e.g. "HR_ADMIN", "GENERAL_MANAGER"); empty when the employee has no login. */
     Optional<String> accountRoleOf(long employeeId);
 
+    /** Whether the employee heads at least one active department. */
+    boolean headsActiveDepartment(long employeeId);
+
+    /** Whether the employee holds a workflow approver post: head or secretary of an active department, or manager of
+     *  an active branch. */
+    boolean holdsApproverPost(long employeeId);
+
     boolean departmentExists(long departmentId);
 
     boolean isDepartmentActive(long departmentId);

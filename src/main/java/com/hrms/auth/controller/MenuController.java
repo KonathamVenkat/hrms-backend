@@ -1,5 +1,6 @@
 package com.hrms.auth.controller;
 
+import com.hrms.auth.security.EmployeeAccessGuard;
 import com.hrms.auth.service.MenuService;
 import com.hrms.common.dto.ApiResponse;
 import com.hrms.common.dto.MenuDto;
@@ -15,6 +16,7 @@ import java.util.List;
 public class MenuController {
 
     private final MenuService menuService;
+    private final EmployeeAccessGuard accessGuard;
 
     // ── GET /api/v1/menu/sidebar ─────────────────────────────
     // Called by Angular sidebar on app load
@@ -28,7 +30,7 @@ public class MenuController {
             .findFirst()
             .map(a -> a.getAuthority().replace("ROLE_", ""))
             .orElse("EMPLOYEE");
-        List<MenuDto> menu = menuService.getMenuForUser(roleName);
+        List<MenuDto> menu = menuService.getMenuForUser(roleName, accessGuard.currentEmployeeId());
         return ResponseEntity.ok(
             ApiResponse.<List<MenuDto>>builder()
                 .success(true)

@@ -61,6 +61,19 @@ public class OrganisationLookupImpl implements OrganisationLookup {
     }
 
     @Override
+    public boolean headsActiveDepartment(long employeeId) {
+        return departmentRepository.findByHeadEmployeeId(employeeId).stream().anyMatch(OrganisationLookupImpl::active);
+    }
+
+    @Override
+    public boolean holdsApproverPost(long employeeId) {
+        return headsActiveDepartment(employeeId)
+            || departmentRepository.findBySecretaryEmployeeId(employeeId).stream().anyMatch(OrganisationLookupImpl::active)
+            || branchRepository.findByBranchManagerEmployeeId(employeeId).stream()
+                .anyMatch(b -> Boolean.TRUE.equals(b.getIsActive()));
+    }
+
+    @Override
     public boolean departmentExists(long departmentId) {
         return departmentRepository.existsById(departmentId);
     }

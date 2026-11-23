@@ -12,6 +12,8 @@ import com.hrms.auth.repository.SubMenuRepository;
 import com.hrms.auth.service.MenuService;
 import com.hrms.common.dto.MenuDto;
 import com.hrms.common.dto.MenuDto.SubMenuDto;
+import com.hrms.common.enums.UserRole;
+import com.hrms.employee.service.OrganisationLookup;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 @Slf4j
 @Service
@@ -29,13 +32,19 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 public class MenuServiceImpl implements MenuService {
 
+    /** Approvals inbox: for an EMPLOYEE login, only branch managers and department heads/secretaries have work there. */
+    static final String WORKFLOW_INBOX = "WORKFLOW_INBOX";
+    /** Requisitions: for an EMPLOYEE login, only a department head may raise one. */
+    static final String REC_REQUISITIONS = "REC_REQUISITIONS";
+
     private final RolesRepository       rolesRepository;
     private final MainMenuRepository   mainMenuRepository;
     private final SubMenuRepository    subMenuRepository;
     private final RoleRightsRepository roleRightsRepository;
+    private final OrganisationLookup   organisation;
 
     @Override
-    public List<MenuDto> getMenuForUser(String roleName) {
+    public List<MenuDto> getMenuForUser(String roleName, Long employeeId) {
         log.debug("Building sidebar menu for role: {}", roleName);
 
         Optional<Roles> roleOpt = rolesRepository.findByRoleName(roleName);
@@ -45,26 +54,43 @@ public class MenuServiceImpl implements MenuService {
             return new ArrayList<>();
         }
         Roles role = roleOpt.get();
+        Predicate<SubMenu> shown = postFilter(roleName, employeeId);
         List<MainMenu> allActiveMenus = mainMenuRepository
                 .findByIsActiveOrderBySortOrder(1);
 
         List<MenuDto> result = new ArrayList<>();
         for (MainMenu mainMenu : allActiveMenus) {
-            buildMenuDto(role, mainMenu).ifPresent(result::add);
+            buildMenuDto(role, mainMenu, shown).ifPresent(result::add);
         }
 
         log.debug("Menu built for role [{}] — {} items", roleName, result.size());
         return result;
     }
 
-    private Optional<MenuDto> buildMenuDto(Roles role, MainMenu mainMenu) {  // ✅ Roles
+    /**
+     * Convenience only (the API enforces the same rules): an EMPLOYEE login is everyone from a clerk to a department
+     * head, so the two post-based items are shown only to holders of the post. Other roles see their rights unchanged.
+     * Each item occurs once per menu, so each check runs at most once, and only when the item is in the role's rights.
+     */
+    private Predicate<SubMenu> postFilter(String roleName, Long employeeId) {
+        if (!UserRole.EMPLOYEE.name().equals(roleName)) {
+            return sub -> true;
+        }
+        return sub -> switch (String.valueOf(sub.getSubMenuCode())) {
+            case WORKFLOW_INBOX -> employeeId != null && organisation.holdsApproverPost(employeeId);
+            case REC_REQUISITIONS -> employeeId != null && organisation.headsActiveDepartment(employeeId);
+            default -> true;
+        };
+    }
+
+    private Optional<MenuDto> buildMenuDto(Roles role, MainMenu mainMenu, Predicate<SubMenu> shown) {  // ✅ Roles
         List<RoleRights> mainRights = roleRightsRepository
                 .findByRoleIdAndMainMenuId(role.getRoleId(), mainMenu.getMainMenuId());
 
         if (mainRights.isEmpty()) return Optional.empty();
 
         MenuDto dto = mapToMenuDto(mainMenu);
-        List<SubMenuDto> children = buildSubMenuDtos(role, mainMenu);
+        List<SubMenuDto> children = buildSubMenuDtos(role, mainMenu, shown);
 
         if (mainMenu.getRoute() == null && children.isEmpty()) return Optional.empty();
         if (!children.isEmpty()) dto.setChildren(children);
@@ -72,7 +98,7 @@ public class MenuServiceImpl implements MenuService {
         return Optional.of(dto);
     }
 
-    private List<SubMenuDto> buildSubMenuDtos(Roles role, MainMenu mainMenu) {  // ✅ Roles
+    private List<SubMenuDto> buildSubMenuDtos(Roles role, MainMenu mainMenu, Predicate<SubMenu> shown) {  // ✅ Roles
         List<RoleRights> subRights = roleRightsRepository
                 .findSubMenuRightsByRole(role.getRoleId(), mainMenu.getMainMenuId());
 
@@ -80,7 +106,7 @@ public class MenuServiceImpl implements MenuService {
         for (RoleRights right : subRights) {
             if (right.getMenuId() == null) continue;
             subMenuRepository.findById(right.getMenuId()).ifPresent(sub -> {
-                if (sub.getIsActive() != null && sub.getIsActive() == 1) {
+                if (sub.getIsActive() != null && sub.getIsActive() == 1 && shown.test(sub)) {
                     children.add(mapToSubMenuDto(sub, right));
                 }
             });

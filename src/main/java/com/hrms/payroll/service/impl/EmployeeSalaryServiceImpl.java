@@ -116,11 +116,11 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     + previousCurrent.get().getEffectiveFrom() + ").");
         }
 
-        // Deactivate previous salary record if exists
+        // Close the previous record the day before this one starts: no gap, no overlap in the history.
         previousCurrent.ifPresent(existing -> {
             log.info("Deactivating previous salary record id={}",
                     existing.getEmpSalaryId());
-            salaryRepo.deactivateCurrent(request.employeeId());
+            salaryRepo.deactivateCurrent(request.employeeId(), effectiveFrom.minusDays(1));
         });
 
         // ── Calculate gross and net from structure ──────

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,10 +45,15 @@ public interface EmployeeSalaryRepository
 
     // Mark old record as not current
     @Modifying
+    /**
+     * Closes the current record so it ends on {@code lastDay}: the day before the replacing record starts, so the history
+     * has no gap (future-dated change) and no overlap (back-dated change). The caller guarantees lastDay is not before the
+     * current record's start (the new start must be after it).
+     */
     @Query("""
             UPDATE EmployeeSalary e
-            SET e.isCurrent = 0, e.effectiveTo = CURRENT_DATE
+            SET e.isCurrent = 0, e.effectiveTo = :lastDay
             WHERE e.employeeId = :employeeId AND e.isCurrent = 1
             """)
-    void deactivateCurrent(@Param("employeeId") Long employeeId);
+    void deactivateCurrent(@Param("employeeId") Long employeeId, @Param("lastDay") LocalDate lastDay);
 }

@@ -102,9 +102,46 @@ class EmployeeSalaryServiceImplTest {
         InOrder order = inOrder(employees, structures, salaries);
         order.verify(employees).findByIdForUpdate(5L);
         order.verify(structures).findByIdForUpdate(3L);
-        order.verify(salaries).deactivateCurrent(5L);
+        order.verify(salaries).deactivateCurrent(5L, LocalDate.now().minusDays(1));
         order.verify(salaries).save(any());
         verify(components).findAllByIdForUpdate(any());
+    }
+
+    @Test
+    void aFutureDatedSalaryClosesTheCurrentOneTheDayBeforeItStartsLeavingNoGap() {
+        EmployeeSalary previous = EmployeeSalary.builder().empSalaryId(1L).employeeId(5L)
+                .effectiveFrom(LocalDate.now().minusDays(1)).isCurrent(1).build();
+        when(salaries.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(previous));
+        LocalDate starts = LocalDate.now().plusDays(8);
+
+        service.assign(new EmployeeSalaryRequest(5L, 3L, new BigDecimal("1500.00"), starts.toString(), null, null, null));
+
+        verify(salaries).deactivateCurrent(5L, starts.minusDays(1));   // not today: today would leave a week uncovered
+    }
+
+    @Test
+    void aBackDatedSalaryClosesTheCurrentOneTheDayBeforeItStartsLeavingNoOverlap() {
+        EmployeeSalary previous = EmployeeSalary.builder().empSalaryId(1L).employeeId(5L)
+                .effectiveFrom(LocalDate.now().minusDays(60)).isCurrent(1).build();
+        when(salaries.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(previous));
+        LocalDate starts = LocalDate.now().minusDays(20);
+
+        service.assign(new EmployeeSalaryRequest(5L, 3L, new BigDecimal("1500.00"), starts.toString(), null, null, null));
+
+        verify(salaries).deactivateCurrent(5L, starts.minusDays(1));   // not today: today would pay 20 days twice
+    }
+
+    @Test
+    void aSalaryStartingTheDayAfterTheCurrentOneClosesItOnItsOwnFirstDay() {
+        LocalDate currentStart = LocalDate.now().minusDays(5);
+        EmployeeSalary previous = EmployeeSalary.builder().empSalaryId(1L).employeeId(5L)
+                .effectiveFrom(currentStart).isCurrent(1).build();
+        when(salaries.findByEmployeeIdAndIsCurrent(5L, 1)).thenReturn(Optional.of(previous));
+
+        service.assign(new EmployeeSalaryRequest(5L, 3L, new BigDecimal("1500.00"), currentStart.plusDays(1).toString(),
+                null, null, null));
+
+        verify(salaries).deactivateCurrent(5L, currentStart);   // a one-day record, never ending before it starts
     }
 
     @Test
@@ -148,7 +185,7 @@ class EmployeeSalaryServiceImplTest {
         assertThrows(ResourceNotFoundException.class, () -> service.assign(
                 new EmployeeSalaryRequest(6L, 3L, new BigDecimal("1500.00"), LocalDate.now().toString(), null, null, null)));
         verify(salaries, never()).save(any());
-        verify(salaries, never()).deactivateCurrent(any());
+        verify(salaries, never()).deactivateCurrent(any(), any());
     }
 
     // ── Pay scale (step 3): a graded employee's basic comes from the scale, on the grade's structure ──
@@ -173,7 +210,7 @@ class EmployeeSalaryServiceImplTest {
     private void assertRefused(String rule, EmployeeSalaryRequest req) {
         BusinessRuleException ex = assertThrows(BusinessRuleException.class, () -> service.assign(req));
         assertEquals(rule, ex.getRuleCode());
-        verify(salaries, never()).deactivateCurrent(any());
+        verify(salaries, never()).deactivateCurrent(any(), any());
         verify(salaries, never()).save(any());
     }
 
